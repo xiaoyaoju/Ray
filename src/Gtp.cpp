@@ -20,16 +20,16 @@
 
 using namespace std;
 
-GTP_command_t gtpcmd[GTP_COMMAND_NUM];
+static GTP_command_t gtpcmd[GTP_COMMAND_NUM];
 
-char input[BUF_SIZE], input_copy[BUF_SIZE];
-char *next_token;
+static char input[BUF_SIZE], input_copy[BUF_SIZE];
+static char *next_token;
 
-char *brank, *err_command, *err_genmove, *err_play, *err_komi;
+static char *brank, *err_command, *err_genmove, *err_play, *err_komi;
 
-int player_color = 0;
+static int player_color = 0;
 
-game_info_t *game;
+static game_info_t *game;
 
 
 ///////////////////////

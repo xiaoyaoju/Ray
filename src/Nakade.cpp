@@ -11,27 +11,27 @@ using namespace std;
 
 
 // 3目中手のパターンのハッシュ値
-unsigned long long nakade3_hash[6];
+static unsigned long long nakade3_hash[6];
 // 4目中手のパターンのハッシュ値
-unsigned long long nakade4_hash[5];
+static unsigned long long nakade4_hash[5];
 // 5目中手のパターンのハッシュ値
-unsigned long long nakade5_hash[9];
+static unsigned long long nakade5_hash[9];
 // 6目中手のパターンのハッシュ値
-unsigned long long nakade6_hash[4];
+static unsigned long long nakade6_hash[4];
 
 // 3目中手の急所
-int nakade3_pos[6];
+static int nakade3_pos[6];
 // 4目中手の急所
-int nakade4_pos[5];
+static int nakade4_pos[5];
 // 5目中手の急所
-int nakade5_pos[9];
+static int nakade5_pos[9];
 // 6目中手の急所
-int nakade6_pos[4];
+static int nakade6_pos[4];
 
 static int start = BOARD_MAX / 2;  
 
 // ナカデが現れないパターン
-const unsigned int nakade_none[134] = {
+static const unsigned int nakade_none[134] = {
   0x0000, 0x0001, 0x0004, 0x0005, 0x0006, 0x0012, 0x0015, 0x0016, 0x003f, 0x0044,
   0x0045, 0x0046, 0x0048, 0x0049, 0x0054, 0x0055, 0x0056, 0x0060, 0x0061, 0x0064,
   0x0065, 0x0068, 0x0069, 0x006a, 0x007f, 0x0180, 0x0182, 0x0184, 0x0185, 0x0186,
@@ -49,7 +49,7 @@ const unsigned int nakade_none[134] = {
 };
 
 // ナカデが出現するパターンとその方向
-const unsigned int nakade_mask[446][2] = {
+static const unsigned int nakade_mask[446][2] = {
   {0x0011, 0x0004}, {0x0019, 0x0004}, {0x0050, 0x0004}, {0x0051, 0x0004}, {0x0052, 0x0004},
   {0x0058, 0x0004}, {0x0059, 0x0004}, {0x005a, 0x0004}, {0x0062, 0x0008}, {0x0066, 0x0008},
   {0x0140, 0x1004}, {0x0141, 0x1004}, {0x0142, 0x1004}, {0x0144, 0x1000}, {0x0145, 0x1000},
@@ -151,7 +151,7 @@ const unsigned int nakade_mask[446][2] = {
 };
 
 
-int nakade_pat3_mask[PAT3_MAX];
+static int nakade_pat3_mask[PAT3_MAX];
 
 //////////////
 //  初期化  //
