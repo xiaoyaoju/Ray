@@ -1,6 +1,7 @@
 #ifndef _GO_BOARD_H_
 #define _GO_BOARD_H_
 
+#include <vector>
 #include "Pattern.h"
 
 ////////////////
@@ -238,4 +239,11 @@ void SetKomi( double new_komi );
 // è„â∫ç∂âEÇÃç¿ïWÇÃåvéZ
 void GetNeighbor4( int neighbor4[4], int pos );
 
+
+struct uct_node_t;
+
+void
+WritePlanes( std::vector<float>& data, std::vector<float>& data2, const game_info_t *game, const uct_node_t *root,
+	int move, int *moveT,
+	int color, int tran = 0 );
 #endif

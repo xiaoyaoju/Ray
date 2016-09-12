@@ -1,12 +1,12 @@
 #ifndef _GTP_H_
 #define _GTP_H_
 
-const int GTP_COMMAND_NUM = 25;
+const int GTP_COMMAND_NUM = 26;
 
 const int BUF_SIZE = 256;
 
 #define DELIM  " "
-#define PROGRAM_NAME  "Ray"
+#define PROGRAM_NAME  "Rayon"
 #define PROGRAM_VERSION  "8.0.1"
 #define PROTOCOL_VERSION  "2"
 
@@ -77,5 +77,7 @@ void GTP_final_status_list( void );
 void GTP_set_free_handicap( void );
 // fixed_handicapÉRÉ}ÉìÉhÇèàóù
 void GTP_fixed_handicap( void );
+//
+void GTP_features_planes_file( void );
 
 #endif

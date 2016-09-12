@@ -25,6 +25,7 @@ const string command[COMMAND_MAX] = {
   "--tree-size",
   "--no-debug",
   "--no-early-pass",
+  "--no-nn",
 };
 
 const string errmessage[COMMAND_MAX] = {
@@ -40,6 +41,7 @@ const string errmessage[COMMAND_MAX] = {
   "Set tree size (tree size must be 2 ^ n)",
   "Prohibit any debug message",
   "No early pass",
+  "Don't use NN",
 };
 
 
@@ -106,6 +108,9 @@ AnalyzeCommand( int argc, char **argv )
         break;
       case COMMAND_NO_EARLY_PASS:
 	SetEarlyPass(false);
+	break;
+      case COMMAND_NO_NN:
+	SetUseNN(false);
 	break;
       default:
 	for (j = 0; j < COMMAND_MAX; j++){

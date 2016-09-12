@@ -5,6 +5,9 @@
 #include <cstring>
 #include <cctype>
 #include <iostream>
+#include <fstream>
+#include <vector>
+#include <random>
 
 #include "DynamicKomi.h"
 #include "Gtp.h"
@@ -31,6 +34,10 @@ static int player_color = 0;
 
 static game_info_t *game;
 
+static game_info_t *game_prev;
+
+static std::ofstream stream("data.txt", std::ios::app | std::ios::binary);
+
 
 ///////////////////////
 //  void GTP_main()  //
@@ -42,6 +49,9 @@ GTP_main( void )
 
   game = AllocateGame();
   InitializeBoard(game);
+
+  game_prev = AllocateGame();
+  InitializeBoard(game_prev);
 
   GTP_setCommand();
   GTP_message();
@@ -118,6 +128,7 @@ GTP_setCommand( void )
   gtpcmd[22].command = STRDUP("place_free_handicap");
   gtpcmd[23].command = STRDUP("set_free_handicap");
   gtpcmd[24].command = STRDUP("kgs-genmove_cleanup");
+  gtpcmd[25].command = STRDUP("features_planes_file");
 
   gtpcmd[ 0].function = GTP_boardsize;
   gtpcmd[ 1].function = GTP_clearboard;
@@ -144,6 +155,7 @@ GTP_setCommand( void )
   gtpcmd[22].function = GTP_fixed_handicap;
   gtpcmd[23].function = GTP_set_free_handicap;
   gtpcmd[24].function = GTP_kgs_genmove_cleanup;
+  gtpcmd[25].function = GTP_features_planes_file;
 }
 
 
@@ -170,6 +182,9 @@ GTP_response( const char *res, bool success )
 void
 GTP_boardsize( void )
 {
+#if defined (_WIN32)
+  FILE *fp;
+#endif
   char *command;
   int size;
   char buf[1024];
@@ -208,6 +223,9 @@ GTP_boardsize( void )
 void
 GTP_clearboard( void )
 {
+#if defined (_WIN32)
+  FILE *fp;
+#endif
   player_color = 0;
   SetHandicapNum(0);
   FreeGame(game);
@@ -333,6 +351,7 @@ GTP_play( void )
     pos = StringToInteger(command);
   }
 
+  CopyGame(game_prev, game);
   if (pos != RESIGN) {
     PutStone(game, pos, color);
   }
@@ -844,3 +863,47 @@ GTP_kgs_genmove_cleanup( void )
 }
  
 
+void GTP_features_planes_file(void)
+{
+  int color = game->record[game->moves - 1].color;
+  int move = game->record[game->moves - 1].pos;
+  if (move == RESIGN || move == PASS) {
+    GTP_response(brank, true);
+    return;
+  }
+#if 0
+  UctSearchStat(game_prev, color, 100);
+#endif
+  uct_node_t *root = &uct_node[current_root];
+
+  std::vector<float> data, data2;
+  int moveT;
+  int t = rand() / 11 % 8;
+  WritePlanes(data, data2, game_prev, root, move, &moveT, color, t);
+  int x = CORRECT_X(moveT) - 1;
+  int y = CORRECT_Y(moveT) - 1;
+  int label = x + y * pure_board_size;
+  if (label < 0 || label > 19 * 19) {
+    cerr << "bad label " << x << " " << y << endl;
+    abort();
+  }
+
+  stream << "|labels " << label << ":1";
+  stream << "|features ";
+  //stream << '\n';
+  for (auto i = 0; i < data.size(); i++) {
+    //if (i % 19 == 0) stream << '\n';
+    float f = data[i];
+    if (f != 0) {
+      stream << i << ':' << f << ' ';
+    }
+  }
+#if 0
+  stream << "|features2 ";
+  for (auto i = 0; i < data2.size(); i++) {
+    stream << data2[i] << ' ';
+  }
+#endif
+  stream << '\n';
+  GTP_response(brank, true);
+}

@@ -7,9 +7,12 @@
 #include <cstring>
 #include <iomanip>
 #include <iostream>
+#include <iterator>
 #include <mutex>
+#include <numeric>
 #include <thread>
 #include <random>
+#include <queue>
 
 #include "DynamicKomi.h"
 #include "GoBoard.h"
@@ -29,12 +32,26 @@
 #include <semaphore.h>
 #endif
 
+#include "Eval.h"
+
 using namespace std;
 
 #define LOCK_NODE(var) mutex_nodes[(var)].lock()
 #define UNLOCK_NODE(var) mutex_nodes[(var)].unlock()
 #define LOCK_EXPAND mutex_expand.lock();
 #define UNLOCK_EXPAND mutex_expand.unlock();
+
+typedef std::pair<std::wstring, std::vector<float>*> MapEntry;
+typedef std::map<std::wstring, std::vector<float>*> Layer;
+struct node_eval_req {
+  int index;
+  std::vector<float> data;
+  std::vector<float> data2;
+};
+
+void ReadWeights();
+void EvalNode();
+
 
 ////////////////
 //  大域変数  //
@@ -123,6 +140,12 @@ int my_color;
 clock_t begin_time;
 
 static bool early_pass = true;
+
+static bool use_nn = true;
+static std::queue<node_eval_req> eval_queue;
+static int eval_count;
+
+static Microsoft::MSR::CNTK::IEvaluateModel<float>* nn_model = nullptr;
 
 ///////////////////
 //
@@ -216,6 +239,15 @@ SetParameter(void)
   }
 }
 
+////////////////////
+//  NN利用の設定  //
+////////////////////
+void
+SetUseNN(bool flag)
+{
+  use_nn = flag;
+}
+
 
 /////////////////////////
 //  UCT探索の初期設定  //
@@ -244,6 +276,8 @@ InitializeUctSearch(void)
     exit(1);
   }
 
+  if (use_nn && !nn_model)
+    ReadWeights();
 }
 
 
@@ -336,7 +370,14 @@ StopPondering()
     for (i = 0; i < threads; i++) {
       handle[i]->join();
       delete handle[i];
+      handle[i] = nullptr;
     }
+    if (use_nn) {
+      handle[threads]->join();
+      delete handle[threads];
+      handle[threads] = nullptr;
+    }
+
     ponder = false;
     pondered = true;
     PrintPonderingCount(po_info.count);
@@ -381,6 +422,10 @@ UctSearchGenmove(game_info_t *game, int color)
     ClearUctHash();
   }
 
+  queue<node_eval_req> empty;
+  eval_queue.swap(empty);
+  eval_count = 0;
+
   // 探索開始時刻の記録
   begin_time = clock();
 
@@ -417,10 +462,20 @@ UctSearchGenmove(game_info_t *game, int color)
     handle[i] = new thread(ParallelUctSearch, &t_arg[i]);
   }
 
+  if (use_nn)
+    handle[threads] = new thread(EvalNode);
+
   for (i = 0; i < threads; i++) {
     handle[i]->join();
     delete handle[i];
+    handle[i] = nullptr;
   }
+  if (use_nn) {
+    handle[threads]->join();
+    delete handle[threads];
+    handle[threads] = nullptr;
+  }
+
   // 着手が41手以降で, 
   // 時間延長を行う設定になっていて,
   // 探索時間延長をすべきときは
@@ -433,10 +488,18 @@ UctSearchGenmove(game_info_t *game, int color)
     for (i = 0; i < threads; i++) {
       handle[i] = new thread(ParallelUctSearch, &t_arg[i]);
     }
+    if (use_nn)
+      handle[threads] = new thread(EvalNode);
 
     for (i = 0; i < threads; i++) {
       handle[i]->join();
       delete handle[i];
+      handle[i] = nullptr;
+    }
+    if (use_nn) {
+      handle[threads]->join();
+      delete handle[threads];
+      handle[threads] = nullptr;
     }
   }
 
@@ -469,6 +532,11 @@ UctSearchGenmove(game_info_t *game, int color)
   // 選択した着手の勝率の算出(Dynamic Komi)
   best_wp = (double)uct_child[select_index].win / uct_child[select_index].move_count;
 
+  // コミを含めない盤面のスコアを求める
+  double score = (double)CalculateScore(game);
+  // コミを考慮した勝敗
+  score -= komi[my_color];
+
   // 各地点の領地になる確率の出力
   PrintOwner(&uct_node[current_root], color, owner);
 
@@ -500,7 +568,7 @@ UctSearchGenmove(game_info_t *game, int color)
 	     game->record[game->moves - 1].pos == PASS &&
 	     game->record[game->moves - 3].pos == PASS) {
     pos = PASS;
-  } else if (best_wp <= RESIGN_THRESHOLD) {
+  } else if (best_wp <= RESIGN_THRESHOLD/* && fabs(score) > 5*/) {
     pos = RESIGN;
   } else {
     pos = uct_child[select_index].pos;
@@ -512,6 +580,11 @@ UctSearchGenmove(game_info_t *game, int color)
   PrintPlayoutInformation(&uct_node[current_root], &po_info, finish_time, pre_simulated);
   // 次の探索でのプレイアウト回数の算出
   CalculateNextPlayouts(game, color, best_wp, finish_time);
+ 
+  if (use_nn) {
+    cerr << "Eval NN Req        :  " << setw(7) << (eval_count + eval_queue.size()) << endl;
+    cerr << "Eval NN            :  " << setw(7) << eval_count << endl;
+  }
 
   return pos;
 }
@@ -569,7 +642,114 @@ UctSearchPondering(game_info_t *game, int color)
     handle[i] = new thread(ParallelUctSearchPondering, &t_arg[i]);
   }
 
+  if (use_nn)
+    handle[threads] = new thread(EvalNode);
+
   return ;
+}
+
+/////////////////////////////////////
+// 統計
+/////////////////////////////////////
+void
+UctSearchStat(game_info_t *game, int color, int num)
+{
+  int i, pos;
+  double finish_time;
+  int select_index;
+  int max_count;
+  double pass_wp;
+  double best_wp;
+  child_node_t *uct_child;
+  int pre_simulated;
+
+
+  // 探索情報をクリア
+  memset(statistic, 0, sizeof(statistic_t) * board_max); 
+  memset(criticality_index, 0, sizeof(int) * board_max); 
+  memset(criticality, 0, sizeof(double) * board_max);    
+  po_info.count = 0;
+
+  for (i = 0; i < pure_board_max; i++) {
+    pos = onboard_pos[i];
+    owner[pos] = 50;
+    owner_index[pos] = 5;
+    candidates[pos] = true;
+  }
+
+  if (reuse_subtree) {
+    DeleteOldHash(game);
+  } else {
+    ClearUctHash();
+  }
+
+  // 探索開始時刻の記録
+  begin_time = clock();
+
+  // UCTの初期化
+  current_root = ExpandRoot(game, color);
+
+  // 前回から持ち込んだ探索回数を記録
+  pre_simulated = uct_node[current_root].move_count;
+
+  // 子ノードが1つ(パスのみ)ならPASSを返す
+  if (uct_node[current_root].child_num <= 1) {
+    return;
+  }
+
+  // 探索回数の閾値を設定
+  po_info.halt = num;
+
+  // 自分の手番を設定
+  my_color = color;
+
+  // Dynamic Komiの算出(置碁のときのみ)
+  DynamicKomi(game, &uct_node[current_root], color);
+
+  for (i = 0; i < threads; i++) {
+    t_arg[i].thread_id = i;
+    t_arg[i].game = game;
+    t_arg[i].color = color;
+    handle[i] = new thread(ParallelUctSearch, &t_arg[i]);
+  }
+
+  for (i = 0; i < threads; i++) {
+    handle[i]->join();
+    delete handle[i];
+	handle[i] = nullptr;
+  }
+
+  uct_child = uct_node[current_root].child;
+
+  select_index = PASS_INDEX;
+  max_count = uct_child[PASS_INDEX].move_count;
+
+  // 探索回数最大の手を見つける
+  for (i = 1; i < uct_node[current_root].child_num; i++){
+    if (uct_child[i].move_count > max_count) {
+      select_index = i;
+      max_count = uct_child[i].move_count;
+    }
+  }
+
+  // 探索にかかった時間を求める
+  finish_time = GetSpendTime(begin_time);
+#if !defined (_WIN32)
+  finish_time /= threads;
+#endif
+
+  // パスの勝率の算出
+  if (uct_child[PASS_INDEX].move_count != 0) {
+    pass_wp = (double)uct_child[PASS_INDEX].win / uct_child[PASS_INDEX].move_count;
+  } else {
+    pass_wp = 0;
+  }
+
+  // 選択した着手の勝率の算出(Dynamic Komi)
+  best_wp = (double)uct_child[select_index].win / uct_child[select_index].move_count;
+
+  // 各地点の領地になる確率の出力
+  PrintOwner(&uct_node[current_root], color, owner);
 }
 
 /////////////////////
@@ -586,6 +766,7 @@ InitializeCandidate(child_node_t *uct_child, int pos, bool ladder)
   uct_child->flag = false;
   uct_child->open = false;
   uct_child->ladder = ladder;
+  uct_child->nnrate = 0;
 }
 
 
@@ -658,6 +839,7 @@ ExpandRoot(game_info_t *game, int color)
     uct_node[index].win = 0;
     uct_node[index].width = 0;
     uct_node[index].child_num = 0;
+    uct_node[index].evaled = false;
     memset(uct_node[index].statistic, 0, sizeof(statistic_t) * BOARD_MAX); 
     
     uct_child = uct_node[index].child;
@@ -820,6 +1002,24 @@ RatingNode(game_info_t *game, int color, int index)
   max_index = 0;
   max_score = uct_child[0].rate;
 
+  if (use_nn) {
+    //int color = game->record[game->moves - 1].color;
+    int move = PASS;
+
+#if 0
+    UctSearchStat(game_prev, color, 100);
+#endif
+    uct_node_t *root = &uct_node[current_root];
+
+    node_eval_req req;
+    req.index = index;
+    int moveT;
+    WritePlanes(req.data, req.data2, game, root, move, &moveT, color, 0);
+
+    eval_queue.push(req);
+    //push_back(u);
+  }
+
   for (i = 1; i < child_num; i++) {
     pos = uct_child[i].pos;
 
@@ -847,6 +1047,7 @@ RatingNode(game_info_t *game, int color, int index)
     } else if (uct_child[i].ladder) {
       score = -1.0;
     } else {
+#if 1
       // MD3, MD4, MD5のパターンのハッシュ値を求める
       PatternHash(&game->pat[pos], &hash_pat);
       // MD3のパターンのインデックスを探す
@@ -857,6 +1058,15 @@ RatingNode(game_info_t *game, int color, int index)
       pat_index[2] = SearchIndex(md5_index, hash_pat.list[MD_5 + MD_MAX]);
 
       score = CalculateLFRScore(game, pos, pat_index, &uct_features);
+#else
+      pos = uct_child[i].pos;
+      int x = X(pos) - OB_SIZE;
+      int y = Y(pos) - OB_SIZE;
+      int n = x + y * pure_board_size;
+      score = outputs[n] / sum;
+      if (score > 0)
+        uct_child[i].flag = true;
+#endif
     }
 
     // その手のγを記録
@@ -1203,6 +1413,7 @@ int
 SelectMaxUcbChild(int current, int color)
 {
   int i;
+  bool evaled = uct_node[current].evaled;
   child_node_t *uct_child = uct_node[current].child;
   int child_num = uct_node[current].child_num;
   int max_child = 0, sum = uct_node[current].move_count;
@@ -1216,72 +1427,87 @@ SelectMaxUcbChild(int current, int color)
   int width;
   double ucb_bonus_weight = bonus_weight * sqrt(bonus_equivalence / (sum + bonus_equivalence));
 
-  // 128回ごとにOwnerとCriticalityでソートし直す  
-  if ((sum & 0x7f) == 0 && sum != 0) {
-    int o_index[UCT_CHILD_MAX], c_index[UCT_CHILD_MAX];
-    CalculateCriticalityIndex(&uct_node[current], uct_node[current].statistic, color, c_index);
-    CalculateOwnerIndex(&uct_node[current], uct_node[current].statistic, color, o_index);
-    for (i = 0; i < child_num; i++) {
-      pos = uct_child[i].pos;
-      if (pos == PASS) {
-	dynamic_parameter = 0.0;
-      } else {
-	dynamic_parameter = uct_owner[o_index[i]] + uct_criticality[c_index[i]];
-      }
-      order[i].rate = uct_child[i].rate + dynamic_parameter;
-      order[i].index = i;
-      uct_child[i].flag = false;
-    }
-    qsort(order, child_num, sizeof(rate_order_t), RateComp);
-
-    // 子ノードの数と探索幅の最小値を取る
-    width = ((uct_node[current].width > child_num) ? child_num : uct_node[current].width);
-
-    // 探索候補の手を展開し直す
-    for (i = 0; i < width; i++) {
-      uct_child[order[i].index].flag = true;
-    }
-  }
-  	
-  // Progressive Wideningの閾値を超えたら, 
-  // レートが最大の手を読む候補を1手追加
-  if (sum > pw[uct_node[current].width]) {
-    max_index = -1;
-    max_rate = 0;
-    for (i = 0; i < child_num; i++) {
-      if (uct_child[i].flag == false) {
+  if (evaled) {
+    //cerr << "use nn" << endl;
+  } else {
+    // 128回ごとにOwnerとCriticalityでソートし直す  
+    if ((sum & 0x7f) == 0 && sum != 0) {
+      int o_index[UCT_CHILD_MAX], c_index[UCT_CHILD_MAX];
+      CalculateCriticalityIndex(&uct_node[current], uct_node[current].statistic, color, c_index);
+      CalculateOwnerIndex(&uct_node[current], uct_node[current].statistic, color, o_index);
+      for (i = 0; i < child_num; i++) {
 	pos = uct_child[i].pos;
-	dynamic_parameter = uct_owner[owner_index[pos]] + uct_criticality[criticality_index[pos]];
-	if (uct_child[i].rate + dynamic_parameter > max_rate) {
-	  max_index = i;
-	  max_rate = uct_child[i].rate + dynamic_parameter;
+	dynamic_parameter = uct_owner[o_index[i]] + uct_criticality[c_index[i]];
+	order[i].rate = uct_child[i].rate + dynamic_parameter;
+	order[i].index = i;
+	uct_child[i].flag = false;
+      }
+      qsort(order, child_num, sizeof(rate_order_t), RateComp);
+
+      // 子ノードの数と探索幅の最小値を取る
+      width = ((uct_node[current].width > child_num) ? child_num : uct_node[current].width);
+
+      // 探索候補の手を展開し直す
+      for (i = 0; i < width; i++) {
+	uct_child[order[i].index].flag = true;
+      }
+    }
+
+    // Progressive Wideningの閾値を超えたら, 
+    // レートが最大の手を読む候補を1手追加
+    if (sum > pw[uct_node[current].width]) {
+      max_index = -1;
+      max_rate = 0;
+      for (i = 0; i < child_num; i++) {
+	if (uct_child[i].flag == false) {
+	  pos = uct_child[i].pos;
+	  dynamic_parameter = uct_owner[owner_index[pos]] + uct_criticality[criticality_index[pos]];
+	  if (uct_child[i].rate + dynamic_parameter > max_rate) {
+	    max_index = i;
+	    max_rate = uct_child[i].rate + dynamic_parameter;
+	  }
 	}
       }
+      if (max_index != -1) {
+	uct_child[max_index].flag = true;
+      }
+      uct_node[current].width++;
     }
-    if (max_index != -1) {
-      uct_child[max_index].flag = true;
-    }
-    uct_node[current].width++;  
   }
 
   max_value = -1;
   max_child = 0;
 
+  const double c_puct = 5;
+
   // UCB値最大の手を求める  
   for (i = 0; i < child_num; i++) {
     if (uct_child[i].flag || uct_child[i].open) {
-      if (uct_child[i].move_count == 0) {
-	ucb_value = FPU;
+      if (evaled) {
+	if (uct_child[i].move_count == 0) {
+	  if (uct_node[current].move_count == 0)
+	    p = FPU;
+	  else
+	    p = (double)uct_node[current].win / uct_node[current].move_count;
+	} else {
+	  p = (double)uct_child[i].win / uct_child[i].move_count;
+	}
+	double u = sqrt(sum) / (1 + uct_child[i].move_count);
+	ucb_value = p + c_puct * u * uct_child[i].nnrate;
       } else {
-	double div, v;
-	// UCB1-TUNED value
-	p = (double)uct_child[i].win / uct_child[i].move_count;
-	div = log(sum) / uct_child[i].move_count;
-	v = p - p * p + sqrt(2.0 * div);
-	ucb_value = p + sqrt(div * ((0.25 < v) ? 0.25 : v));
+	if (uct_child[i].move_count == 0) {
+	  ucb_value = FPU;
+	} else {
+	  double div, v;
+	  // UCB1-TUNED value
+	  p = (double)uct_child[i].win / uct_child[i].move_count;
+	  div = log(sum) / uct_child[i].move_count;
+	  v = p - p * p + sqrt(2.0 * div);
+	  ucb_value = p + sqrt(div * ((0.25 < v) ? 0.25 : v));
 
-	// UCB Bonus
-	ucb_value += ucb_bonus_weight * uct_child[i].rate;
+	  // UCB Bonus
+	  ucb_value += ucb_bonus_weight * uct_child[i].rate;
+	}
       }
 
       if (ucb_value > max_value) {
@@ -1515,6 +1741,7 @@ UctAnalyze( game_info_t *game, int color )
   for (i = 0; i < threads; i++) {
     handle[i]->join();
     delete handle[i];
+	handle[i] = nullptr;
   }
 
   int x, y, black = 0, white = 0;
@@ -1622,6 +1849,7 @@ UctSearchGenmoveCleanUp( game_info_t *game, int color )
   for (i = 0; i < threads; i++) {
     handle[i]->join();
     delete handle[i];
+	handle[i] = nullptr;
   }
 
   uct_child = uct_node[current_root].child;
@@ -1675,4 +1903,113 @@ UctSearchGenmoveCleanUp( game_info_t *game, int color )
   return pos;
 }
 
+extern char uct_params_path[1024];
 
+void
+ReadWeights()
+{
+  cerr << "Init CNTK" << endl;
+  GetEvalF(&nn_model);
+  if (!nn_model)
+  {
+    cerr << "Get EvalModel failed\n";
+  }
+
+  // Load model with desired outputs
+  std::string networkConfiguration;
+  // with the ones specified.
+  //networkConfiguration += "outputNodeNames=\"h1.z:ol.z\"\n";
+  networkConfiguration += "modelPath=\"";
+  networkConfiguration += uct_params_path;
+  networkConfiguration += "/model.bin\"";
+  nn_model->CreateNetwork(networkConfiguration);
+
+  cerr << "ok" << endl;
+}
+
+void EvalUctNode(std::vector<int>& indices, std::vector<float>& data)
+{
+
+  Layer inputLayer;
+  inputLayer.insert(MapEntry(L"features", &data));
+  Layer outputLayer;
+  auto outputLayerName = L"ol";// outDims.begin()->first;
+  std::vector<float> outputs;
+  outputs.reserve(pure_board_max * indices.size());
+  outputLayer.insert(MapEntry(outputLayerName, &outputs));
+
+  nn_model->Evaluate(inputLayer, outputLayer);
+
+  if (outputs.size() != pure_board_max * indices.size()) {
+    cerr << "Eval Error " << outputs.size() << endl;
+    return;
+  }
+  //cerr << "Eval " << indices.size() << endl;
+
+  for (int j = 0; j < indices.size(); j++) {
+    int index = indices[j];
+    int child_num = uct_node[index].child_num;
+    child_node_t *uct_child = uct_node[index].child;
+    int ofs = pure_board_max * j;
+
+    float sum = 0;
+    for (int i = 0; i < pure_board_max; i++) {
+      outputs[i + ofs] = exp(outputs[i + ofs]);
+      sum += outputs[i + ofs];
+    }
+    //cerr << "#" << index << "  " << sum << endl;
+
+    LOCK_NODE(index);
+    for (int i = 1; i < child_num; i++) {
+      int pos = uct_child[i].pos;
+
+      int x = X(pos) - OB_SIZE;
+      int y = Y(pos) - OB_SIZE;
+      int n = x + y * pure_board_size;
+      float score = outputs[n + ofs] / sum;
+      if (uct_child[i].rate < 0.0) {
+	uct_child[i].nnrate = uct_child[i].rate;
+      }
+      else {
+	//if (score > 0)
+	uct_child[i].flag = true;
+	uct_child[i].nnrate = max(score, 0.001);
+      }
+    }
+    uct_node[index].evaled = true;
+    UNLOCK_NODE(index);
+  }
+}
+
+static std::vector<int> eval_node_index;
+static std::vector<float> eval_input_data;
+
+void EvalNode() {
+#if 1
+  while (true) {
+    if (handle[0] == nullptr)
+      break;
+    LOCK_EXPAND;
+
+    if (eval_queue.empty()) {
+      UNLOCK_EXPAND;
+      continue;
+    }
+
+    eval_node_index.resize(0);
+    eval_input_data.resize(0);
+
+    for (int i = 0; i < 16 && !eval_queue.empty(); i++) {
+      node_eval_req& req = eval_queue.front();
+      eval_node_index.push_back(req.index);
+      std::copy(req.data.begin(), req.data.end(), std::back_inserter(eval_input_data));
+      eval_queue.pop();
+      eval_count++;
+    }
+
+    UNLOCK_EXPAND;
+
+    EvalUctNode(eval_node_index, eval_input_data);
+  }
+#endif
+}

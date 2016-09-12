@@ -34,7 +34,8 @@ const double PROGRESSIVE_WIDENING = 1.8;
 // ノード展開の閾値
 const int EXPAND_THRESHOLD_9  = 20;
 const int EXPAND_THRESHOLD_13 = 25;
-const int EXPAND_THRESHOLD_19 = 40;
+//const int EXPAND_THRESHOLD_19 = 40;
+const int EXPAND_THRESHOLD_19 = 20;
 
 
 // 候補手の最大数(盤上全体 + パス)
@@ -81,6 +82,7 @@ typedef struct {
   std::atomic<int> win;         // 勝った回数
   int index;   // インデックス
   double rate; // 着手のレート
+  double nnrate; // ニューラルネットワークでのレート
   bool flag;   // Progressive Wideningのフラグ
   bool open;   // 常に探索候補に入れるかどうかのフラグ
   bool ladder; // シチョウのフラグ
@@ -89,7 +91,7 @@ typedef struct {
 //  9x9  : 1828bytes
 // 13x13 : 3764bytes
 // 19x19 : 7988bytes
-typedef struct {
+struct uct_node_t {
   int previous_move1;                 // 1手前の着手
   int previous_move2;                 // 2手前の着手
   std::atomic<int> move_count;
@@ -98,7 +100,8 @@ typedef struct {
   int child_num;                      // 子ノードの数
   child_node_t child[UCT_CHILD_MAX];  // 子ノードの情報
   statistic_t statistic[BOARD_MAX];   // 統計情報 
-} uct_node_t;
+  bool evaled;
+};
 
 typedef struct {
   int num;   // 次の手の探索回数
@@ -168,6 +171,8 @@ int UctSearchGenmove( game_info_t *game, int color );
 
 // 予測よみ
 void UctSearchPondering( game_info_t *game, int color );
+
+void UctSearchStat(game_info_t *game, int color, int num);
 
 // ルートの展開
 int ExpandRoot( game_info_t *game, int color );
@@ -241,5 +246,8 @@ int UctSearchGenmoveCleanUp( game_info_t *game, int color );
 void SetReuseSubtree( bool flag );
 
 int RateComp( const void *a, const void *b );
+
+void
+SetUseNN(bool flag);
 
 #endif
