@@ -1993,6 +1993,7 @@ void EvalNode() {
 
     if (eval_queue.empty()) {
       UNLOCK_EXPAND;
+      this_thread::sleep_for(chrono::milliseconds(1));
       continue;
     }
 
