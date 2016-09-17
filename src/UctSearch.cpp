@@ -1,3 +1,4 @@
+#include <algorithm>
 #include <atomic>
 #include <climits>
 #include <cassert>
@@ -25,6 +26,7 @@
 #include "Utility.h"
 
 #if defined (_WIN32)
+#define NOMINMAX
 #include <Windows.h>
 #else
 #include <unistd.h>
@@ -45,13 +47,15 @@ typedef std::pair<std::wstring, std::vector<float>*> MapEntry;
 typedef std::map<std::wstring, std::vector<float>*> Layer;
 struct node_eval_req {
   int index;
+  int color;
+  std::vector<int> path;
   std::vector<float> data;
   std::vector<float> data2;
 };
 
 void ReadWeights();
 void EvalNode();
-
+void EvalUctNode(std::vector<int>& indices, std::vector<float>& data);
 
 ////////////////
 //  大域変数  //
@@ -98,7 +102,7 @@ statistic_t statistic[BOARD_MAX];
 // 盤上の各点のCriticality
 double criticality[BOARD_MAX];  
 // 盤上の各点のOwner(0-100%)
-double owner[BOARD_MAX];  
+double owner[BOARD_MAX];
 
 // 現在のオーナーのインデックス
 int owner_index[BOARD_MAX];   
@@ -144,8 +148,17 @@ static bool early_pass = true;
 static bool use_nn = true;
 static std::queue<node_eval_req> eval_queue;
 static int eval_count;
+static double owner_nn[BOARD_MAX];
 
 static Microsoft::MSR::CNTK::IEvaluateModel<float>* nn_model = nullptr;
+
+//template<double>
+double atomic_fetch_add(std::atomic<double> *obj, double arg) {
+  double expected = obj->load();
+  while (!atomic_compare_exchange_weak(obj, &expected, expected + arg))
+    ;
+  return expected;
+}
 
 ///////////////////
 //
@@ -414,6 +427,8 @@ UctSearchGenmove(game_info_t *game, int color)
     owner[pos] = 50;
     owner_index[pos] = 5;
     candidates[pos] = true;
+
+    owner_nn[pos] = 50;
   }
 
   if (reuse_subtree) {
@@ -568,7 +583,7 @@ UctSearchGenmove(game_info_t *game, int color)
 	     game->record[game->moves - 1].pos == PASS &&
 	     game->record[game->moves - 3].pos == PASS) {
     pos = PASS;
-  } else if (best_wp <= RESIGN_THRESHOLD/* && fabs(score) > 5*/) {
+  } else if (best_wp <= RESIGN_THRESHOLD) {
     pos = RESIGN;
   } else {
     pos = uct_child[select_index].pos;
@@ -584,6 +599,9 @@ UctSearchGenmove(game_info_t *game, int color)
   if (use_nn) {
     cerr << "Eval NN Req        :  " << setw(7) << (eval_count + eval_queue.size()) << endl;
     cerr << "Eval NN            :  " << setw(7) << eval_count << endl;
+    cerr << "Count Captured     :  " << setw(7) << count << endl;
+    cerr << "Score              :  " << setw(7) << score << endl;
+    //PrintOwnerNN(S_BLACK, owner_nn);
   }
 
   return pos;
@@ -748,8 +766,12 @@ UctSearchStat(game_info_t *game, int color, int num)
   // 選択した着手の勝率の算出(Dynamic Komi)
   best_wp = (double)uct_child[select_index].win / uct_child[select_index].move_count;
 
+  cerr << (color == S_BLACK ? "BLACK" : "WHITE") << endl;
   // 各地点の領地になる確率の出力
   PrintOwner(&uct_node[current_root], color, owner);
+
+  // 探索の情報を出力(探索回数, 勝敗, 思考時間, 勝率, 探索速度)
+  PrintPlayoutInformation(&uct_node[current_root], &po_info, finish_time, 0);
 }
 
 /////////////////////
@@ -793,6 +815,8 @@ ExpandRoot(game_info_t *game, int color)
     LadderExtension(game, color, ladder);
   }
 
+  std::vector<int> path;
+
   // 既に展開されていた時は, 探索結果を再利用する
   if (index != uct_hash_size) {
     // 直前と2手前の着手を更新
@@ -817,11 +841,13 @@ ExpandRoot(game_info_t *game, int color)
       uct_child[i].ladder = ladder[pos];
     }
 
+    path.push_back(index);
+
     // 展開されたノード数を1に初期化
     uct_node[index].width = 1;
 
     // 候補手のレーティング
-    RatingNode(game, color, index);
+    RatingNode(game, color, index, path);
 
     PrintReuseCount(uct_node[index].move_count);
 
@@ -840,6 +866,9 @@ ExpandRoot(game_info_t *game, int color)
     uct_node[index].width = 0;
     uct_node[index].child_num = 0;
     uct_node[index].evaled = false;
+    uct_node[index].value = -1;
+    uct_node[index].value_move_count = 0;
+    uct_node[index].value_win = 0;
     memset(uct_node[index].statistic, 0, sizeof(statistic_t) * BOARD_MAX); 
     
     uct_child = uct_node[index].child;
@@ -857,12 +886,14 @@ ExpandRoot(game_info_t *game, int color)
 	child_num++;
       }
     }
+
+    path.push_back(index);
     
     // 子ノード個数の設定
     uct_node[index].child_num = child_num;
     
     // 候補手のレーティング
-    RatingNode(game, color, index);
+    RatingNode(game, color, index, path);
     
     uct_node[index].width++;
   }
@@ -876,7 +907,7 @@ ExpandRoot(game_info_t *game, int color)
 //  ノードの展開  //
 ///////////////////
 int
-ExpandNode(game_info_t *game, int color, int current)
+ExpandNode(game_info_t *game, int color, int current, std::vector<int>& path)
 {
   unsigned int index = FindSameHashIndex(game->current_hash, color, game->moves);
   child_node_t *uct_child, *uct_sibling;
@@ -908,7 +939,12 @@ ExpandNode(game_info_t *game, int color, int current)
   uct_node[index].win = 0;
   uct_node[index].width = 0;
   uct_node[index].child_num = 0;
-  memset(uct_node[index].statistic, 0, sizeof(statistic_t) * BOARD_MAX);  
+  uct_node[index].evaled = false;
+  uct_node[index].value = -1;
+  uct_node[index].value_move_count = 0;
+  uct_node[index].value_win = 0;
+  memset(uct_node[index].statistic, 0, sizeof(statistic_t) * BOARD_MAX);
+  path.push_back(index);
 
   uct_child = uct_node[index].child;
 
@@ -930,7 +966,7 @@ ExpandNode(game_info_t *game, int color, int current)
   uct_node[index].child_num = child_num;
 
   // 候補手のレーティング
-  RatingNode(game, color, index);
+  RatingNode(game, color, index, path);
 
   // 探索幅を1つ増やす
   uct_node[index].width++;
@@ -966,7 +1002,7 @@ ExpandNode(game_info_t *game, int color, int current)
 //  (Progressive Wideningのために)  //
 //////////////////////////////////////
 void
-RatingNode(game_info_t *game, int color, int index)
+RatingNode(game_info_t *game, int color, int index, std::vector<int>& path)
 {
   int i;
   int child_num = uct_node[index].child_num;
@@ -1012,12 +1048,19 @@ RatingNode(game_info_t *game, int color, int index)
     uct_node_t *root = &uct_node[current_root];
 
     node_eval_req req;
+    req.color = color;
     req.index = index;
+    req.path.swap(path);
     int moveT;
-    WritePlanes(req.data, req.data2, game, root, move, &moveT, color, 0);
-
+    WritePlanes2(req.data, req.data2, game, root, move, &moveT, color, 0);
+#if 1
     eval_queue.push(req);
     //push_back(u);
+#else
+    std::vector<int> indices;
+    indices.push_back(index);
+    EvalUctNode(indices, req.data);
+#endif
   }
 
   for (i = 1; i < child_num; i++) {
@@ -1195,7 +1238,9 @@ ParallelUctSearch(thread_arg_t *arg)
       // 盤面のコピー
       CopyGame(game, targ->game);
       // 1回プレイアウトする
-      UctSearch(game, color, mt[targ->thread_id], current_root, &winner);
+      //double value_result = -1;
+      std::vector<int> path;
+      UctSearch(game, color, mt[targ->thread_id], current_root, &winner, path);
       // 探索を打ち切るか確認
       interruption = InterruptionCheck();
       // ハッシュに余裕があるか確認
@@ -1215,7 +1260,9 @@ ParallelUctSearch(thread_arg_t *arg)
       // 盤面のコピー
       CopyGame(game, targ->game);
       // 1回プレイアウトする
-      UctSearch(game, color, mt[targ->thread_id], current_root, &winner);
+      //double value_result = -1;
+	  std::vector<int> path;
+      UctSearch(game, color, mt[targ->thread_id], current_root, &winner, path);
       // 探索を打ち切るか確認
       interruption = InterruptionCheck();
       // ハッシュに余裕があるか確認
@@ -1255,7 +1302,9 @@ ParallelUctSearchPondering(thread_arg_t *arg)
       // 盤面のコピー
       CopyGame(game, targ->game);
       // 1回プレイアウトする
-      UctSearch(game, color, mt[targ->thread_id], current_root, &winner);
+      //double value_result = -1;
+	  std::vector<int> path;
+      UctSearch(game, color, mt[targ->thread_id], current_root, &winner, path);
       // ハッシュに余裕があるか確認
       enough_size = CheckRemainingHashSize();
       // OwnerとCriticalityを計算する
@@ -1272,7 +1321,9 @@ ParallelUctSearchPondering(thread_arg_t *arg)
       // 盤面のコピー
       CopyGame(game, targ->game);
       // 1回プレイアウトする
-      UctSearch(game, color, mt[targ->thread_id], current_root, &winner);
+      //double value_result = -1;
+	  std::vector<int> path;
+      UctSearch(game, color, mt[targ->thread_id], current_root, &winner, path);
       // ハッシュに余裕があるか確認
       enough_size = CheckRemainingHashSize();
     } while (!pondering_stop && enough_size);
@@ -1289,7 +1340,7 @@ ParallelUctSearchPondering(thread_arg_t *arg)
 //  1回の呼び出しにつき, 1プレイアウトする    //
 //////////////////////////////////////////////
 int 
-UctSearch(game_info_t *game, int color, mt19937_64 *mt, int current, int *winner)
+UctSearch(game_info_t *game, int color, mt19937_64 *mt, int current, int *winner, std::vector<int>& path)
 {
   int result = 0, next_index;
   double score;
@@ -1301,7 +1352,7 @@ UctSearch(game_info_t *game, int color, mt19937_64 *mt, int current, int *winner
   // 現在見ているノードをロック
   LOCK_NODE(current);
   // UCB値最大の手を求める
-  next_index = SelectMaxUcbChild(current, color);
+  next_index = SelectMaxUcbChild(game, current, color);
   // 選んだ手を着手
   PutStone(game, uct_child[next_index].pos, color);
   // 色を入れ替える
@@ -1332,6 +1383,7 @@ UctSearch(game_info_t *game, int color, mt19937_64 *mt, int current, int *winner
     // 統計情報の記録
     Statistic(game, *winner);
   } else {
+	path.push_back(current);
     // Virtual Lossを加算
     AddVirtualLoss(&uct_child[next_index], current);
     // ノードの展開の確認
@@ -1339,15 +1391,31 @@ UctSearch(game_info_t *game, int color, mt19937_64 *mt, int current, int *winner
       // ノードの展開中はロック
       LOCK_EXPAND;
       // ノードの展開
-      uct_child[next_index].index = ExpandNode(game, color, current);
+      uct_child[next_index].index = ExpandNode(game, color, current, path);
+      //cerr << "value evaluated " << result << " " << v << " " << *value_result << endl;
       // ノード展開のロックの解除
       UNLOCK_EXPAND;
     }
     // 現在見ているノードのロックを解除
     UNLOCK_NODE(current);
     // 手番を入れ替えて1手深く読む
-    result = UctSearch(game, color, mt, uct_child[next_index].index, winner);
+    result = UctSearch(game, color, mt, uct_child[next_index].index, winner, path);
+    //
+    // double v = uct_node[current].value;
+    // if (*value_result < 0 && v >= 0) {
+    //   *value_result = color == S_WHITE ? v : 1 - v;
+    // }
   }
+#if 0
+  double v = uct_node[current].value.load();
+  if (v >= 0) {
+    cerr << "value evaluated " << result << " " << v << " " << *value_result << endl;
+  }
+  if (*value_result < 0 && v >= 0 && atomic_compare_exchange_strong(&uct_node[current].value, &v, -2.0)) {
+    *value_result = color == S_BLACK ? 1 - v : v;
+    cerr << "update value " << result << " " << v << endl;
+  }
+#endif
 
   // 探索結果の反映
   UpdateResult(&uct_child[next_index], result, current);
@@ -1355,6 +1423,8 @@ UctSearch(game_info_t *game, int color, mt19937_64 *mt, int current, int *winner
   // 統計情報の更新
   UpdateNodeStatistic(game, *winner, uct_node[current].statistic);
 
+  // if (*value_result >= 0)
+  // 	*value_result = 1 - *value_result;
   return 1 - result;
 }
 
@@ -1385,6 +1455,10 @@ UpdateResult(child_node_t *child, int result, int current)
   atomic_fetch_add(&uct_node[current].move_count, 1 - VIRTUAL_LOSS);
   atomic_fetch_add(&child->win, result);
   atomic_fetch_add(&child->move_count, 1 - VIRTUAL_LOSS);
+  // if (value >= 0) {
+  //   atomic_fetch_add(&uct_node[current].value_win, value);
+  //   atomic_fetch_add(&uct_node[current].value_move_count, 1);
+  // }
 }
 
 
@@ -1410,7 +1484,7 @@ RateComp(const void *a, const void *b)
 //  UCBが最大となる子ノードのインデックスを返す関数  //
 ///////////////////////////////////////////////////////
 int
-SelectMaxUcbChild(int current, int color)
+SelectMaxUcbChild(const game_info_t *game, int current, int color)
 {
   int i;
   bool evaled = uct_node[current].evaled;
@@ -1427,9 +1501,10 @@ SelectMaxUcbChild(int current, int color)
   int width;
   double ucb_bonus_weight = bonus_weight * sqrt(bonus_equivalence / (sum + bonus_equivalence));
 
-  if (evaled) {
+  //if (evaled) {
     //cerr << "use nn" << endl;
-  } else {
+//  } else 
+  {
     // 128回ごとにOwnerとCriticalityでソートし直す  
     if ((sum & 0x7f) == 0 && sum != 0) {
       int o_index[UCT_CHILD_MAX], c_index[UCT_CHILD_MAX];
@@ -1440,7 +1515,7 @@ SelectMaxUcbChild(int current, int color)
 	dynamic_parameter = uct_owner[o_index[i]] + uct_criticality[c_index[i]];
 	order[i].rate = uct_child[i].rate + dynamic_parameter;
 	order[i].index = i;
-	uct_child[i].flag = false;
+	uct_child[i].flag = uct_child[i].nnrate > 0.01;
       }
       qsort(order, child_num, sizeof(rate_order_t), RateComp);
 
@@ -1478,29 +1553,85 @@ SelectMaxUcbChild(int current, int color)
   max_value = -1;
   max_child = 0;
 
-  const double c_puct = 5;
+  double p_p = (double)uct_node[current].win / uct_node[current].move_count;
+  double p_v = (double)uct_node[current].value_win / (uct_node[current].value_move_count + .01);
+  double scale = std::max(0.01, std::min(1.0, 1.0 - (game->moves - 200) / 50.0)) * value_scale;
+  bool debug = current == current_root && uct_node[current].move_count % 10000 == 0;
 
   // UCB値最大の手を求める  
   for (i = 0; i < child_num; i++) {
     if (uct_child[i].flag || uct_child[i].open) {
+      //double p2 = -1;
+      double value_win = 0;
+      double value_move_count = 0;
+
+#if 1
+      if (uct_child[i].index >= 0 && i != 0) {
+	auto node = &uct_node[uct_child[i].index];
+	if (node->value_move_count > 0) {
+	  //p2 = 1 - (double)node->value_win / node->value_move_count;
+	  value_win = node->value_win;
+	  value_move_count = node->value_move_count;
+	  value_win = value_move_count - value_win;
+	}
+      }
+      value_win *= scale;
+      value_move_count *= scale;
+#endif
+      double win = uct_child[i].win;
+      double move_count = uct_child[i].move_count;
+
       if (evaled) {
-	if (uct_child[i].move_count == 0) {
+	if (debug) {
+	  cerr << uct_node[current].move_count << "." << setw(3) << i << ":" << setw(5) << move_count << " "
+	    << setw(10) << (uct_child[i].nnrate  * 100) << " ";
+	}
+	if (move_count == 0) {
 	  if (uct_node[current].move_count == 0)
 	    p = FPU;
 	  else
-	    p = (double)uct_node[current].win / uct_node[current].move_count;
+	    p = (double)uct_node[current].win / uct_node[current].move_count - p_p;
 	} else {
-	  p = (double)uct_child[i].win / uct_child[i].move_count;
+	  double p0 = win / move_count - p_p;
+	  if (value_move_count > 0) {
+	    double p1 = value_win / value_move_count - p_v;
+	    //p = (uct_child[i].win + value_win) / (uct_child[i].move_count + value_move_count);
+	    p = (p0 * move_count + p1 * value_move_count) / (move_count + value_move_count);
+	    //p = (p0 + p1) / 2;
+	    //if (current == current_root) cerr << i << ":" << p0 << " " << p1 << " => " << p << endl;
+	    if (debug) {
+		cerr << setw(10) << (p0 * 100) << " " << setw(10) << (p1 * 100) << " => " << setw(10) << (p * 100)
+		<< " " << p_v << " " << (value_win / value_move_count);
+	    }
+	  } else {
+	    p = p0;
+	  }
 	}
+	//if (p2 >= 0) p = (p * 9 + p2) / 10;
+#if 0
+	if (uct_child[i].index >= 0) {
+	  uct_node_t *n = &uct_node[uct_child[i].index];
+	  if (n->evaled) {
+	    double value = color == S_BLACK ? (n->value + 1) / 2 : (1 - n->value) / 2;
+	    //cerr << "value " << p << " " << value << endl;
+	    p = (p + value) / 2;
+	  }
+	}
+#endif
 	double u = sqrt(sum) / (1 + uct_child[i].move_count);
-	ucb_value = p + c_puct * u * uct_child[i].nnrate;
+	ucb_value = p + c_puct * u * (uct_child[i].nnrate + 0.01);
+
+	if (debug) {
+	  cerr << p << " " << (p + p_p) << " " << ucb_value << endl;
+	}
       } else {
 	if (uct_child[i].move_count == 0) {
 	  ucb_value = FPU;
 	} else {
 	  double div, v;
 	  // UCB1-TUNED value
-	  p = (double)uct_child[i].win / uct_child[i].move_count;
+	  p = (double) uct_child[i].win / uct_child[i].move_count;
+	  //if (p2 >= 0) p = (p * 9 + p2) / 10;
 	  div = log(sum) / uct_child[i].move_count;
 	  v = p - p * p + sqrt(2.0 * div);
 	  ucb_value = p + sqrt(div * ((0.25 < v) ? 0.25 : v));
@@ -1927,25 +2058,38 @@ ReadWeights()
   cerr << "ok" << endl;
 }
 
-void EvalUctNode(std::vector<int>& indices, std::vector<float>& data)
+void EvalUctNode(std::vector<int>& indices, std::vector<int>& color, std::vector<float>& data, std::vector<int>& path)
 {
 
   Layer inputLayer;
   inputLayer.insert(MapEntry(L"features", &data));
   Layer outputLayer;
-  auto outputLayerName = L"ol";// outDims.begin()->first;
-  std::vector<float> outputs;
-  outputs.reserve(pure_board_max * indices.size());
-  outputLayer.insert(MapEntry(outputLayerName, &outputs));
+  std::vector<float> win;
+  //std::vector<float> ownern;
+  std::vector<float> moves;
+  win.reserve(indices.size());
+  //ownern.reserve(pure_board_max * indices.size());
+  moves.reserve(pure_board_max * indices.size());
+  outputLayer.insert(MapEntry(L"p", &win));
+  //outputLayer.insert(MapEntry(L"owner", &ownern));
+  outputLayer.insert(MapEntry(L"ol", &moves));
 
   nn_model->Evaluate(inputLayer, outputLayer);
 
-  if (outputs.size() != pure_board_max * indices.size()) {
-    cerr << "Eval Error " << outputs.size() << endl;
+  if (moves.size() != pure_board_max * indices.size()) {
+    cerr << "Eval move error " << moves.size() << endl;
     return;
   }
-  //cerr << "Eval " << indices.size() << endl;
-
+  if (win.size() != indices.size()) {
+    cerr << "Eval win error " << moves.size() << endl;
+    return;
+  }
+  //if (ownern.size() != pure_board_max * indices.size()) {
+  //  cerr << "Eval owner error " << ownern.size() << endl;
+  //  return;
+  //}
+  //cerr << "Eval " << indices.size() << " " << path.size() << endl;
+  int path_index = 0;
   for (int j = 0; j < indices.size(); j++) {
     int index = indices[j];
     int child_num = uct_node[index].child_num;
@@ -1954,34 +2098,75 @@ void EvalUctNode(std::vector<int>& indices, std::vector<float>& data)
 
     float sum = 0;
     for (int i = 0; i < pure_board_max; i++) {
-      outputs[i + ofs] = exp(outputs[i + ofs]);
-      sum += outputs[i + ofs];
+      moves[i + ofs] = exp(moves[i + ofs]);
+      sum += moves[i + ofs];
     }
+    LOCK_NODE(index);
+#if 1
+    double p = ((double)win[j] + 1) / 2;
+    if (p < 0)
+      p = 0;
+    if (p > 1)
+      p = 1;
     //cerr << "#" << index << "  " << sum << endl;
 
-    LOCK_NODE(index);
+    double value = color[j] == S_BLACK ? p : 1 - p;
+
+    double expected = -1;
+    if (!atomic_compare_exchange_strong(&uct_node[index].value, &expected, value)) {
+      cerr << "### fail to update value " << value << endl;
+    }
+    //if (index != path[path_index])
+    //   cerr << "???" << index << " " << path[path_index] << " " << path[path_index+1]<< endl;
+    for (;;) {
+      int current = path[path_index];
+      //cerr << "#" << path_index << "  " << current << endl;
+      path_index++;
+      if (current < 0)
+	break;
+
+      atomic_fetch_add(&uct_node[current].value_move_count, 1);
+      atomic_fetch_add(&uct_node[current].value_win, value);
+      value = 1 - value;
+    }
+#endif
+#if 0
+    if (index == current_root) {
+      for (int i = 0; i < pure_board_max; i++) {
+	int x = i % pure_board_size;
+	int y = i / pure_board_size;
+	owner_nn[POS(x + OB_SIZE, y + OB_SIZE)] = ownern[i + ofs];
+      }
+    }
+#endif
+
+#if 1
     for (int i = 1; i < child_num; i++) {
       int pos = uct_child[i].pos;
 
       int x = X(pos) - OB_SIZE;
       int y = Y(pos) - OB_SIZE;
       int n = x + y * pure_board_size;
-      float score = outputs[n + ofs] / sum;
+      double score = moves[n + ofs] / sum;
       if (uct_child[i].rate < 0.0) {
 	uct_child[i].nnrate = uct_child[i].rate;
       }
       else {
 	//if (score > 0)
-	uct_child[i].flag = true;
-	uct_child[i].nnrate = max(score, 0.001);
+	//uct_child[i].flag = true;
+	uct_child[i].nnrate = max(score, 0.0);
       }
     }
     uct_node[index].evaled = true;
+#endif
     UNLOCK_NODE(index);
   }
+  eval_count += indices.size();
 }
 
 static std::vector<int> eval_node_index;
+static std::vector<int> eval_node_color;
+static std::vector<int> eval_node_path;
 static std::vector<float> eval_input_data;
 
 void EvalNode() {
@@ -1998,19 +2183,23 @@ void EvalNode() {
     }
 
     eval_node_index.resize(0);
+    eval_node_color.resize(0);
+    eval_node_path.resize(0);
     eval_input_data.resize(0);
 
     for (int i = 0; i < 16 && !eval_queue.empty(); i++) {
       node_eval_req& req = eval_queue.front();
       eval_node_index.push_back(req.index);
+      eval_node_color.push_back(req.color);
       std::copy(req.data.begin(), req.data.end(), std::back_inserter(eval_input_data));
+      std::copy(req.path.rbegin(), req.path.rend(), std::back_inserter(eval_node_path));
+      eval_node_path.push_back(-1);
       eval_queue.pop();
-      eval_count++;
     }
 
     UNLOCK_EXPAND;
 
-    EvalUctNode(eval_node_index, eval_input_data);
+    EvalUctNode(eval_node_index, eval_node_color, eval_input_data, eval_node_path);
   }
 #endif
 }

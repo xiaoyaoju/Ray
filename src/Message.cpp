@@ -269,6 +269,65 @@ PrintOwner( uct_node_t *root, int color, double *own )
   }
 }
 
+void
+PrintOwnerNN(int color, double *own)
+{
+  int player = 0, opponent = 0;
+  double score;
+
+  if (!debug_message) return;
+
+  cerr << "   ";
+  for (int i = 1, y = board_start; y <= board_end; y++, i++) {
+    cerr << "   " << gogui_x[i];
+  }
+  cerr << endl;
+
+  cerr << "   +";
+  for (int i = 0; i < pure_board_size * 4; i++) {
+    cerr << "-";
+  }
+  cerr << "+" << endl;
+  for (int i = 1, y = board_start; y <= board_end; y++, i++) {
+    cerr << setw(2) << (pure_board_size + 1 - i) << ":|";
+    for (int x = board_start; x <= board_end; x++) {
+      int pos = POS(x, y);
+      float owner = own[pos];
+      if (owner > 0.5) {
+	player++;
+      } else {
+	opponent++;
+      }
+      //own[pos] = owner * 100.0;
+      cerr << setw(3) << (int)(owner * 100) << " ";
+    }
+    cerr << "|" << endl;
+  }
+
+  cerr << "   +";
+  for (int i = 0; i < pure_board_size * 4; i++) {
+    cerr << "-";
+  }
+  cerr << "+" << endl;
+
+  if (color == S_BLACK) {
+    if (player - opponent > komi[0]) {
+      score = player - opponent - komi[0];
+      cerr << "BLACK+" << score << endl;
+    } else {
+      score = -(player - opponent - komi[0]);
+      cerr << "WHITE+" << score << endl;
+    }
+  } else {
+    if (player - opponent > -komi[0]) {
+      score = player - opponent + komi[0];
+      cerr << "WHITE+" << score << endl;
+    } else {
+      score = -(player - opponent + komi[0]);
+      cerr << "BLACK+" << score << endl;
+    }
+  }
+}
 
 ///////////////////////
 //  Å‘P‰žŽè—ñ‚Ìo—Í  //
@@ -316,6 +375,7 @@ PrintBestSequence( game_info_t *game, uct_node_t *uct_node, int root, int start_
   current = uct_child[index].index;
   
   while (current != NOT_EXPANDED) {
+    cerr << "<" << uct_node[current].value_win << "/" << uct_node[current].value_move_count << ">";
     uct_child = uct_node[current].child;
     child_num = uct_node[current].child_num;
 
@@ -363,6 +423,8 @@ void
 PrintPlayoutInformation( uct_node_t *root, po_info_t *po_info, double finish_time, int pre_simulated )
 {
   double winning_percentage = (double)root->win / root->move_count;
+  double value = (double)root->value_win / root->value_move_count;
+  double winning_percentage2 = (root->win + root->value_win * value_scale) / (root->move_count + root->value_move_count * value_scale);
 
   if (!debug_message) return ;
 
@@ -371,6 +433,9 @@ PrintPlayoutInformation( uct_node_t *root, po_info_t *po_info, double finish_tim
   cerr << "Win                :  " << setw(7) << root->win << endl;
   cerr << "Thinking Time      :  " << setw(7) << finish_time << " sec" << endl;
   cerr << "Winning Percentage :  " << setw(7) << (winning_percentage * 100) << "%" << endl;
+  cerr << "Value              :  " << setw(7) << (value * 100) << "%" << "  " << root->value  << " " << root->value_move_count << endl;
+  cerr << "Winning Percentage2:  " << setw(7) << (winning_percentage2 * 100) << "%" << endl;
+  cerr << "All Value          :  " << setw(7) << root->value_move_count << endl;
   if (finish_time != 0.0) {
     cerr << "Playout Speed      :  " << setw(7) << (int)(po_info->count / finish_time) << " PO/sec " << endl;
   }

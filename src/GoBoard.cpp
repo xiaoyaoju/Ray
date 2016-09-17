@@ -1052,6 +1052,10 @@ AddStoneToString( game_info_t *game, string_t *string, int pos, int head )
       str_pos = string->origin;
     }
     while (string_next[str_pos] < pos){
+      if (str_pos == string_next[str_pos]) {
+	cerr << "Illegal string" << endl;
+	abort();
+      }
       str_pos = string_next[str_pos];
     }
     string_next[pos] = string_next[str_pos];
@@ -1751,6 +1755,111 @@ WritePlanes(
 	data2.push_back((float)owner);
       }
     }
+#endif
+  }
+}
+
+
+void
+WritePlanes2(
+  std::vector<float>& data,
+  std::vector<float>& data2,
+  const game_info_t *game,
+  const uct_node_t *root,
+  int move,
+  int *moveT,
+  int color,
+  int win,
+  int tran)
+{
+#define OUTPUT_FEATURE(x)	data.push_back((x) ? 1 : 0)
+
+  const int opp = FLIP_COLOR(color);
+  {
+    //cout << "a\n";
+    *moveT = trans(move, tran);
+    const int koT = trans(game->ko_pos, tran);
+    //OUTPUT_LABEL(chosenMoveT);
+    //boost::dynamic_bitset<uint8_t> data;
+
+#define OUTPUT(block) \
+		for (int y = board_start; y <= board_end; y++) { \
+			for (int x = board_start; x <= board_end; ++x) { \
+				int p = trans(POS(x, y), tran); \
+				int c = game->board[p]; \
+				block \
+			}\
+		}
+#if 1
+    OUTPUT({ OUTPUT_FEATURE(c == S_BLACK); });
+    OUTPUT({ OUTPUT_FEATURE(c == S_WHITE); });
+    OUTPUT({ OUTPUT_FEATURE(c == S_EMPTY); });
+    OUTPUT({ OUTPUT_FEATURE(color == S_BLACK); });
+    OUTPUT({ OUTPUT_FEATURE(true); });
+#else
+    OUTPUT({ OUTPUT_FEATURE(c == color); });
+    OUTPUT({ OUTPUT_FEATURE(c == opp); });
+    OUTPUT({ OUTPUT_FEATURE(c == S_EMPTY); });
+    OUTPUT({ OUTPUT_FEATURE(true); });
+#endif
+
+    auto start = data.size();
+    OUTPUT({ data.push_back(0.0); });
+    for (int i = 0; i < game->moves; i++) {
+      int pos = game->record[game->moves - i - 1].pos;
+      if (pos == PASS || pos == RESIGN)
+	continue;
+      int p = trans(pos, tran);
+      int x = X(p) - OB_SIZE;
+      int y = Y(p) - OB_SIZE;
+      int n = x + y * pure_board_size;
+      if (n < 0 || n >= 19 * 19) {
+	cerr << "bad pos " << n << endl;
+      }
+      if (i == 0 && pos == move)
+	cerr << "bad pos2 " << n << endl;
+      if (data[start + n] == 0.0)
+	data[start + n] = pow(2, -i / 10.0);
+    }
+    OUTPUT({ OUTPUT_FEATURE(p == koT); });
+
+#if 0
+    for (int lib = 1; lib < 5; lib++) {
+      OUTPUT({ int l = GetLibs(game, p); OUTPUT_FEATURE((c == color) && (l == lib || (lib == 4 && l > lib))); });
+    }
+    for (int lib = 1; lib < 5; lib++) {
+      OUTPUT({ int l = GetLibs(game, p); OUTPUT_FEATURE((c == opp) && (l == lib || (lib == 4 && l > lib))); });
+    }
+#elif 0
+    OUTPUT({ int l = GetLibs(game, p); data.push_back((c == color) ? (std::min(l, 10) / 10.0) : 0.0); });
+    OUTPUT({ int l = GetLibs(game, p); data.push_back((c == opp) ? (std::min(l, 10) / 10.0) : 0.0); });
+#else
+    OUTPUT({ int l = GetLibs(game, p); data.push_back((c == S_BLACK) ? (std::min(l, 10) / 10.0) : 0.0); });
+    OUTPUT({ int l = GetLibs(game, p); data.push_back((c == S_WHITE) ? (std::min(l, 10) / 10.0) : 0.0); });
+#endif
+#if 0
+    const statistic_t *statistic = root->statistic;
+    for (int i = 1, y = board_start; y <= board_end; y++, i++) {
+      // cerr << setw(2) << (pure_board_size + 1 - i) << ":|";
+      for (int x = board_start; x <= board_end; x++) {
+	int pos = trans(POS(x, y), tran);
+	// int pos = POS(x, y);
+	double owner = (double)statistic[pos].colors[S_BLACK] / root->move_count;
+	/*
+	if (owner > 0.5) {
+	player++;
+	}
+	else {
+	opponent++;
+	}
+	*/
+	//own[pos] = owner * 100.0;
+	//cerr << setw(3) << (int)(owner * 100) << " ";
+	data2.push_back((float)owner);
+      }
+    }
+#elif 0
+    OUTPUT({ data2.push_back(color == S_BLACK ? 1 : 0); });
 #endif
   }
 }

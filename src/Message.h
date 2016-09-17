@@ -29,6 +29,9 @@ void PrintLegal( game_info_t *game, int color );
 //  オーナーの表示
 void PrintOwner( uct_node_t *root, int color, double *own );
 
+void
+PrintOwnerNN(int color, double *own);
+
 //  最善応手列の表示
 void PrintBestSequence( game_info_t *game, uct_node_t *uct_node, int root, int start_color );
 

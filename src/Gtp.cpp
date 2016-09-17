@@ -35,6 +35,9 @@ static int player_color = 0;
 static game_info_t *game;
 
 static game_info_t *game_prev;
+static game_info_t *store_game;
+static uct_node_t store_node;
+static double store_winning_percentage;
 
 static std::ofstream stream("data.txt", std::ios::app | std::ios::binary);
 
@@ -52,6 +55,8 @@ GTP_main( void )
 
   game_prev = AllocateGame();
   InitializeBoard(game_prev);
+  store_game = AllocateGame();
+  InitializeBoard(store_game);
 
   GTP_setCommand();
   GTP_message();
@@ -129,6 +134,9 @@ GTP_setCommand( void )
   gtpcmd[23].command = STRDUP("set_free_handicap");
   gtpcmd[24].command = STRDUP("kgs-genmove_cleanup");
   gtpcmd[25].command = STRDUP("features_planes_file");
+  gtpcmd[26].command = STRDUP("_clear");
+  gtpcmd[27].command = STRDUP("_store");
+  gtpcmd[28].command = STRDUP("_dump");
 
   gtpcmd[ 0].function = GTP_boardsize;
   gtpcmd[ 1].function = GTP_clearboard;
@@ -156,6 +164,9 @@ GTP_setCommand( void )
   gtpcmd[23].function = GTP_set_free_handicap;
   gtpcmd[24].function = GTP_kgs_genmove_cleanup;
   gtpcmd[25].function = GTP_features_planes_file;
+  gtpcmd[26].function = GTP_features_clear;
+  gtpcmd[27].function = GTP_features_store;
+  gtpcmd[28].function = GTP_features_planes_file;
 }
 
 
@@ -862,7 +873,7 @@ GTP_kgs_genmove_cleanup( void )
   GTP_response(pos, true);
 }
  
-
+#if 0
 void GTP_features_planes_file(void)
 {
   int color = game->record[game->moves - 1].color;
@@ -905,5 +916,137 @@ void GTP_features_planes_file(void)
   }
 #endif
   stream << '\n';
+  GTP_response(brank, true);
+}
+#else
+
+static int features_turn_count = 0;
+static int features_turn_next = 1;
+
+void GTP_features_planes_file(void)
+{
+  char *command;
+
+  command = STRTOK(NULL, DELIM, &next_token);
+  if (command == NULL || game->moves == 0) {
+    GTP_response(err_genmove, true);
+    return;
+  }
+  CHOMP(command);
+  char c = (char)tolower((int)command[0]);
+  int win;
+  if (c == 'w') {
+    win = -1;
+    if (store_winning_percentage > 0.40) {
+      cerr << "####### SKIP " << c << " " << store_winning_percentage << endl;
+      GTP_response(brank, true);
+      return;
+    } else {
+      cerr << "####### DUMP " << c << " " << store_winning_percentage << endl;
+    }
+  } else if (c == 'b') {
+    win = 1;
+    if (store_winning_percentage < 0.60) {
+      cerr << "####### SKIP " << c << " " << store_winning_percentage << endl;
+      GTP_response(brank, true);
+      return;
+      return;
+    } else {
+      cerr << "####### DUMP " << c << " " << store_winning_percentage << endl;
+    }
+  } else {
+    GTP_response(err_genmove, true);
+    return;
+  }
+
+  int color = game->record[game->moves - 1].color;
+  int move = game->record[game->moves - 1].pos;
+
+  if (move == RESIGN || move == PASS) {
+    GTP_response(brank, true);
+    return;
+  }
+
+/*
+  bool stat = 0;
+  if (true) {
+    features_turn_count++;
+    if (features_turn_count < features_turn_next) {
+      //GTP_response(brank, true);
+      //return;
+    } else {
+      features_turn_count = 0;
+      features_turn_next = 20 + rand() % 30;
+      UctSearchStat(game_prev, color, 1000);
+      stat = 1;
+    }
+  }
+
+  uct_node_t *root = &uct_node[current_root];
+  */
+
+  std::vector<float> data, data2;
+  int moveT;
+  int t = rand() / 11 % 8;
+  WritePlanes2(data, data2, game_prev, &store_node, move, &moveT, color, t);
+
+  int x = CORRECT_X(moveT) - 1;
+  int y = CORRECT_Y(moveT) - 1;
+  int label = x + y * pure_board_size;
+  if (label < 0 || label > 19 * 19) {
+    cerr << "bad label " << x << " " << y << endl;
+    abort();
+  }
+
+  stream << "|win " << win;
+  stream << "|move " << label << ":1";
+  stream << "|features ";
+  //stream << '\n';
+  for (auto i = 0; i < data.size(); i++) {
+    //if (i % 19 == 0) stream << '\n';
+    float f = data[i];
+    if (f != 0) {
+      stream << i << ':' << f << ' ';
+    }
+  }
+#if 1
+  stream << "|statistic ";
+  for (auto i = 0; i < data2.size(); i++) {
+    //stream << data2[i] << ' ';
+    float f = data2[i];
+    if (f != 0) {
+      stream << i << ':' << f << ' ';
+    }
+  }
+#endif
+  stream << endl;
+  GTP_response(brank, true);
+}
+#endif
+
+void GTP_features_clear(void)
+{
+  GTP_response(brank, true);
+  return;
+}
+
+void GTP_features_store(void)
+{
+  char *command;
+
+  int color = FLIP_COLOR(game->record[game->moves - 1].color);
+
+  CopyGame(store_game, game);
+  UctSearchStat(store_game, color, 10000);
+
+  const uct_node_t *root = &uct_node[current_root];
+  memcpy(&store_node, root, sizeof(uct_node_t));
+  double winning_percentage = (double)root->win / root->move_count;
+  if (color == S_BLACK) {
+    store_winning_percentage = winning_percentage;
+  } else {
+    store_winning_percentage = 1 - winning_percentage;
+  }
+
   GTP_response(brank, true);
 }

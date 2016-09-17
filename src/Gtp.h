@@ -1,7 +1,7 @@
 #ifndef _GTP_H_
 #define _GTP_H_
 
-const int GTP_COMMAND_NUM = 26;
+const int GTP_COMMAND_NUM = 29;
 
 const int BUF_SIZE = 256;
 
@@ -78,6 +78,10 @@ void GTP_set_free_handicap( void );
 // fixed_handicapƒRƒ}ƒ“ƒh‚ğˆ—
 void GTP_fixed_handicap( void );
 //
-void GTP_features_planes_file( void );
+void GTP_features_planes_file(void);
+//
+void GTP_features_clear(void);
+//
+void GTP_features_store(void);
 
 #endif
