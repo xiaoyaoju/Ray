@@ -847,21 +847,21 @@ MD5Rotate90( unsigned long long md5 )
 
 //  3x3 
 unsigned int
-Pat3( struct pattern *pat, int pos )
+Pat3( const struct pattern *pat, int pos )
 {
   return (pat[pos].list[MD_2] & 0xFFFF);
 }
 
 //  md2
 unsigned int
-MD2( struct pattern *pat, int pos )
+MD2( const struct pattern *pat, int pos )
 {
   return (pat[pos].list[MD_2]);
 }
 
 //  md3
 unsigned int
-MD3( struct pattern *pat, int pos )
+MD3( const struct pattern *pat, int pos )
 {
   return (pat[pos].list[MD_3]);
 }
@@ -869,14 +869,14 @@ MD3( struct pattern *pat, int pos )
 
 //  md4
 unsigned int
-MD4( struct pattern *pat, int pos )
+MD4( const struct pattern *pat, int pos )
 {
   return (pat[pos].list[MD_4]);
 }
 
 //  md5
 unsigned long long
-MD5( struct pattern *pat, int pos )
+MD5( const struct pattern *pat, int pos )
 {
   return (pat[pos].large_list[MD_5]);
 }

@@ -200,7 +200,7 @@ game_info_t *AllocateGame( void );
 void FreeGame( game_info_t *game );
 
 // 盤面情報のコピー
-void CopyGame( game_info_t *dst, game_info_t *src );
+void CopyGame( game_info_t *dst, const game_info_t *src );
 
 // 定数の初期化
 void InitializeConst( void );
@@ -210,7 +210,7 @@ void InitializeBoard( game_info_t *game );
 
 // 合法手判定
 // 合法手ならばtrueを返す
-bool IsLegal( game_info_t *game, int pos, int color );
+bool IsLegal( const game_info_t *game, int pos, int color );
 
 // 合法手かつ眼でないか判定
 // 合法手かつ眼でなければtrueを返す
@@ -218,7 +218,7 @@ bool IsLegalNotEye( game_info_t *game, int pos, int color );
 
 // 自殺手判定
 // 自殺手ならばtrueを返す
-bool IsSuicide( game_info_t *game, string_t *string, int color, int pos );
+bool IsSuicide( const game_info_t *game, const string_t *string, int color, int pos );
 
 // 石を置く
 void PutStone( game_info_t *game, int pos, int color );

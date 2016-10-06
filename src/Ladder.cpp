@@ -16,9 +16,9 @@ game_info_t search_game[100];
 
 
 void
-LadderExtension( game_info_t *game, int color, bool *ladder_pos )
+LadderExtension( const game_info_t *game, int color, bool *ladder_pos )
 {
-  string_t *string = game->string;
+  const string_t *string = game->string;
   int i, ladder = PASS;
   game_info_t *shicho_game = AllocateGame();
   bool checked[BOARD_MAX] = { false };  
@@ -75,13 +75,13 @@ LadderExtension( game_info_t *game, int color, bool *ladder_pos )
 
 
 bool
-IsLadderCaptured( int depth, game_info_t *game, int ren_xy, int turn_color )
+IsLadderCaptured( int depth, const game_info_t *game, int ren_xy, int turn_color )
 {
-  string_t *string = game->string;
+  const string_t *string = game->string;
   int str = game->string_id[ren_xy];
   int escape_color, capture_color;
   int escape_xy, capture_xy;
-  char *board = game->board;
+  const char *board = game->board;
   int neighbor;
 
   if (depth >= 100) {
@@ -151,11 +151,11 @@ IsLadderCaptured( int depth, game_info_t *game, int ren_xy, int turn_color )
 //  •‚©‚ç‚È‚¢ƒVƒ`ƒ‡ƒE‚ð“¦‚°‚éŽè‚©”»’è  //
 //////////////////////////////////////////
 bool
-CheckLadderExtension( game_info_t *game, int color, int pos )
+CheckLadderExtension( const game_info_t *game, int color, int pos )
 {
-  char *board = game->board;
-  string_t *string = game->string;
-  int *string_id = game->string_id;
+  const char *board = game->board;
+  const string_t *string = game->string;
+  const int *string_id = game->string_id;
   int ladder = PASS;
   game_info_t *shicho_game = AllocateGame();
   bool flag = false;

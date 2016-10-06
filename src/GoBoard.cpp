@@ -294,7 +294,7 @@ InitializeBoard( game_info_t *game )
 //  コピー  //
 //////////////
 void
-CopyGame( game_info_t *dst, game_info_t *src )
+CopyGame( game_info_t *dst, const game_info_t *src )
 {
   int i;
 
@@ -562,7 +562,7 @@ InitializeNeighborEmptyPattern( void )
 //  合法手判定  //
 //////////////////
 bool
-IsLegal( game_info_t *game, int pos, int color )
+IsLegal( const game_info_t *game, int pos, int color )
 {
   // 既に石がある
   if (game->board[pos] != S_EMPTY) {
@@ -589,7 +589,7 @@ IsLegal( game_info_t *game, int pos, int color )
 //  盤端での処理  //
 ////////////////////
 bool
-IsEdgeConnection( game_info_t *game, int pos, int color )
+IsEdgeConnection( const game_info_t *game, int pos, int color )
 {
   // +++++XOO#
   // +++++XO+#
@@ -614,9 +614,9 @@ IsEdgeConnection( game_info_t *game, int pos, int color )
   // +++XO+XO#
   // +++XOOO*#
   // #########
-  string_t *string = game->string;
-  int *string_id = game->string_id;
-  char *board = game->board;
+  const string_t *string = game->string;
+  const int *string_id = game->string_id;
+  const char *board = game->board;
   int checked_string[4] = { 0 };
   int string_liberties[4] = { 0 };
   int strings = 0;
@@ -747,10 +747,10 @@ IsLegalNotEye( game_info_t *game, int pos, int color )
 //  自殺手の判定  //
 ////////////////////
 bool
-IsSuicide( game_info_t *game, string_t *string, int color, int pos )
+IsSuicide( const game_info_t *game, const string_t *string, int color, int pos )
 {
-  char *board = game->board;
-  int *string_id = game->string_id;
+  const char *board = game->board;
+  const int *string_id = game->string_id;
   int other = FLIP_COLOR(color);
   int neighbor4[4], i;
 
@@ -1576,7 +1576,7 @@ int
 CalculateScore( game_info_t *game )
 // game_info_t *game : 盤面の情報を示すポインタ
 {
-  char *board = game->board;
+  const char *board = game->board;
   int i;
   int pos;
   int color;

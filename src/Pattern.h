@@ -86,11 +86,11 @@ unsigned int MD4Rotate90( unsigned int md4 );
 unsigned long long MD5Rotate90( unsigned long long md5 );
 
 //  パターンを返す
-unsigned int Pat3( struct pattern *pat, int pos );
-unsigned int MD2( struct pattern *pat, int pos );
-unsigned int MD3( struct pattern *pat, int pos );
-unsigned int MD4( struct pattern *pat, int pos );
-unsigned long long MD5( struct pattern *pat, int pos );
+unsigned int Pat3( const struct pattern *pat, int pos );
+unsigned int MD2( const struct pattern *pat, int pos );
+unsigned int MD3( const struct pattern *pat, int pos );
+unsigned int MD4( const struct pattern *pat, int pos );
+unsigned long long MD5( const struct pattern *pat, int pos );
 
 //  表示
 void DisplayInputPat3( unsigned int pat3 );
