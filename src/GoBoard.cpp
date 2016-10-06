@@ -10,6 +10,7 @@
 #include "UctRating.h"
 #include "ZobristHash.h"
 #include "UctSearch.h"
+#include "Ladder.h"""
 
 using namespace std;
 
@@ -1763,7 +1764,7 @@ WritePlanes(
 void
 WritePlanes2(
   std::vector<float>& data,
-  std::vector<float>& data2,
+  std::vector<float>* data2,
   const game_info_t *game,
   const uct_node_t *root,
   int move,
@@ -1773,6 +1774,12 @@ WritePlanes2(
   int tran)
 {
 #define OUTPUT_FEATURE(x)	data.push_back((x) ? 1 : 0)
+
+  bool ladder[2][BOARD_MAX] = { false };
+
+  // ƒVƒ`ƒ‡ƒE‚ð’²‚×‚é
+  LadderExtension(game, S_BLACK, ladder[0]);
+  LadderExtension(game, S_WHITE, ladder[1]);
 
   const int opp = FLIP_COLOR(color);
   {
@@ -1837,7 +1844,12 @@ WritePlanes2(
     OUTPUT({ int l = GetLibs(game, p); data.push_back((c == S_BLACK) ? (std::min(l, 10) / 10.0) : 0.0); });
     OUTPUT({ int l = GetLibs(game, p); data.push_back((c == S_WHITE) ? (std::min(l, 10) / 10.0) : 0.0); });
 #endif
-#if 0
+    OUTPUT({ OUTPUT_FEATURE(ladder[0][p]); });
+    OUTPUT({ OUTPUT_FEATURE(ladder[1][p]); });
+
+#if 1
+    if (!data2)
+      return;
     const statistic_t *statistic = root->statistic;
     for (int i = 1, y = board_start; y <= board_end; y++, i++) {
       // cerr << setw(2) << (pure_board_size + 1 - i) << ":|";
@@ -1855,7 +1867,7 @@ WritePlanes2(
 	*/
 	//own[pos] = owner * 100.0;
 	//cerr << setw(3) << (int)(owner * 100) << " ";
-	data2.push_back((float)owner);
+	data2->push_back((float)owner);
       }
     }
 #elif 0

@@ -941,8 +941,8 @@ void GTP_features_planes_file(void)
     win = -1;
     if (store_winning_percentage > 0.40) {
       cerr << "####### SKIP " << c << " " << store_winning_percentage << endl;
-      GTP_response(brank, true);
-      return;
+      //GTP_response(brank, true);
+      //return;
     } else {
       cerr << "####### DUMP " << c << " " << store_winning_percentage << endl;
     }
@@ -950,9 +950,8 @@ void GTP_features_planes_file(void)
     win = 1;
     if (store_winning_percentage < 0.60) {
       cerr << "####### SKIP " << c << " " << store_winning_percentage << endl;
-      GTP_response(brank, true);
-      return;
-      return;
+      //GTP_response(brank, true);
+      //return;
     } else {
       cerr << "####### DUMP " << c << " " << store_winning_percentage << endl;
     }
@@ -990,7 +989,8 @@ void GTP_features_planes_file(void)
   std::vector<float> data, data2;
   int moveT;
   int t = rand() / 11 % 8;
-  WritePlanes2(data, data2, game_prev, &store_node, move, &moveT, color, t);
+  //static int t = 0; t++;
+  WritePlanes2(data, &data2, game_prev, &store_node, move, &moveT, color, t);
 
   int x = CORRECT_X(moveT) - 1;
   int y = CORRECT_Y(moveT) - 1;
@@ -998,6 +998,11 @@ void GTP_features_planes_file(void)
   if (label < 0 || label > 19 * 19) {
     cerr << "bad label " << x << " " << y << endl;
     abort();
+  }
+  if (isnan(data2[0])) {
+    cerr << "bad stat" << endl;
+    GTP_response(err_genmove, true);
+    return;
   }
 
   stream << "|win " << win;
@@ -1014,11 +1019,13 @@ void GTP_features_planes_file(void)
 #if 1
   stream << "|statistic ";
   for (auto i = 0; i < data2.size(); i++) {
-    //stream << data2[i] << ' ';
+    stream << data2[i] << ' ';
+    /*
     float f = data2[i];
     if (f != 0) {
       stream << i << ':' << f << ' ';
     }
+    */
   }
 #endif
   stream << endl;
@@ -1039,7 +1046,7 @@ void GTP_features_store(void)
   int color = FLIP_COLOR(game->record[game->moves - 1].color);
 
   CopyGame(store_game, game);
-  UctSearchStat(store_game, color, 10000);
+  UctSearchStat(store_game, color, 100);
 
   const uct_node_t *root = &uct_node[current_root];
   memcpy(&store_node, root, sizeof(uct_node_t));

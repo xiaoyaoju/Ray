@@ -1053,7 +1053,7 @@ RatingNode(game_info_t *game, int color, int index, std::vector<int>& path)
     req.index = index;
     req.path.swap(path);
     int moveT;
-    WritePlanes2(req.data, req.data2, game, root, move, &moveT, color, 0);
+    WritePlanes2(req.data, nullptr, game, root, move, &moveT, color, 0);
 #if 1
     eval_queue.push(req);
     //push_back(u);
