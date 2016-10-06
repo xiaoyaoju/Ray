@@ -209,6 +209,19 @@ PrintOwner( uct_node_t *root, int color, double *own )
   double score;
   statistic_t *statistic = root->statistic;
 
+  for (i = 1, y = board_start; y <= board_end; y++, i++) {
+    for (x = board_start; x <= board_end; x++) {
+      pos = POS(x, y);
+      owner = (double)statistic[pos].colors[color] / root->move_count;
+      if (owner > 0.5) {
+	player++;
+      } else {
+	opponent++;
+      }
+      own[pos] = owner * 100.0;
+    }
+  }
+
   if (!debug_message) return ;
 
   cerr << "   ";
@@ -226,14 +239,7 @@ PrintOwner( uct_node_t *root, int color, double *own )
     cerr << setw(2) << (pure_board_size + 1 - i) << ":|";
     for (x = board_start; x <= board_end; x++) {
       pos = POS(x, y);
-      owner = (double)statistic[pos].colors[color] / root->move_count;
-      if (owner > 0.5) {
-	player++;
-      } else {
-	opponent++;
-      }
-      own[pos] = owner * 100.0;
-      cerr << setw(3) << (int)(owner * 100) << " ";
+      cerr << setw(3) << (int)own[pos] << " ";
     }
     cerr << "|" << endl;
   }

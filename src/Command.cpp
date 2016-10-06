@@ -24,6 +24,7 @@ const string command[COMMAND_MAX] = {
   "--pondering",
   "--tree-size",
   "--no-debug",
+  "--no-early-pass",
 };
 
 const string errmessage[COMMAND_MAX] = {
@@ -38,6 +39,7 @@ const string errmessage[COMMAND_MAX] = {
   "Set pondering mode",
   "Set tree size (tree size must be 2 ^ n)",
   "Prohibit any debug message",
+  "No early pass",
 };
 
 
@@ -99,9 +101,12 @@ AnalyzeCommand( int argc, char **argv )
       case COMMAND_TREE_SIZE:
 	SetHashSize((unsigned int)atoi(argv[++i]));
 	break;
-    case COMMAND_NO_DEBUG:
-      SetDebugMessageMode(false);
-      break;
+      case COMMAND_NO_DEBUG:
+        SetDebugMessageMode(false);
+        break;
+      case COMMAND_NO_EARLY_PASS:
+	SetEarlyPass(false);
+	break;
       default:
 	for (j = 0; j < COMMAND_MAX; j++){
 	  fprintf(stderr, "%-22s : %s\n", command[j].c_str(), errmessage[j].c_str());

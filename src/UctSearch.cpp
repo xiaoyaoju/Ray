@@ -122,6 +122,7 @@ int my_color;
 
 clock_t begin_time;
 
+static bool early_pass = true;
 
 ///////////////////
 //
@@ -188,6 +189,15 @@ void
 SetReuseSubtree(bool flag)
 {
   reuse_subtree = flag;
+}
+
+//////////////////
+//  パスの設定  //
+//////////////////
+void
+SetEarlyPass(bool pass)
+{
+  early_pass = pass;
 }
 
 
@@ -433,7 +443,7 @@ UctSearchGenmove(game_info_t *game, int color)
   uct_child = uct_node[current_root].child;
 
   select_index = PASS_INDEX;
-  max_count = uct_child[PASS_INDEX].move_count;
+  max_count = early_pass ? (int)uct_child[PASS_INDEX].move_count : 0;
 
   // 探索回数最大の手を見つける
   for (i = 1; i < uct_node[current_root].child_num; i++){
@@ -462,18 +472,31 @@ UctSearchGenmove(game_info_t *game, int color)
   // 各地点の領地になる確率の出力
   PrintOwner(&uct_node[current_root], color, owner);
 
+  // 取れている石を数える
+  int count = 0;
+  for (i = 0; i < pure_board_max; i++) {
+    int pos = onboard_pos[i];
+
+    if (game->board[pos] == FLIP_COLOR(color) && owner[pos] > 50) {
+      count++;
+    }
+  }
+
   // パスをするときは
   // 1. 直前の着手がパスで, パスした時の勝率がPASS_THRESHOLD以上
+  //    early_pass か有効か死石をすべて打ち上げ済み
   // 2. 着手数がMAX_MOVES以上
   // 投了するときは
   //    Dynamic Komiでの勝率がRESIGN_THRESHOLD以下
   // それ以外は選ばれた着手を返す
   if (pass_wp >= PASS_THRESHOLD &&
+      (early_pass || count == 0) &&
       (game->record[game->moves - 1].pos == PASS)){
     pos = PASS;
   } else if (game->moves >= MAX_MOVES) {
     pos = PASS;
   } else if (game->moves > 3 &&
+             early_pass &&
 	     game->record[game->moves - 1].pos == PASS &&
 	     game->record[game->moves - 3].pos == PASS) {
     pos = PASS;

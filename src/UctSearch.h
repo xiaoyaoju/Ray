@@ -148,6 +148,9 @@ void SetThread( int new_thread );
 // 持ち時間の指定
 void SetTime( double time );
 
+// 相手がパスしたらパスする
+void SetEarlyPass( bool pass );
+
 // パラメータの設定
 void SetParameter( void );
 
