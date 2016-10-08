@@ -336,6 +336,7 @@ GTP_play( void )
   if (pos != RESIGN) {
     PutStone(game, pos, color);
   }
+  PrintBoard(game);
   
   
   GTP_response(brank, true);
