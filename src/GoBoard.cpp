@@ -10,7 +10,8 @@
 #include "UctRating.h"
 #include "ZobristHash.h"
 #include "UctSearch.h"
-#include "Ladder.h"""
+#include "Ladder.h"
+#include "Rating.h"
 
 using namespace std;
 
@@ -1846,7 +1847,33 @@ WritePlanes2(
 #endif
     OUTPUT({ OUTPUT_FEATURE(ladder[0][p]); });
     OUTPUT({ OUTPUT_FEATURE(ladder[1][p]); });
-
+    static int64_t count = 0;
+    static int64_t count1[F_MAX1] = { 0 };
+    static int64_t count2[F_MAX2] = { 0 };
+    for (int i = 0; i < F_MAX1; i++) {
+      OUTPUT({
+        bool flg = game->tactical_features1[p] & po_tactical_features_mask[i];
+        if (flg) count1[i]++;
+        OUTPUT_FEATURE(flg);
+      });
+    }
+    for (int i = 0; i < F_MAX2; i++) {
+      OUTPUT({
+        bool flg = game->tactical_features2[p] & po_tactical_features_mask[i];
+        if (flg) count2[i]++;
+        OUTPUT_FEATURE(flg);
+      });
+    }
+    count++;
+    if (count % 10000 == 0) {
+      cerr << "# FEATURE STAT" << endl;
+      for (int i = 0; i < F_MAX1; i++) {
+	cerr << "F1_" << i << ":" << (10000.0 * count1[i] / count / 361) << '\t' << count1[i]<< endl;
+      }
+      for (int i = 0; i < F_MAX2; i++) {
+	cerr << "F2_" << i << ":" << (10000.0 * count2[i] / count / 361) << '\t' << count2[i] << endl;
+      }
+    }
 #if 1
     if (!data2)
       return;

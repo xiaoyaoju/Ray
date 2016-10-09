@@ -20,6 +20,7 @@
 #include "Ladder.h"
 #include "Message.h"
 #include "PatternHash.h"
+#include "Rating.h"
 #include "Simulation.h"
 #include "UctRating.h"
 #include "UctSearch.h"
@@ -1047,6 +1048,8 @@ RatingNode(game_info_t *game, int color, int index, std::vector<int>& path)
 #endif
     uct_node_t *root = &uct_node[current_root];
 
+    double rate[PURE_BOARD_MAX];
+    AnalyzePoRating(game, color, rate);
     node_eval_req req;
     req.color = color;
     req.index = index;
@@ -2110,7 +2113,7 @@ void EvalUctNode(std::vector<int>& indices, std::vector<int>& color, std::vector
       p = 1;
     //cerr << "#" << index << "  " << sum << endl;
 
-    double value = color[j] == S_BLACK ? p : 1 - p;
+    double value = p;// color[j] == S_BLACK ? p : 1 - p;
 
     double expected = -1;
     if (!atomic_compare_exchange_strong(&uct_node[index].value, &expected, value)) {

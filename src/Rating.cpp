@@ -1516,7 +1516,10 @@ AnalyzePoRating( game_info_t *game, int color, double rate[] )
   int moves = game->moves;
   int pm1 = PASS;
   float gamma;
-  int update_pos[BOARD_MAX], update_num = 0;  
+  int update_pos[BOARD_MAX], update_num = 0;
+  int *string_id = game->string_id;
+  string_t *string = game->string;
+  char *board = game->board;
   
   for (i = 0; i < pure_board_max; i++) {
     pos = onboard_pos[i];
@@ -1534,7 +1537,23 @@ AnalyzePoRating( game_info_t *game, int color, double rate[] )
   
   for (i = 0; i < pure_board_max; i++) {
     pos = onboard_pos[i];
-    
+
+    //cerr << "CHECK " << pos << ":" << (int)board[pos] <<  " " << color << endl;
+    if (board[pos] == color) {
+      int id = string_id[pos];
+      //cerr << "CHECK " << pos << " " << color << endl;
+      //if (id != check[0] && id != check[1] && id != check[2]) {//TODO
+      //}
+      update_num = 0;
+      if (string[id].libs == 1) {
+	PoCheckFeaturesLib1(game, color, id, update_pos, &update_num);
+      } else if (string[id].libs == 2) {
+	PoCheckFeaturesLib2(game, color, id, update_pos, &update_num);
+      } else if (string[id].libs == 3) {
+	PoCheckFeaturesLib3(game, color, id, update_pos, &update_num);
+      }
+    }
+
     if (!IsLegal(game, pos, color)) {
       rate[i] = 0;
       continue;

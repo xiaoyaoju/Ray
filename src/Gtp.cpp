@@ -985,6 +985,14 @@ void GTP_features_planes_file(void)
 
   uct_node_t *root = &uct_node[current_root];
   */
+#if 0
+  int update_num = 0;
+  int update_pos[PURE_BOARD_MAX];
+  PoCheckFeatures(game_prev, color, update_pos, &update_num);
+#else
+  double rate[PURE_BOARD_MAX];
+  AnalyzePoRating(game_prev, color, rate);
+#endif
 
   std::vector<float> data, data2;
   int moveT;
