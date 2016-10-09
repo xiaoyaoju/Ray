@@ -132,7 +132,7 @@ extern float po_tactical_set2[PO_TACTICALS_MAX2];
 extern char po_params_path[1024];
 
 // ビットマスク
-extern unsigned int tactical_features_mask[F_MASK_MAX];
+extern unsigned int po_tactical_features_mask[F_MASK_MAX];
 
 ////////////
 //  関数  //
