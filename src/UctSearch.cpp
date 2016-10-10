@@ -1083,6 +1083,9 @@ UctSearch(game_info_t *game, int color, mt19937_64 *mt, int current, int *winner
 {
   int result = 0, next_index;
   double score;
+  bool end_of_game = game->moves > 3 &&
+    game->record[game->moves - 1].pos == PASS &&
+    game->record[game->moves - 3].pos == PASS;
   child_node_t *uct_child = uct_node[current].child;  
 
   // 現在見ているノードをロック
@@ -1094,7 +1097,7 @@ UctSearch(game_info_t *game, int color, mt19937_64 *mt, int current, int *winner
   // 色を入れ替える
   color = FLIP_COLOR(color);
 
-  if (uct_child[next_index].move_count < expand_threshold) {
+  if (uct_child[next_index].move_count < expand_threshold || end_of_game) {
     // Virtual Lossを加算
     AddVirtualLoss(&uct_child[next_index], current);
 
