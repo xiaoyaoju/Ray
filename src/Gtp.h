@@ -1,7 +1,7 @@
 #ifndef _GTP_H_
 #define _GTP_H_
 
-const int GTP_COMMAND_NUM = 29;
+const int GTP_COMMAND_NUM = 30;
 
 const int BUF_SIZE = 256;
 
@@ -83,5 +83,7 @@ void GTP_features_planes_file(void);
 void GTP_features_clear(void);
 //
 void GTP_features_store(void);
+//
+void GTP_stat(void);
 
 #endif

@@ -137,6 +137,7 @@ GTP_setCommand( void )
   gtpcmd[26].command = STRDUP("_clear");
   gtpcmd[27].command = STRDUP("_store");
   gtpcmd[28].command = STRDUP("_dump");
+  gtpcmd[29].command = STRDUP("_stat");
 
   gtpcmd[ 0].function = GTP_boardsize;
   gtpcmd[ 1].function = GTP_clearboard;
@@ -167,6 +168,7 @@ GTP_setCommand( void )
   gtpcmd[26].function = GTP_features_clear;
   gtpcmd[27].function = GTP_features_store;
   gtpcmd[28].function = GTP_features_planes_file;
+  gtpcmd[29].function = GTP_stat;
 }
 
 
@@ -1049,4 +1051,64 @@ void GTP_features_store(void)
   }
 
   GTP_response(brank, true);
+}
+
+
+///////////////////////
+//  void GTP_stat()  //
+///////////////////////
+void
+GTP_stat(void)
+{
+  char *command;
+  char c;
+  char pos[10];
+  int color;
+  int point = PASS;
+
+  command = STRTOK(input_copy, DELIM, &next_token);
+
+  CHOMP(command);
+  command = STRTOK(NULL, DELIM, &next_token);
+  if (command == NULL) {
+    GTP_response(err_genmove, true);
+    return;
+  }
+  CHOMP(command);
+  c = (char)tolower((int)command[0]);
+  if (c == 'w') {
+    color = S_WHITE;
+  } else if (c == 'b') {
+    color = S_BLACK;
+  } else {
+    GTP_response(err_genmove, true);
+    return;
+  }
+
+  player_color = FLIP_COLOR(game->record[game->moves - 1].color);
+
+  int win = player_color == color ? 1 : 0;
+
+  //player_color = color;
+
+  point = UctSearchGenmove(game, player_color);
+  if (point != RESIGN) {
+    //PutStone(game, point, color);
+  }
+
+
+  uct_node_t *root = &uct_node[current_root];
+  double winning_percentage = (double)root->win / root->move_count;
+  double value = root->value;// (double)root->value_win / root->value_move_count;
+  double se_po = abs(winning_percentage - win);
+  double se_value = abs(value - win);
+  cerr << "STAT\t" << game->moves << "\t" << winning_percentage << "\t" << value << "\t"
+    << se_po << "\t" << se_value << endl;
+
+
+  IntegerToString(point, pos);
+
+  GTP_response(pos, true);
+
+  //UctSearchPondering(game, FLIP_COLOR(color));
 }
