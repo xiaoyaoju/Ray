@@ -35,7 +35,7 @@ const double PROGRESSIVE_WIDENING = 1.8;
 const int EXPAND_THRESHOLD_9  = 20;
 const int EXPAND_THRESHOLD_13 = 25;
 //const int EXPAND_THRESHOLD_19 = 40;
-const int EXPAND_THRESHOLD_19 = 10;
+const int EXPAND_THRESHOLD_19 = 2;
 
 
 // 候補手の最大数(盤上全体 + パス)
@@ -60,7 +60,7 @@ const double RESIGN_THRESHOLD = 0.20;
 const int VIRTUAL_LOSS = 1;
 
 const double c_puct = 1;
-const double value_scale = 5.0;
+const double value_scale = 2.0;
 
 enum SEARCH_MODE {
   CONST_PLAYOUT_MODE, // 1手のプレイアウト回数を固定したモード
