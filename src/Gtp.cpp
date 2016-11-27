@@ -934,11 +934,16 @@ void GTP_features_planes_file(void)
     GTP_response(err_genmove, true);
     return;
   }
+
+  int color = game->record[game->moves - 1].color;
+  int move = game->record[game->moves - 1].pos;
+
   CHOMP(command);
   char c = (char)tolower((int)command[0]);
   int win;
   if (c == 'w') {
-    win = -1;
+    win = color == S_WHITE ? 1 : -1;
+#if 0
     if (store_winning_percentage > 0.40) {
       cerr << "####### SKIP " << c << " " << store_winning_percentage << endl;
       //GTP_response(brank, true);
@@ -946,8 +951,10 @@ void GTP_features_planes_file(void)
     } else {
       cerr << "####### DUMP " << c << " " << store_winning_percentage << endl;
     }
+#endif
   } else if (c == 'b') {
-    win = 1;
+    win = color == S_BLACK ? 1 : -1;
+#if 0
     if (store_winning_percentage < 0.60) {
       cerr << "####### SKIP " << c << " " << store_winning_percentage << endl;
       //GTP_response(brank, true);
@@ -955,13 +962,11 @@ void GTP_features_planes_file(void)
     } else {
       cerr << "####### DUMP " << c << " " << store_winning_percentage << endl;
     }
+#endif
   } else {
     GTP_response(err_genmove, true);
     return;
   }
-
-  int color = game->record[game->moves - 1].color;
-  int move = game->record[game->moves - 1].pos;
 
   if (move == RESIGN || move == PASS) {
     GTP_response(brank, true);
