@@ -1775,14 +1775,14 @@ WritePlanes2(
   int tran)
 {
 #define OUTPUT_FEATURE(x)	data.push_back((x) ? 1 : 0)
+  const int opp = FLIP_COLOR(color);
 
   bool ladder[2][BOARD_MAX] = { false };
 
   // ƒVƒ`ƒ‡ƒE‚ð’²‚×‚é
-  LadderExtension(game, S_BLACK, ladder[0]);
-  LadderExtension(game, S_WHITE, ladder[1]);
+  LadderExtension(game, color, ladder[0]);
+  LadderExtension(game, opp, ladder[1]);
 
-  const int opp = FLIP_COLOR(color);
   {
     //cout << "a\n";
     *moveT = trans(move, tran);
@@ -1799,8 +1799,8 @@ WritePlanes2(
 			}\
 		}
 #if 1
-    OUTPUT({ OUTPUT_FEATURE(c == S_BLACK); });
-    OUTPUT({ OUTPUT_FEATURE(c == S_WHITE); });
+    OUTPUT({ OUTPUT_FEATURE(c == color); });
+    OUTPUT({ OUTPUT_FEATURE(c == opp); });
     OUTPUT({ OUTPUT_FEATURE(c == S_EMPTY); });
     OUTPUT({ OUTPUT_FEATURE(color == S_BLACK); });
     OUTPUT({ OUTPUT_FEATURE(true); });
@@ -1842,8 +1842,8 @@ WritePlanes2(
     OUTPUT({ int l = GetLibs(game, p); data.push_back((c == color) ? (std::min(l, 10) / 10.0) : 0.0); });
     OUTPUT({ int l = GetLibs(game, p); data.push_back((c == opp) ? (std::min(l, 10) / 10.0) : 0.0); });
 #else
-    OUTPUT({ int l = GetLibs(game, p); data.push_back((c == S_BLACK) ? (std::min(l, 10) / 10.0) : 0.0); });
-    OUTPUT({ int l = GetLibs(game, p); data.push_back((c == S_WHITE) ? (std::min(l, 10) / 10.0) : 0.0); });
+    OUTPUT({ int l = GetLibs(game, p); data.push_back((c == color) ? (std::min(l, 10) / 10.0) : 0.0); });
+    OUTPUT({ int l = GetLibs(game, p); data.push_back((c == opp) ? (std::min(l, 10) / 10.0) : 0.0); });
 #endif
     OUTPUT({ OUTPUT_FEATURE(ladder[0][p]); });
     OUTPUT({ OUTPUT_FEATURE(ladder[1][p]); });
@@ -1883,7 +1883,7 @@ WritePlanes2(
       for (int x = board_start; x <= board_end; x++) {
 	int pos = trans(POS(x, y), tran);
 	// int pos = POS(x, y);
-	double owner = (double)statistic[pos].colors[S_BLACK] / root->move_count;
+	double owner = (double)statistic[pos].colors[color] / root->move_count;
 	/*
 	if (owner > 0.5) {
 	player++;
