@@ -20,6 +20,7 @@
 #include "Ladder.h"
 #include "Message.h"
 #include "PatternHash.h"
+#include "Point.h"
 #include "Simulation.h"
 #include "UctRating.h"
 #include "UctSearch.h"
@@ -1583,7 +1584,9 @@ SelectMaxUcbChild(const game_info_t *game, int current, int color)
 
       if (evaled) {
 	if (debug) {
-	  cerr << uct_node[current].move_count << "." << setw(3) << i << ":" << setw(5) << move_count << " "
+	   cerr << uct_node[current].move_count << ".";
+	   cerr << GOGUI_X(uct_child[i].pos) << setw(2) << GOGUI_Y(uct_child[i].pos);
+	   cerr << ":" << setw(5) << move_count << " "
 	    << setw(10) << (uct_child[i].nnrate  * 100) << " ";
 	}
 	if (move_count == 0) {
@@ -2118,6 +2121,7 @@ void EvalUctNode(std::vector<int>& indices, std::vector<int>& color, std::vector
     }
     //if (index != path[path_index])
     //   cerr << "???" << index << " " << path[path_index] << " " << path[path_index+1]<< endl;
+    int depth = 0;
     for (;;) {
       int current = path[path_index];
       //cerr << "#" << path_index << "  " << current << endl;
@@ -2128,6 +2132,7 @@ void EvalUctNode(std::vector<int>& indices, std::vector<int>& color, std::vector
       atomic_fetch_add(&uct_node[current].value_move_count, 1);
       atomic_fetch_add(&uct_node[current].value_win, value);
       value = 1 - value;
+      depth++;
     }
 #endif
 #if 0
@@ -2141,6 +2146,8 @@ void EvalUctNode(std::vector<int>& indices, std::vector<int>& color, std::vector
 #endif
 
 #if 1
+    bool flat = depth <= 2 && child_num > 3;
+    vector<int> cs;
     for (int i = 1; i < child_num; i++) {
       int pos = uct_child[i].pos;
 
@@ -2155,7 +2162,29 @@ void EvalUctNode(std::vector<int>& indices, std::vector<int>& color, std::vector
 	//if (score > 0)
 	//uct_child[i].flag = true;
 	uct_child[i].nnrate = max(score, 0.0);
+
+	if (flat) {
+	   cs.push_back(i);
+	}
       }
+    }
+    if (flat && cs.size() >= 3) {
+       sort(cs.begin(), cs.end(),
+	  [&](int a, int b) {
+	  return uct_child[a].nnrate > uct_child[b].nnrate;
+       });
+       const int n = depth < 2 ? 3 : 2;
+       double topsum = 0;
+       for (int i = 0; i < n; i++) {
+	  //cerr << "FLAT" << depth << " " << i << ":" << uct_child[cs[i]].nnrate << endl;
+	  topsum += uct_child[cs[i]].nnrate;
+       }
+
+       for (int i = 0; i < n; i++) {
+	  double org = uct_child[cs[i]].nnrate;
+	  uct_child[cs[i]].nnrate = (org + topsum / n) / 2;
+	  cerr << "FLAT" << depth << " " << i << ":" << org << " -> " << uct_child[cs[i]].nnrate << endl;
+       }
     }
     uct_node[index].evaled = true;
 #endif
