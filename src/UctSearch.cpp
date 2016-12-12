@@ -50,6 +50,7 @@ typedef std::map<std::wstring, std::vector<float>*> Layer;
 struct node_eval_req {
   int index;
   int color;
+  int trans;
   std::vector<int> path;
   std::vector<float> data;
   std::vector<float> data2;
@@ -1054,9 +1055,10 @@ RatingNode(game_info_t *game, int color, int index, std::vector<int>& path)
     node_eval_req req;
     req.color = color;
     req.index = index;
+    req.trans = rand() / (RAND_MAX / 8 + 1);
     req.path.swap(path);
     int moveT;
-    WritePlanes2(req.data, nullptr, game, root, move, &moveT, color, 0);
+    WritePlanes2(req.data, nullptr, game, root, move, &moveT, color, req.trans);
 #if 1
     eval_queue.push(req);
     //push_back(u);
@@ -2064,7 +2066,7 @@ ReadWeights()
   cerr << "ok" << endl;
 }
 
-void EvalUctNode(std::vector<int>& indices, std::vector<int>& color, std::vector<float>& data, std::vector<int>& path)
+void EvalUctNode(std::vector<int>& indices, std::vector<int>& color, std::vector<int>& trans, std::vector<float>& data, std::vector<int>& path)
 {
 
   Layer inputLayer;
@@ -2152,7 +2154,7 @@ void EvalUctNode(std::vector<int>& indices, std::vector<int>& color, std::vector
     bool flat = depth <= 2 && child_num > 3;
     vector<int> cs;
     for (int i = 1; i < child_num; i++) {
-      int pos = uct_child[i].pos;
+      int pos = RevTransformMove(uct_child[i].pos, trans[j]);
 
       int x = X(pos) - OB_SIZE;
       int y = Y(pos) - OB_SIZE;
@@ -2186,7 +2188,7 @@ void EvalUctNode(std::vector<int>& indices, std::vector<int>& color, std::vector
        for (int i = 0; i < n; i++) {
 	  double org = uct_child[cs[i]].nnrate;
 	  uct_child[cs[i]].nnrate = (org + topsum / n) / 2;
-	  cerr << "FLAT" << depth << " " << i << ":" << org << " -> " << uct_child[cs[i]].nnrate << endl;
+	  //cerr << "FLAT" << depth << " " << i << ":" << org << " -> " << uct_child[cs[i]].nnrate << endl;
        }
     }
     uct_node[index].evaled = true;
@@ -2198,6 +2200,7 @@ void EvalUctNode(std::vector<int>& indices, std::vector<int>& color, std::vector
 
 static std::vector<int> eval_node_index;
 static std::vector<int> eval_node_color;
+static std::vector<int> eval_node_trans;
 static std::vector<int> eval_node_path;
 static std::vector<float> eval_input_data;
 
@@ -2216,6 +2219,7 @@ void EvalNode() {
 
     eval_node_index.resize(0);
     eval_node_color.resize(0);
+    eval_node_trans.resize(0);
     eval_node_path.resize(0);
     eval_input_data.resize(0);
 
@@ -2223,6 +2227,7 @@ void EvalNode() {
       node_eval_req& req = eval_queue.front();
       eval_node_index.push_back(req.index);
       eval_node_color.push_back(req.color);
+      eval_node_trans.push_back(req.trans);
       std::copy(req.data.begin(), req.data.end(), std::back_inserter(eval_input_data));
       std::copy(req.path.rbegin(), req.path.rend(), std::back_inserter(eval_node_path));
       eval_node_path.push_back(-1);
@@ -2231,7 +2236,7 @@ void EvalNode() {
 
     UNLOCK_EXPAND;
 
-    EvalUctNode(eval_node_index, eval_node_color, eval_input_data, eval_node_path);
+    EvalUctNode(eval_node_index, eval_node_color, eval_node_trans, eval_input_data, eval_node_path);
   }
 #endif
 }

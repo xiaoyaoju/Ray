@@ -256,4 +256,7 @@ int RateComp( const void *a, const void *b );
 void
 SetUseNN(bool flag);
 
+void
+EvalUctNode(std::vector<int>& indices, std::vector<int>& color, std::vector<int>& trans, std::vector<float>& data, std::vector<int>& path);
+
 #endif

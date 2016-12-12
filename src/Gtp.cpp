@@ -1111,6 +1111,38 @@ GTP_stat(void)
 
   //player_color = color;
 
+  cerr << "VALUE";
+  double value_sum = 0;
+  for (int i = 0; i < 8; i++) {
+    std::vector<float> data, data2;
+    int moveT;
+    int t = i;// rand() / 11 % 8;
+	      //static int t = 0; t++;
+    WritePlanes2(data, &data2, game, &store_node, POS(10, 11), &moveT, player_color, t);
+
+    std::vector<int> eval_node_index;
+    std::vector<int> eval_node_color;
+    std::vector<int> eval_node_trans;
+    std::vector<int> eval_node_path;
+    //std::vector<float> eval_input_data;
+
+    eval_node_index.push_back(current_root);
+    eval_node_color.push_back(player_color);
+    eval_node_trans.push_back(t);
+    //std::copy(req.data.begin(), req.data.end(), std::back_inserter(eval_input_data));
+    //std::copy(req.path.rbegin(), req.path.rend(), std::back_inserter(eval_node_path));
+    eval_node_path.push_back(-1);
+    uct_node[current_root].value = -1;
+    EvalUctNode(eval_node_index, eval_node_color, eval_node_trans, data, eval_node_path);
+    double value = uct_node[current_root].value;
+    double se_value = abs(value - win);
+    cerr << '\t' << se_value;
+    value_sum += uct_node[current_root].value;
+    uct_node[current_root].value = -1;
+    //<< '\t' << data[19 * 3 + 3] << ':' << POS(10, 11) << ':' << moveT;
+  }
+  cerr << endl;
+
   point = UctSearchGenmove(game, player_color);
   if (point != RESIGN) {
     //PutStone(game, point, color);
@@ -1119,11 +1151,18 @@ GTP_stat(void)
 
   uct_node_t *root = &uct_node[current_root];
   double winning_percentage = (double)root->win / root->move_count;
-  double value = root->value;// (double)root->value_win / root->value_move_count;
+  double value = root->value;
+  double valuet = (double)root->value_win / root->value_move_count;
   double se_po = abs(winning_percentage - win);
   double se_value = abs(value - win);
+  double se_valuet = abs(valuet - win);
+  double se_value8 = abs(value_sum / 8 - win);
   cerr << "STAT\t" << game->moves << "\t" << winning_percentage << "\t" << value << "\t"
-    << se_po << "\t" << se_value << endl;
+    << se_po << "\t" << se_value
+    << '\t' << se_value8
+    << '\t' << root->value_move_count
+    << '\t' << se_valuet
+    << endl;
 
 
   IntegerToString(point, pos);

@@ -1610,14 +1610,14 @@ CalculateScore( game_info_t *game )
 ////////////////
 //  
 ////////////////
-static int trans(int p, int i)
+#define HASH_VMIRROR     1
+#define HASH_HMIRROR     2
+#define HASH_XYFLIP      4
+int TransformMove(int p, int i)
 {
   if (p == PASS || p == RESIGN)
     return p;
   int p0 = p;
-#define HASH_VMIRROR     1
-#define HASH_HMIRROR     2
-#define HASH_XYFLIP      4
   if (i & HASH_VMIRROR) {
     p = POS(X(p), board_end - (Y(p) - board_start));
   }
@@ -1626,6 +1626,29 @@ static int trans(int p, int i)
   }
   if (i & HASH_XYFLIP) {
     p = POS(Y(p), X(p));
+  }
+  int row = X(p);
+  int col = Y(p);
+  if (row < board_start || row > board_end || col < board_start || col > board_end) {
+    std::cerr << "BAD TRANS " << p0 << " -> " << p << " " << board_size << " " << i << " " << row << "," << col << "\n";
+    exit(1);
+  }
+
+  return p;
+}
+int RevTransformMove(int p, int i)
+{
+  if (p == PASS || p == RESIGN)
+    return p;
+  int p0 = p;
+  if (i & HASH_XYFLIP) {
+    p = POS(Y(p), X(p));
+  }
+  if (i & HASH_HMIRROR) {
+    p = POS(board_end - (X(p) - board_start), Y(p));
+  }
+  if (i & HASH_VMIRROR) {
+    p = POS(X(p), board_end - (Y(p) - board_start));
   }
   int row = X(p);
   int col = Y(p);
@@ -1681,15 +1704,15 @@ WritePlanes(
   const int opp = FLIP_COLOR(color);
   {
     //cout << "a\n";
-    *moveT = trans(move, tran);
-    const int koT = trans(game->ko_pos, tran);
+    *moveT = RevTransformMove(move, tran);
+    const int koT = RevTransformMove(game->ko_pos, tran);
     //OUTPUT_LABEL(chosenMoveT);
     //boost::dynamic_bitset<uint8_t> data;
 
 #define OUTPUT(block) \
 		for (int y = board_start; y <= board_end; y++) { \
 			for (int x = board_start; x <= board_end; ++x) { \
-				int p = trans(POS(x, y), tran); \
+				int p = TransformMove(POS(x, y), tran); \
 				int c = game->board[p]; \
 				block \
 			}\
@@ -1709,15 +1732,14 @@ WritePlanes(
       int pos = game->record[game->moves - i - 1].pos;
       if (pos == PASS || pos == RESIGN)
 	continue;
-      int p = trans(pos, tran);
+      int p = RevTransformMove(pos, tran);
       int x = X(p) - OB_SIZE;
       int y = Y(p) - OB_SIZE;
       int n = x + y * pure_board_size;
       if (n < 0 || n >= 19 * 19) {
 	cerr << "bad pos " << n << endl;
       }
-      if (i == 0 && pos == move)
-	cerr << "bad pos2 " << n << endl;
+      //if (i == 0 && pos == move) cerr << "bad pos2 " << n << endl;
       if (data[start + n] == 0.0)
 	data[start + n] = pow(2, -i / 10.0);
     }
@@ -1771,7 +1793,6 @@ WritePlanes2(
   int move,
   int *moveT,
   int color,
-  int win,
   int tran)
 {
 #define OUTPUT_FEATURE(x)	data.push_back((x) ? 1 : 0)
@@ -1785,15 +1806,15 @@ WritePlanes2(
 
   {
     //cout << "a\n";
-    *moveT = trans(move, tran);
-    const int koT = trans(game->ko_pos, tran);
+    *moveT = RevTransformMove(move, tran);
+    const int koT = RevTransformMove(game->ko_pos, tran);
     //OUTPUT_LABEL(chosenMoveT);
     //boost::dynamic_bitset<uint8_t> data;
 
 #define OUTPUT(block) \
 		for (int y = board_start; y <= board_end; y++) { \
 			for (int x = board_start; x <= board_end; ++x) { \
-				int p = trans(POS(x, y), tran); \
+				int p = TransformMove(POS(x, y), tran); \
 				int c = game->board[p]; \
 				block \
 			}\
@@ -1814,57 +1835,46 @@ WritePlanes2(
     auto start = data.size();
     OUTPUT({ data.push_back(0.0); });
     for (int i = 0; i < game->moves; i++) {
-      int pos = game->record[game->moves - i - 1].pos;
-      if (pos == PASS || pos == RESIGN)
+      int p = RevTransformMove(game->record[game->moves - i - 1].pos, tran);
+      if (p == PASS || p == RESIGN)
 	continue;
-      int p = trans(pos, tran);
       int x = X(p) - OB_SIZE;
       int y = Y(p) - OB_SIZE;
       int n = x + y * pure_board_size;
       if (n < 0 || n >= 19 * 19) {
 	cerr << "bad pos " << n << endl;
       }
-      if (i == 0 && pos == move)
-	cerr << "bad pos2 " << n << endl;
+      //if (i == 0 && pos == move) cerr << "bad pos2 " << n << endl;
       if (data[start + n] == 0.0)
 	data[start + n] = pow(2, -i / 10.0);
     }
     OUTPUT({ OUTPUT_FEATURE(p == koT); });
 
-#if 0
-    for (int lib = 1; lib < 5; lib++) {
-      OUTPUT({ int l = GetLibs(game, p); OUTPUT_FEATURE((c == color) && (l == lib || (lib == 4 && l > lib))); });
-    }
-    for (int lib = 1; lib < 5; lib++) {
-      OUTPUT({ int l = GetLibs(game, p); OUTPUT_FEATURE((c == opp) && (l == lib || (lib == 4 && l > lib))); });
-    }
-#elif 0
     OUTPUT({ int l = GetLibs(game, p); data.push_back((c == color) ? (std::min(l, 10) / 10.0) : 0.0); });
     OUTPUT({ int l = GetLibs(game, p); data.push_back((c == opp) ? (std::min(l, 10) / 10.0) : 0.0); });
-#else
-    OUTPUT({ int l = GetLibs(game, p); data.push_back((c == color) ? (std::min(l, 10) / 10.0) : 0.0); });
-    OUTPUT({ int l = GetLibs(game, p); data.push_back((c == opp) ? (std::min(l, 10) / 10.0) : 0.0); });
-#endif
+
     OUTPUT({ OUTPUT_FEATURE(ladder[0][p]); });
     OUTPUT({ OUTPUT_FEATURE(ladder[1][p]); });
-    static int64_t count = 0;
-    static int64_t count1[F_MAX1] = { 0 };
-    static int64_t count2[F_MAX2] = { 0 };
+
+    // static int64_t count = 0;
+    // static int64_t count1[F_MAX1] = { 0 };
+    // static int64_t count2[F_MAX2] = { 0 };
+
     for (int i = 0; i < F_MAX1; i++) {
       OUTPUT({
         bool flg = game->tactical_features1[p] & po_tactical_features_mask[i];
-        if (flg) count1[i]++;
+        //if (flg) count1[i]++;
         OUTPUT_FEATURE(flg);
       });
     }
     for (int i = 0; i < F_MAX2; i++) {
       OUTPUT({
         bool flg = game->tactical_features2[p] & po_tactical_features_mask[i];
-        if (flg) count2[i]++;
+        //if (flg) count2[i]++;
         OUTPUT_FEATURE(flg);
       });
     }
-    count++;
+    /*count++;
     if (count % 10000 == 0) {
       cerr << "# FEATURE STAT" << endl;
       for (int i = 0; i < F_MAX1; i++) {
@@ -1873,15 +1883,15 @@ WritePlanes2(
       for (int i = 0; i < F_MAX2; i++) {
 	cerr << "F2_" << i << ":" << (10000.0 * count2[i] / count / 361) << '\t' << count2[i] << endl;
       }
-    }
-#if 1
+    }*/
+
     if (!data2)
       return;
     const statistic_t *statistic = root->statistic;
     for (int i = 1, y = board_start; y <= board_end; y++, i++) {
       // cerr << setw(2) << (pure_board_size + 1 - i) << ":|";
       for (int x = board_start; x <= board_end; x++) {
-	int pos = trans(POS(x, y), tran);
+	int pos = TransformMove(POS(x, y), tran);
 	// int pos = POS(x, y);
 	double owner = (double)statistic[pos].colors[color] / root->move_count;
 	/*
@@ -1897,8 +1907,5 @@ WritePlanes2(
 	data2->push_back((float)owner);
       }
     }
-#elif 0
-    OUTPUT({ data2.push_back(color == S_BLACK ? 1 : 0); });
-#endif
   }
 }

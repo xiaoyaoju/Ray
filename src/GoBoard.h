@@ -250,6 +250,10 @@ WritePlanes(std::vector<float>& data, std::vector<float>& data2, const game_info
 void
 WritePlanes2(std::vector<float>& data, std::vector<float>* data2, const game_info_t *game, const uct_node_t *root,
   int move, int *moveT,
-  int color, int win, int tran = 0);
+  int color, int tran);
+
+int TransformMove(int p, int i);
+
+int RevTransformMove(int p, int i);
 
 #endif
