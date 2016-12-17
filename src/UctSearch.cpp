@@ -921,6 +921,7 @@ ExpandNode(game_info_t *game, int color, int current, std::vector<int>& path)
   unsigned int index = FindSameHashIndex(game->current_hash, color, game->moves);
   child_node_t *uct_child, *uct_sibling;
   int i, pos, child_num = 0;
+  bool ladder[BOARD_MAX] = { false };  
   double max_rate = 0.0;
   int max_pos = PASS, sibling_num;
   int pm1 = PASS, pm2 = PASS;
@@ -941,6 +942,11 @@ ExpandNode(game_info_t *game, int color, int current, std::vector<int>& path)
   // 2手前の着手の座標を取り出す
   if (moves > 1) pm2 = game->record[moves - 2].pos;
 
+  // 9路盤でなければシチョウを調べる  
+  if (pure_board_size != 9) {
+    LadderExtension(game, color, ladder);
+  }
+
   // 現在のノードの初期化
   uct_node[index].previous_move1 = pm1;
   uct_node[index].previous_move2 = pm2;
@@ -958,7 +964,7 @@ ExpandNode(game_info_t *game, int color, int current, std::vector<int>& path)
   uct_child = uct_node[index].child;
 
   // パスノードの展開
-  InitializeCandidate(&uct_child[PASS_INDEX], PASS, false);
+  InitializeCandidate(&uct_child[PASS_INDEX], PASS, ladder[PASS]);
   child_num++;
 
   // 候補手の展開
@@ -966,7 +972,7 @@ ExpandNode(game_info_t *game, int color, int current, std::vector<int>& path)
     pos = onboard_pos[i];
     // 探索候補でなければ除外
     if (candidates[pos] && IsLegal(game, pos, color)) {
-      InitializeCandidate(&uct_child[child_num], pos, false);
+      InitializeCandidate(&uct_child[child_num], pos, ladder[pos]);
       child_num++;
     }
   }
