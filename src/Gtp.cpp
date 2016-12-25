@@ -19,6 +19,7 @@
 #include "Point.h"
 #include "Rating.h"
 #include "Simulation.h"
+#include "Utility.h"
 #include "ZobristHash.h"
 
 using namespace std;
@@ -168,7 +169,7 @@ GTP_setCommand( void )
   gtpcmd[26].function = GTP_features_clear;
   gtpcmd[27].function = GTP_features_store;
   gtpcmd[28].function = GTP_features_planes_file;
-  gtpcmd[29].function = GTP_stat;
+  gtpcmd[29].function = GTP_stat_po;
 }
 
 
@@ -1170,4 +1171,102 @@ GTP_stat(void)
   GTP_response(pos, true);
 
   //UctSearchPondering(game, FLIP_COLOR(color));
+}
+
+
+
+////////////////////////////////
+//  シミュレーションの検証        //
+////////////////////////////////
+void
+GTP_stat_po(void)
+{
+  char *command;
+  //char c;
+  //char pos[10];
+  //int color;
+  //int point = PASS;
+
+  command = STRTOK(input_copy, DELIM, &next_token);
+
+  CHOMP(command);
+  command = STRTOK(NULL, DELIM, &next_token);
+  if (command == NULL) {
+    GTP_response(err_genmove, true);
+    return;
+  }
+  /*
+  CHOMP(command);
+  c = (char)tolower((int)command[0]);
+  if (c == 'w') {
+    color = S_WHITE;
+  } else if (c == 'b') {
+    color = S_BLACK;
+  } else {
+    GTP_response(err_genmove, true);
+    return;
+  }
+  */
+
+  int color = game->record[game->moves - 1].color;
+  int move = game->record[game->moves - 1].pos;
+  //void
+  //Simulation(game_info_t *game, int starting_color, std::mt19937_64 *mt)
+  //{
+    //int color = starting_color;
+  int pos = -1;
+  int length;
+  int pass_count;
+
+  // レートの初期化  
+  game_prev->sum_rate[0] = game_prev->sum_rate[1] = 0;
+  memset(game_prev->sum_rate_row, 0, sizeof(long long) * 2 * BOARD_SIZE);
+  memset(game_prev->rate, 0, sizeof(long long) * 2 * BOARD_MAX);
+
+  pass_count = (game_prev->record[game_prev->moves - 1].pos == PASS && game_prev->moves > 1);
+
+
+  auto begin_time = clock();
+  for (int i = 0; i < 1000; i++) {
+    // 黒番のレートの計算
+    Rating(game_prev, S_BLACK, &game_prev->sum_rate[0], game_prev->sum_rate_row[0], game_prev->rate[0]);
+    // 白番のレートの計算
+    Rating(game_prev, S_WHITE, &game_prev->sum_rate[1], game_prev->sum_rate_row[1], game_prev->rate[1]);
+  }
+  auto finish_time = GetSpendTime(begin_time) * 1000;
+
+  long long *rate = game_prev->rate[color - 1];
+
+  long long max_rate = 0;
+  int max_pos = PASS;
+  for (int i = 0; i < pure_board_max; i++) {
+    int pos = onboard_pos[i];
+
+    if (IsLegalNotEye(game_prev, pos, color)) {
+      long long r = rate[pos];
+      if (r > max_rate) {
+	max_rate = r;
+	max_pos = pos;
+      }
+    }
+  }
+
+  if (max_pos == move) {
+    cerr << "####### PO HIT " << finish_time << endl;
+  } else {
+    cerr << "####### PO MISS " << finish_time << endl;
+  }
+#if 0
+  // 終局まで対局をシミュレート
+  while (length-- && pass_count < 2) {
+    // 着手を生成する
+    pos = RatingMove(game, color, mt);
+    // 石を置く
+    PoPutStone(game, pos, color);
+    // パスの確認
+    pass_count = (pos == PASS) ? (pass_count + 1) : 0;
+    // 手番の入れ替え
+    color = FLIP_COLOR(color);
+  }
+#endif
 }

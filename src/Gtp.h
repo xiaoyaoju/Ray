@@ -85,5 +85,7 @@ void GTP_features_clear(void);
 void GTP_features_store(void);
 //
 void GTP_stat(void);
+//
+void GTP_stat_po(void);
 
 #endif
