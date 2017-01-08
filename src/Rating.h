@@ -157,13 +157,13 @@ void Rating( game_info_t *game, int color, long long *sum_rate, long long *sum_r
 void PartialRating( game_info_t *game, int color, long long *sum_rate, long long *sum_rate_row, long long *rate );
 
 //  ŒÄ‹z“_‚ª1‚Â‚Ì˜A‚É‘Î‚·‚é“Á’¥‚Ì”»’è  
-void PoCheckFeaturesLib1( game_info_t *game, int color, int *update, int *update_num, int pos );
+void PoCheckFeaturesLib1( game_info_t *game, int color, int id, int *update, int *update_num );
 
 //  ŒÄ‹z“_‚ª2‚Â‚Ì˜A‚É‘Î‚·‚é“Á’¥‚Ì”»’è  
-void PoCheckFeaturesLib2( game_info_t *game, int color, int *update, int *update_num, int pos );
+void PoCheckFeaturesLib2( game_info_t *game, int color, int id, int *update, int *update_num );
 
 //  ŒÄ‹z“_‚ª3‚Â‚Ì˜A‚É‘Î‚·‚é“Á’¥‚Ì”»’è  
-void PoCheckFeaturesLib3( game_info_t *game, int color, int *update, int *update_num, int pos );
+void PoCheckFeaturesLib3( game_info_t *game, int color, int id, int *update, int *update_num );
 
 //  “Á’¥‚Ì”»’è
 void PoCheckFeatures( game_info_t *game, int color, int *update, int *update_num );
