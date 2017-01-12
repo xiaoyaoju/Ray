@@ -14,7 +14,7 @@ using namespace std;
 //  終局までシミュレーション  //
 ////////////////////////////////
 void
-Simulation( game_info_t *game, int starting_color, std::mt19937_64 *mt )
+Simulation(game_info_t *game, int starting_color, std::mt19937_64 *mt, LGR& lgr, LGRContext& ctx)
 {
   int color = starting_color;
   int pos = -1;
@@ -42,7 +42,10 @@ Simulation( game_info_t *game, int starting_color, std::mt19937_64 *mt )
   // 終局まで対局をシミュレート
   while (length-- && pass_count < 2) {
     // 着手を生成する
-    pos = RatingMove(game, color, mt);
+    pos = RatingMove(game, color, mt, lgr);
+    // Store context hash
+    ctx.hash[game->moves] = Pat3(game->pat, pos);
+    ctx.hash_last[game->moves] = Pat3(game->pat, game->record[game->moves - 1].pos);
     // 石を置く
     PoPutStone(game, pos, color);
     // パスの確認
