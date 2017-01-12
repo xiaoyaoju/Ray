@@ -8,6 +8,7 @@
 #include <algorithm>
 #include <functional>
 #include <string>
+#include <numeric>
 
 #include "Message.h"
 #include "Nakade.h"
@@ -22,6 +23,12 @@ using namespace std;
 ////////////////
 //    変数    //
 ////////////////
+
+static int tgr1_rate = 50;
+static int lgrf1_rate = 25;
+static bool use_lgrf2 = false;
+
+static const uint16_t tgr_num = 4;
 
 // 戦術的特徴のγ値
 float po_tactical_features[TACTICAL_FEATURE_MAX];
@@ -267,7 +274,7 @@ InitializePoTacticalFeaturesSet( void )
 //  着手( rating )  // 
 //////////////////////
 int
-RatingMove( game_info_t *game, int color, std::mt19937_64 *mt )
+RatingMove(game_info_t *game, int color, std::mt19937_64 *mt, LGR& lgr)
 {
   long long *rate = game->rate[color - 1];
   long long *sum_rate_row = game->sum_rate_row[color - 1];
@@ -279,8 +286,62 @@ RatingMove( game_info_t *game, int color, std::mt19937_64 *mt )
   PartialRating(game, color, sum_rate, sum_rate_row, rate);
 
   // 合法手を選択するまでループ
-  while (true){
+  while (true) {
     if (*sum_rate == 0) return PASS;
+
+    // LGR
+    if (((*mt)() % 100) < tgr1_rate && game->moves > 0) {
+      static std::atomic_int64_t lgr_total;
+      static std::atomic_int64_t lgr_hit;
+      std::atomic_fetch_add(&lgr_total, 1);
+      int pos1 = game->record[game->moves - 1].pos;
+      pos = lgr.getTGR1(color, pos1, game);
+
+      if (pos != PASS) {
+	std::atomic_fetch_add(&lgr_hit, 1);
+	if (IsLegalNotEye(game, pos, color)) {
+	  return pos;
+	}
+      }
+      if (lgr_total % 1000000 == 0) {
+	cerr << "TGR1 " << (100.0 * lgr_hit / lgr_total) << "%" << std::endl;
+      }
+    }
+    if (((*mt)() % 100) < lgrf1_rate && game->moves > 0) {
+      static std::atomic_int64_t lgr_total;
+      static std::atomic_int64_t lgr_hit;
+      std::atomic_fetch_add(&lgr_total, 1);
+      int pos1 = game->record[game->moves - 1].pos;
+      pos = lgr.getLGRF1(color, pos1);
+      if (pos != PASS) {
+	std::atomic_fetch_add(&lgr_hit, 1);
+	if (IsLegalNotEye(game, pos, color)) {
+	  return pos;
+	}
+      }
+      if (lgr_total % 1000000 == 0) {
+	cerr << "LGRF1 " << (100.0 * lgr_hit / lgr_total) << "%" << std::endl;
+      }
+    }
+
+    if (use_lgrf2 && game->moves > 1) {
+      static std::atomic_int64_t lgr_total;
+      static std::atomic_int64_t lgr_hit;
+      std::atomic_fetch_add(&lgr_total, 1);
+      int pos1 = game->record[game->moves - 2].pos;
+      int pos2 = game->record[game->moves - 1].pos;
+      pos = lgr.getLGRF2(color, pos1, pos2);
+      if (pos != PASS) {
+	std::atomic_fetch_add(&lgr_hit, 1);
+	if (IsLegalNotEye(game, pos, color)) {
+	  //cerr << "Use LGRF2 " << FormatMove(pos1) << " -> " << FormatMove(pos2) << " -> " << FormatMove(pos) << endl;
+	  return pos;
+	}
+      }
+      if (lgr_total % 1000000 == 0) {
+	cerr << "LGRF2 " << (100 * lgr_hit / lgr_total) << "%" << std::endl;
+      }
+    }
 
     rand_num = ((*mt)() % (*sum_rate)) + 1;
 
@@ -1582,3 +1643,217 @@ AnalyzePoRating( game_info_t *game, int color, double rate[] )
   }
 }
 
+
+// Based on Oakfoam http://oakfoam.com/
+
+LGR::LGR()
+{
+  reset();
+}
+
+void
+LGR::reset()
+{
+  tgr1.reset();
+  tgr1_hash.reset();
+  tgr1_count.reset();
+  if (tgr1_rate > 0) {
+    size_t s = 2 * pure_board_max;
+    tgr1.reset(new int16_t[s * tgr_num]);
+    fill(tgr1.get(), tgr1.get() + s * tgr_num, PASS);
+    tgr1_hash.reset(new uint16_t[s * tgr_num]);
+    tgr1_count.reset(new uint16_t[s]);
+    fill(tgr1_count.get(), tgr1_count.get() + s, 0);
+  }
+
+  lgrf1.reset();
+  if (lgrf1_rate > 0) {
+    lgrf1.reset(new int[2 * pure_board_max]);
+    fill(lgrf1.get(), lgrf1.get() + 2 * pure_board_max, PASS);
+  }
+
+  lgrf2.reset();
+  if (use_lgrf2) {
+    lgrf2.reset(new int[2 * pure_board_max * pure_board_max]);
+    fill(lgrf2.get(), lgrf2.get() + 2 * pure_board_max * pure_board_max, PASS);
+  }
+}
+
+void
+LGR::setTGR1(int col, int pos1, int val, uint16_t hash_last, uint16_t hash)
+{
+  pos1 = board_pos_id[pos1];
+  int c = col - 1;
+  //int index = (c * pure_board_max + pos1) * 0xffff + hash_last;
+  int index = (c * pure_board_max + pos1);
+  uint16_t count = min(tgr_num, tgr1_count[index]);
+  for (int i = 0; i < count; i++) {
+    if (tgr1_hash[index * tgr_num + i] == hash) {
+      tgr1[index * tgr_num + i] = val;
+      return;
+    }
+  }
+  uint16_t n = tgr1_count[index] ++;
+  n = n % tgr_num;
+  tgr1[index * tgr_num + n] = val;
+  tgr1_hash[index * tgr_num + n] = hash;
+}
+
+int
+LGR::getTGR1(int col, int pos1, const game_info_t* game) const
+{
+  pos1 = board_pos_id[pos1];
+  int c = col - 1;
+  uint16_t hash_last = Pat3(game->pat, pos1);
+  //int index = (c * pure_board_max + pos1) * 0xffff + hash_last;
+  int index = c * pure_board_max + pos1;
+  uint16_t count = min(tgr_num, tgr1_count[index]);
+  for (int i = 0; i < count; i++) {
+    int pos = tgr1[index * tgr_num + i];
+    if (pos == PASS)
+      continue;
+    uint16_t hash = Pat3(game->pat, pos);
+    if (tgr1_hash[index * tgr_num + i] == hash) {
+      return pos;
+    }
+  }
+  return PASS;
+}
+
+
+int
+LGR::getLGRF1(int col, int pos1) const
+{
+  pos1 = board_pos_id[pos1];
+  int c = col - 1;
+  return lgrf1[c * pure_board_max + pos1];
+}
+
+void
+LGR::setLGRF1(int col, int pos1, int val)
+{
+  pos1 = board_pos_id[pos1];
+  int c = col - 1;
+  lgrf1[c * pure_board_max + pos1] = val;
+}
+
+bool
+LGR::hasLGRF1(int col, int pos1) const
+{
+  return (this->getLGRF1(col, pos1) != PASS);
+}
+
+void
+LGR::clearLGRF1(int col, int pos1)
+{
+  this->setLGRF1(col, pos1, PASS);
+}
+
+int
+LGR::getLGRF2(int col, int pos1, int pos2) const
+{
+  pos1 = board_pos_id[pos1];
+  pos2 = board_pos_id[pos2];
+  int c = col - 1;
+  return lgrf2[(c * pure_board_max + pos1) * pure_board_max + pos2];
+}
+
+void
+LGR::setLGRF2(int col, int pos1, int pos2, int val)
+{
+  pos1 = board_pos_id[pos1];
+  pos2 = board_pos_id[pos2];
+  int c = col - 1;
+  lgrf2[(c * pure_board_max + pos1) * pure_board_max + pos2] = val;
+}
+
+bool
+LGR::hasLGRF2(int col, int pos1, int pos2) const
+{
+  return (this->getLGRF2(col, pos1, pos2) != PASS);
+}
+
+void
+LGR::clearLGRF2(int col, int pos1, int pos2)
+{
+  this->setLGRF2(col, pos1, pos2, PASS);
+}
+
+void
+LGR::update(game_info_t* game, int start, int win, const LGRContext& ctx)
+{
+  if (tgr1_rate > 0) {
+    for (int i = 1; i < game->moves; i++) {
+      int c = game->record[i].color;
+      int mp = game->record[i].pos;
+      unsigned int h = ctx.hash[i];
+      int p1 = game->record[i - 1].pos;
+      unsigned int h1 = ctx.hash_last[i];
+
+      bool iswin = (c == win);
+      if (mp == PASS || p1 == PASS)
+	continue;
+      if (h == 0 || h1 == 0)
+	continue;
+      if (i < start) {
+	this->setTGR1(c, p1, mp, h1, h);
+      } else {
+	if (iswin) {
+	  //this->setTGR1(c, p1, mp, h1, h);
+	}
+      }
+    }
+  }
+
+  if (lgrf1_rate > 0) {
+    for (int i = 1; i < game->moves; i++) {
+      int c = game->record[i].color;
+      int mp = game->record[i].pos;
+      //unsigned int h = ctx.hash[i];
+      int p1 = game->record[i - 1].pos;
+      //unsigned int h1 = ctx.hash_last[i];
+
+      bool iswin = (c == win);
+      if (iswin) {
+	//cerr << "adding LGRF1: " << FormatMove(p1) << " -> " << FormatMove(mp) << endl;
+	this->setLGRF1(c, p1, mp);
+      } else {
+	//cerr << "forgetting LGRF1: " << FormatMove(p1) << endl;
+	this->clearLGRF1(c, p1);
+      }
+#if 0
+      if (iswin)
+      {
+	//cerr << "adding LGRF1: " << FormatMove(p1) << " -> " << FormatMove(mp) << endl;
+	this->setLGRF1(c, p1, mp, h1, h);
+      } else {
+	//cerr << "forgetting LGRF1: " << FormatMove(p1) << endl;
+	//if (i > strat) this->clearLGRF1(c, p1);
+	this->setLGRF1(c, p1, PASS, h1, 0);
+      }
+#endif
+    }
+  }
+
+  if (use_lgrf2) {
+    for (int i = 2; i < game->moves; i++) {
+      int c = game->record[i].color;
+      int mp = game->record[i].pos;
+      int p1 = game->record[i - 2].pos;
+      int p2 = game->record[i - 1].pos;
+
+      bool iswin = (c == win);
+
+      if (iswin) {
+	//cerr << "adding LGRF2: " << FormatMove(p1) << " -> " << FormatMove(p2) << " -> " << FormatMove(mp) << endl;
+	this->setLGRF2(c, p1, p2, mp);
+	//this->setLGRF1o(c, p1, mp);
+      } else {
+	//cerr << "forgetting LGRF2: " << FormatMove(p1) << " -> " << FormatMove(p2) << endl;
+	if (i > start)
+	  this->clearLGRF2(c, p1, p2);
+	//this->clearLGRF1o(c, p1);
+      }
+    }
+  }
+}

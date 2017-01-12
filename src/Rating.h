@@ -3,6 +3,7 @@
 
 #include <string>
 #include <random>
+#include <memory>
 
 #include "GoBoard.h"
 #include "UctRating.h"
@@ -117,6 +118,40 @@ const double NEIGHBOR_BIAS = 7.52598;
 const double JUMP_BIAS = 4.63207;
 const double PO_BIAS = 1.66542;
 
+class LGRContext {
+public:
+  unsigned int hash[MAX_MOVES];
+  unsigned int hash_last[MAX_MOVES];
+};
+
+class LGR {
+public:
+  LGR();
+  void reset();
+  int getLGRF1(int col, int pos1) const;
+  void setLGRF1(int col, int pos1, int val);
+  bool hasLGRF1(int col, int pos1) const;
+  void clearLGRF1(int col, int pos1);
+
+  void setTGR1(int col, int pos1, int val, uint16_t hash, uint16_t hash2);
+  int getTGR1(int col, int pos1, const game_info_t* game) const;
+
+  int getLGRF2(int col, int pos1, int pos2) const;
+  void setLGRF2(int col, int pos1, int pos2, int val);
+  bool hasLGRF2(int col, int pos1, int pos2) const;
+  void clearLGRF2(int col, int pos1, int pos2);
+
+  void update(game_info_t* game, int strat, int win, const LGRContext& ctx);
+
+private:
+  std::unique_ptr<int16_t[]> tgr1;
+  std::unique_ptr<uint16_t[]> tgr1_hash;
+  std::unique_ptr<uint16_t[]> tgr1_count;
+
+  std::unique_ptr<int[]> lgrf1;
+  std::unique_ptr<int[]> lgrf2;
+};
+
 ////////////
 //  変数  //
 ////////////
@@ -148,7 +183,7 @@ void InitializeRating( void );
 void InitializePoTacticalFeaturesSet( void );
 
 //  着手(Elo Rating)
-int RatingMove( game_info_t *game, int color, std::mt19937_64 *mt);
+int RatingMove( game_info_t *game, int color, std::mt19937_64 *mt, LGR& lgrf );
 
 //  レーティング 
 void Rating( game_info_t *game, int color, long long *sum_rate, long long *sum_rate_row, long long *rate );
