@@ -1,6 +1,7 @@
 #ifndef _MESSAGE_H_
 #define _MESSAGE_H_
 
+#include <string>
 #include "GoBoard.h"
 #include "UctSearch.h"
 
@@ -37,6 +38,7 @@ void PrintPlayoutInformation( uct_node_t *root, po_info_t *po_info, double finis
 
 //  座標の出力
 void PrintPoint( int pos );
+std::string FormatMove( int pos );
 
 //  コミの値の出力
 void PrintKomiValue( void );

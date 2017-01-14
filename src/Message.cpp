@@ -4,6 +4,7 @@
 #include <cstdlib>
 #include <iostream>
 #include <iomanip>
+#include <sstream>
 
 #include "Message.h"
 #include "Point.h"
@@ -392,6 +393,20 @@ PrintPoint( int pos )
   } else {
     cerr << GOGUI_X(pos) << GOGUI_Y(pos) << endl;
   }
+}
+
+std::string FormatMove(int pos)
+{
+  if (pos == PASS) {
+    return "PASS";
+  } else if (pos == RESIGN) {
+    return "RESIGN";
+  } else {
+    ostringstream o;
+    o << GOGUI_X(pos) << GOGUI_Y(pos);
+    return o.str();
+  }
+
 }
 
 
