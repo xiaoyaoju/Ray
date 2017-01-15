@@ -1,4 +1,5 @@
 #include <iostream>
+#include <mutex>
 
 #include "Message.h"
 #include "Ladder.h"
@@ -12,15 +13,18 @@ using namespace std;
 
 
 // IsLadderCapturedä÷êîóp
-game_info_t search_game[100];
+static game_info_t search_game[100];
+
+static mutex mutex_ladder;
 
 
 void
 LadderExtension( const game_info_t *game, int color, bool *ladder_pos )
 {
+  lock_guard<mutex> lock(mutex_ladder);
   const string_t *string = game->string;
   int i, ladder = PASS;
-  game_info_t *shicho_game = AllocateGame();
+  static game_info_t *shicho_game = AllocateGame();
   bool checked[BOARD_MAX] = { false };  
   int neighbor;
   bool flag;
@@ -70,7 +74,7 @@ LadderExtension( const game_info_t *game, int color, bool *ladder_pos )
     }
   }
   
-  FreeGame(shicho_game);
+  //FreeGame(shicho_game);
 }
 
 
@@ -153,6 +157,7 @@ IsLadderCaptured( int depth, const game_info_t *game, int ren_xy, int turn_color
 bool
 CheckLadderExtension( const game_info_t *game, int color, int pos )
 {
+  lock_guard<mutex> lock(mutex_ladder);
   const char *board = game->board;
   const string_t *string = game->string;
   const int *string_id = game->string_id;
