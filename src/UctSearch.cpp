@@ -47,18 +47,26 @@ using namespace std;
 
 typedef std::pair<std::wstring, std::vector<float>*> MapEntry;
 typedef std::map<std::wstring, std::vector<float>*> Layer;
-struct node_eval_req {
-  int index;
+
+struct value_eval_req {
+  child_node_t *uct_child;
   int color;
   int trans;
   std::vector<int> path;
   std::vector<float> data;
-  std::vector<float> data2;
+};
+
+struct policy_eval_req {
+  int index;
+  int depth;
+  int color;
+  int trans;
+  std::vector<float> data;
 };
 
 void ReadWeights();
 void EvalNode();
-void EvalUctNode(std::vector<int>& indices, std::vector<float>& data);
+//void EvalUctNode(std::vector<int>& indices, std::vector<int>& color, std::vector<int>& trans, std::vector<float>& data, std::vector<int>& path);
 
 ////////////////
 //  大域変数  //
@@ -152,8 +160,9 @@ static bool early_pass = true;
 
 static bool use_nn = true;
 static bool use_gpu = true;
-static std::queue<node_eval_req> eval_queue;
-static int eval_count;
+static std::queue<std::shared_ptr<policy_eval_req>> eval_policy_queue;
+static std::queue<std::shared_ptr<value_eval_req>> eval_value_queue;
+static int eval_count_policy, eval_count_value;
 static double owner_nn[BOARD_MAX];
 
 static Microsoft::MSR::CNTK::IEvaluateModel<float>* nn_model = nullptr;
@@ -448,9 +457,12 @@ UctSearchGenmove(game_info_t *game, int color)
     ClearUctHash();
   }
 
-  queue<node_eval_req> empty;
-  eval_queue.swap(empty);
-  eval_count = 0;
+  queue<shared_ptr<value_eval_req>> empty_value;
+  eval_value_queue.swap(empty_value);
+  queue<shared_ptr<policy_eval_req>> empty_policy;
+  eval_policy_queue.swap(empty_policy);
+  eval_count_policy = 0;
+  eval_count_value = 0;
 
   // 探索開始時刻の記録
   begin_time = clock();
@@ -608,8 +620,9 @@ UctSearchGenmove(game_info_t *game, int color)
   CalculateNextPlayouts(game, color, best_wp, finish_time);
  
   if (use_nn) {
-    cerr << "Eval NN Req        :  " << setw(7) << (eval_count + eval_queue.size()) << endl;
-    cerr << "Eval NN            :  " << setw(7) << eval_count << endl;
+    cerr << "Eval NN Policy     :  " << setw(7) << (eval_count_policy + eval_policy_queue.size()) << endl;
+    cerr << "Eval NN Value      :  " << setw(7) << (eval_count_value + eval_value_queue.size()) << endl;
+    cerr << "Eval NN            :  " << setw(7) << eval_count_policy << "/" << eval_count_value << endl;
     cerr << "Count Captured     :  " << setw(7) << count << endl;
     cerr << "Score              :  " << setw(7) << score << endl;
     //PrintOwnerNN(S_BLACK, owner_nn);
@@ -794,12 +807,14 @@ InitializeCandidate(child_node_t *uct_child, int pos, bool ladder)
   uct_child->pos = pos;
   uct_child->move_count = 0;
   uct_child->win = 0;
+  uct_child->eval_value = false;
   uct_child->index = NOT_EXPANDED;
   uct_child->rate = 0.0;
   uct_child->flag = false;
   uct_child->open = false;
   uct_child->ladder = ladder;
   uct_child->nnrate = 0;
+  uct_child->value = -1;
 }
 
 
@@ -848,6 +863,7 @@ ExpandRoot(game_info_t *game, int color)
 	uct_node[index].win -= uct_child[i].win;
 	uct_child[i].move_count = 0;
 	uct_child[i].win = 0;
+	uct_child[i].eval_value = false;
       }
       uct_child[i].ladder = ladder[pos];
     }
@@ -858,7 +874,7 @@ ExpandRoot(game_info_t *game, int color)
     uct_node[index].width = 1;
 
     // 候補手のレーティング
-    RatingNode(game, color, index, path);
+    RatingNode(game, color, index, path.size());
 
     PrintReuseCount(uct_node[index].move_count);
 
@@ -877,7 +893,6 @@ ExpandRoot(game_info_t *game, int color)
     uct_node[index].width = 0;
     uct_node[index].child_num = 0;
     uct_node[index].evaled = false;
-    uct_node[index].value = -1;
     uct_node[index].value_move_count = 0;
     uct_node[index].value_win = 0;
     memset(uct_node[index].statistic, 0, sizeof(statistic_t) * BOARD_MAX); 
@@ -904,7 +919,7 @@ ExpandRoot(game_info_t *game, int color)
     uct_node[index].child_num = child_num;
     
     // 候補手のレーティング
-    RatingNode(game, color, index, path);
+    RatingNode(game, color, index, path.size());
     
     uct_node[index].width++;
   }
@@ -918,7 +933,7 @@ ExpandRoot(game_info_t *game, int color)
 //  ノードの展開  //
 ///////////////////
 int
-ExpandNode(game_info_t *game, int color, int current, std::vector<int>& path)
+ExpandNode(game_info_t *game, int color, int current, const std::vector<int>& path)
 {
   unsigned int index = FindSameHashIndex(game->current_hash, color, game->moves);
   child_node_t *uct_child, *uct_sibling;
@@ -957,11 +972,9 @@ ExpandNode(game_info_t *game, int color, int current, std::vector<int>& path)
   uct_node[index].width = 0;
   uct_node[index].child_num = 0;
   uct_node[index].evaled = false;
-  uct_node[index].value = -1;
   uct_node[index].value_move_count = 0;
   uct_node[index].value_win = 0;
   memset(uct_node[index].statistic, 0, sizeof(statistic_t) * BOARD_MAX);
-  path.push_back(index);
 
   uct_child = uct_node[index].child;
 
@@ -983,7 +996,7 @@ ExpandNode(game_info_t *game, int color, int current, std::vector<int>& path)
   uct_node[index].child_num = child_num;
 
   // 候補手のレーティング
-  RatingNode(game, color, index, path);
+  RatingNode(game, color, index, path.size() + 1);
 
   // 探索幅を1つ増やす
   uct_node[index].width++;
@@ -1019,7 +1032,7 @@ ExpandNode(game_info_t *game, int color, int current, std::vector<int>& path)
 //  (Progressive Wideningのために)  //
 //////////////////////////////////////
 void
-RatingNode(game_info_t *game, int color, int index, std::vector<int>& path)
+RatingNode(game_info_t *game, int color, int index, int depth)
 {
   int i;
   int child_num = uct_node[index].child_num;
@@ -1066,15 +1079,16 @@ RatingNode(game_info_t *game, int color, int index, std::vector<int>& path)
 
     double rate[PURE_BOARD_MAX];
     AnalyzePoRating(game, color, rate);
-    node_eval_req req;
-    req.color = color;
-    req.index = index;
-    req.trans = rand() / (RAND_MAX / 8 + 1);
-    req.path.swap(path);
+    auto req = make_shared<policy_eval_req>();
+    req->color = color;
+    req->depth = depth;
+    req->index = index;
+    req->trans = rand() / (RAND_MAX / 8 + 1);
+    //req.path.swap(path);
     int moveT;
-    WritePlanes2(req.data, nullptr, game, root, move, &moveT, color, req.trans);
+    WritePlanes2(req->data, nullptr, game, root, move, &moveT, color, req->trans);
 #if 1
-    eval_queue.push(req);
+    eval_policy_queue.push(req);
     //push_back(u);
 #else
     std::vector<int> indices;
@@ -1323,7 +1337,7 @@ ParallelUctSearchPondering(thread_arg_t *arg)
       CopyGame(game, targ->game);
       // 1回プレイアウトする
       //double value_result = -1;
-	  std::vector<int> path;
+      std::vector<int> path;
       UctSearch(game, color, mt[targ->thread_id], current_root, &winner, path);
       // ハッシュに余裕があるか確認
       enough_size = CheckRemainingHashSize();
@@ -1342,7 +1356,7 @@ ParallelUctSearchPondering(thread_arg_t *arg)
       CopyGame(game, targ->game);
       // 1回プレイアウトする
       //double value_result = -1;
-	  std::vector<int> path;
+      std::vector<int> path;
       UctSearch(game, color, mt[targ->thread_id], current_root, &winner, path);
       // ハッシュに余裕があるか確認
       enough_size = CheckRemainingHashSize();
@@ -1380,11 +1394,38 @@ UctSearch(game_info_t *game, int color, mt19937_64 *mt, int current, int *winner
     game->record[game->moves - 2].pos == PASS;
 
   if (uct_child[next_index].move_count < expand_threshold || end_of_game) {
+    int start = game->moves;
+    path.push_back(current);
+
     // Virtual Lossを加算
     AddVirtualLoss(&uct_child[next_index], current);
 
     // 現在見ているノードのロックを解除
     UNLOCK_NODE(current);
+
+    // Enqueue value
+
+    bool expected = false;
+    if (use_nn
+      && atomic_compare_exchange_strong(&uct_child[next_index].eval_value, &expected, true)) {
+      int move = PASS;
+
+      uct_node_t *root = &uct_node[current_root];
+
+      double rate[PURE_BOARD_MAX];
+      AnalyzePoRating(game, color, rate);
+      auto req = make_shared<value_eval_req>();
+      req->uct_child = uct_child + next_index;
+      req->color = color;
+      //req->index = index;
+      req->trans = rand() / (RAND_MAX / 8 + 1);
+      req->path.swap(path);
+      int moveT;
+      WritePlanes2(req->data, nullptr, game, root, move, &moveT, color, req->trans);
+      LOCK_EXPAND;
+      eval_value_queue.push(req);
+      UNLOCK_EXPAND;
+    }
 
     // 終局まで対局のシミュレーション
     Simulation(game, color, mt);
@@ -1404,7 +1445,7 @@ UctSearch(game_info_t *game, int color, mt19937_64 *mt, int current, int *winner
     // 統計情報の記録
     Statistic(game, *winner);
   } else {
-	path.push_back(current);
+    path.push_back(current);
     // Virtual Lossを加算
     AddVirtualLoss(&uct_child[next_index], current);
     // ノードの展開の確認
@@ -1575,7 +1616,7 @@ SelectMaxUcbChild(const game_info_t *game, int current, int color)
 
   const double p_p = (double)uct_node[current].win / uct_node[current].move_count;
   const double p_v = (double)uct_node[current].value_win / (uct_node[current].value_move_count + .01);
-  const double scale = std::max(0.01, std::min(1.0, 1.0 - (game->moves - 200) / 50.0)) * value_scale;
+  const double scale = std::max(0.2, std::min(1.0, 1.0 - (game->moves - 200) / 50.0)) * value_scale;
 
   int start_child = 0;
   if (!early_pass && current == current_root && child_num > 1) {
@@ -1599,9 +1640,12 @@ SelectMaxUcbChild(const game_info_t *game, int current, int color)
 	  value_move_count = node->value_move_count;
 	  value_win = value_move_count - value_win;
 	}
+	//cerr << "VA:" << (value_win / value_move_count) << " VS:" << uct_child[i].value << endl;
       }
-      value_win *= scale;
-      value_move_count *= scale;
+      if (value_move_count == 0 && uct_child[i].value >= 0) {
+	value_move_count = 1;
+	value_win = uct_child[i].value;
+      }
 #endif
       double win = uct_child[i].win;
       double move_count = uct_child[i].move_count;
@@ -1609,29 +1653,27 @@ SelectMaxUcbChild(const game_info_t *game, int current, int color)
       if (evaled) {
 	if (debug) {
 	   cerr << uct_node[current].move_count << ".";
-	   cerr << FormatMove(uct_child[i].pos);
+	   cerr << setw(3) << FormatMove(uct_child[i].pos);
 	   cerr << ": move " << setw(5) << move_count << " policy "
 	    << setw(10) << (uct_child[i].nnrate  * 100) << " ";
 	}
 	if (move_count == 0) {
-	  if (uct_node[current].move_count == 0)
-	    p = FPU;
-	  else
-	    p = (double)uct_node[current].win / uct_node[current].move_count - p_p;
+	  p = p_p * (1 - scale) + p_v * scale;
 	} else {
-	  double p0 = win / move_count - p_p;
+	  double p0 = win / move_count;
 	  if (value_move_count > 0) {
-	    double p1 = value_win / value_move_count - p_v;
+	    double p1 = value_win / value_move_count;
 	    //p = (uct_child[i].win + value_win) / (uct_child[i].move_count + value_move_count);
-	    p = (p0 * move_count + p1 * value_move_count) / (move_count + value_move_count);
+	    p = p0 * (1 - scale)  + p1 * scale;
 	    //p = (p0 + p1) / 2;
 	    //if (current == current_root) cerr << i << ":" << p0 << " " << p1 << " => " << p << endl;
 	    if (debug) {
-		cerr << setw(10) << (p0 * 100) << " " << setw(10) << (p1 * 100) << " => " << setw(10) << (p * 100)
-		<< " " << p_v << " " << (value_win / value_move_count);
+		cerr << "DP:" << setw(10) << (p0 * 100) << " DV:" << setw(10) << (p1 * 100) << " => " << setw(10) << (p * 100)
+		<< " " << p_v << " V:" << (value_win / value_move_count);
+		cerr << " LM:" << scale << " ";
 	    }
 	  } else {
-	    p = p0;
+	    p = p0 * (1 - scale) + p_v * scale;
 	  }
 	}
 	//if (p2 >= 0) p = (p * 9 + p2) / 10;
@@ -1650,7 +1692,7 @@ SelectMaxUcbChild(const game_info_t *game, int current, int color)
 	ucb_value = p + c_puct * u * rate;
 
 	if (debug) {
-	  cerr << " P:" << p << " " << (p + p_p) << " UCB:" << ucb_value << endl;
+	  cerr << " P:" << p << " UCB:" << ucb_value << endl;
 	}
       } else {
 	if (uct_child[i].move_count == 0) {
@@ -2088,30 +2130,23 @@ ReadWeights()
   cerr << "ok" << endl;
 }
 
-void EvalUctNode(std::vector<int>& indices, std::vector<int>& color, std::vector<int>& trans, std::vector<float>& data, std::vector<int>& path)
+void
+EvalPolicy(const std::vector<std::shared_ptr<policy_eval_req>>& requests, std::vector<float>& data)
 {
-
   Layer inputLayer;
   inputLayer.insert(MapEntry(L"features", &data));
   Layer outputLayer;
-  std::vector<float> win;
   //std::vector<float> ownern;
   std::vector<float> moves;
-  win.reserve(indices.size());
   //ownern.reserve(pure_board_max * indices.size());
-  moves.reserve(pure_board_max * indices.size());
-  outputLayer.insert(MapEntry(L"p", &win));
+  moves.reserve(pure_board_max * requests.size());
   //outputLayer.insert(MapEntry(L"owner", &ownern));
   outputLayer.insert(MapEntry(L"ol", &moves));
 
   nn_model->Evaluate(inputLayer, outputLayer);
 
-  if (moves.size() != pure_board_max * indices.size()) {
+  if (moves.size() != pure_board_max * requests.size()) {
     cerr << "Eval move error " << moves.size() << endl;
-    return;
-  }
-  if (win.size() != indices.size()) {
-    cerr << "Eval win error " << moves.size() << endl;
     return;
   }
   //if (ownern.size() != pure_board_max * indices.size()) {
@@ -2119,12 +2154,12 @@ void EvalUctNode(std::vector<int>& indices, std::vector<int>& color, std::vector
   //  return;
   //}
   //cerr << "Eval " << indices.size() << " " << path.size() << endl;
-  int path_index = 0;
-  for (int j = 0; j < indices.size(); j++) {
-    int index = indices[j];
-    int child_num = uct_node[index].child_num;
+  for (int j = 0; j < requests.size(); j++) {
+    const auto req = requests[j];
+    const int index = req->index;
+    const int child_num = uct_node[index].child_num;
     child_node_t *uct_child = uct_node[index].child;
-    int ofs = pure_board_max * j;
+    const int ofs = pure_board_max * j;
 
     float sum = 0;
     for (int i = 0; i < pure_board_max; i++) {
@@ -2132,36 +2167,8 @@ void EvalUctNode(std::vector<int>& indices, std::vector<int>& color, std::vector
       sum += moves[i + ofs];
     }
     LOCK_NODE(index);
-#if 1
-    double p = ((double)win[j] + 1) / 2;
-    if (p < 0)
-      p = 0;
-    if (p > 1)
-      p = 1;
-    //cerr << "#" << index << "  " << sum << endl;
 
-    double value = p;// color[j] == S_BLACK ? p : 1 - p;
-
-    double expected = -1;
-    if (!atomic_compare_exchange_strong(&uct_node[index].value, &expected, value)) {
-      cerr << "### fail to update value " << value << endl;
-    }
-    //if (index != path[path_index])
-    //   cerr << "???" << index << " " << path[path_index] << " " << path[path_index+1]<< endl;
-    int depth = 0;
-    for (;;) {
-      int current = path[path_index];
-      //cerr << "#" << path_index << "  " << current << endl;
-      path_index++;
-      if (current < 0)
-	break;
-
-      atomic_fetch_add(&uct_node[current].value_move_count, 1);
-      atomic_fetch_add(&uct_node[current].value_win, value);
-      value = 1 - value;
-      depth++;
-    }
-#endif
+    int depth = req->depth;
 #if 0
     if (index == current_root) {
       for (int i = 0; i < pure_board_max; i++) {
@@ -2176,12 +2183,13 @@ void EvalUctNode(std::vector<int>& indices, std::vector<int>& color, std::vector
     bool flat = depth <= 2 && child_num > 3;
     vector<int> cs;
     for (int i = 1; i < child_num; i++) {
-      int pos = RevTransformMove(uct_child[i].pos, trans[j]);
+      int pos = RevTransformMove(uct_child[i].pos, req->trans);
 
       int x = X(pos) - OB_SIZE;
       int y = Y(pos) - OB_SIZE;
       int n = x + y * pure_board_size;
       double score = moves[n + ofs] / sum;
+      //if (depth == 1) cerr << "RAW POLICY " << uct_child[i].pos << " " << req->trans << " " << FormatMove(pos) << " " << x << "," << y << " " << ofs << " -> " << score << endl;
       if (uct_child[i].ladder) {
 	score /= 100;
       }
@@ -2220,50 +2228,114 @@ void EvalUctNode(std::vector<int>& indices, std::vector<int>& color, std::vector
 #endif
     UNLOCK_NODE(index);
   }
-  eval_count += indices.size();
+  eval_count_policy += requests.size();
 }
 
-static std::vector<int> eval_node_index;
-static std::vector<int> eval_node_color;
-static std::vector<int> eval_node_trans;
-static std::vector<int> eval_node_path;
+
+void
+EvalValue(const std::vector<std::shared_ptr<value_eval_req>>& requests, std::vector<float>& data)
+{
+  Layer inputLayer;
+  inputLayer.insert(MapEntry(L"features", &data));
+  Layer outputLayer;
+  std::vector<float> win;
+  win.reserve(requests.size());
+  outputLayer.insert(MapEntry(L"p", &win));
+
+  nn_model->Evaluate(inputLayer, outputLayer);
+
+  if (win.size() != requests.size()) {
+    cerr << "Eval win error " << win.size() << endl;
+    return;
+  }
+  //cerr << "Eval " << indices.size() << " " << path.size() << endl;
+  for (int j = 0; j < requests.size(); j++) {
+    auto req = requests[j];
+
+    double p = ((double)win[j] + 1) / 2;
+    if (p < 0)
+      p = 0;
+    if (p > 1)
+      p = 1;
+    //cerr << "#" << index << "  " << sum << endl;
+
+    double value = 1 - p;// color[j] == S_BLACK ? p : 1 - p;
+
+    req->uct_child->value = value;
+    for (int i = req->path.size() - 1; i >= 0; i--) {
+      int current = req->path[i];
+      if (current < 0)
+	break;
+
+      atomic_fetch_add(&uct_node[current].value_move_count, 1);
+      atomic_fetch_add(&uct_node[current].value_win, value);
+      value = 1 - value;
+    }
+  }
+  eval_count_value += requests.size();
+}
+
 static std::vector<float> eval_input_data;
 
 void EvalNode() {
 #if 1
+  const int policy_batch_size = 16;
+  const int value_batch_size = 64;
   while (true) {
     LOCK_EXPAND;
-    if (handle[0] == nullptr && ((!reuse_subtree && !ponder) || eval_queue.empty())) {
+    bool running = handle[0] != nullptr;
+    if (!running
+      && ((!reuse_subtree && !ponder) || (eval_policy_queue.empty() && eval_value_queue.empty()))) {
       UNLOCK_EXPAND;
       break;
     }
 
-    if (eval_queue.empty()) {
+    if (eval_policy_queue.empty() && eval_value_queue.empty()) {
       UNLOCK_EXPAND;
       this_thread::sleep_for(chrono::milliseconds(1));
+      cerr << "EMPTY QUEUE" << endl;
       continue;
     }
+    if ((running && eval_policy_queue.size() < policy_batch_size)
+      || (!running && eval_policy_queue.size() == 0)) {
+      UNLOCK_EXPAND;
+    } else {
+      std::vector<std::shared_ptr<policy_eval_req>> requests;
 
-    eval_node_index.resize(0);
-    eval_node_color.resize(0);
-    eval_node_trans.resize(0);
-    eval_node_path.resize(0);
-    eval_input_data.resize(0);
+      for (int i = 0; i < policy_batch_size && !eval_policy_queue.empty(); i++) {
+	auto req = eval_policy_queue.front();
+	requests.push_back(req);
+	eval_policy_queue.pop();
+      }
+      UNLOCK_EXPAND;
 
-    for (int i = 0; i < 16 && !eval_queue.empty(); i++) {
-      node_eval_req& req = eval_queue.front();
-      eval_node_index.push_back(req.index);
-      eval_node_color.push_back(req.color);
-      eval_node_trans.push_back(req.trans);
-      std::copy(req.data.begin(), req.data.end(), std::back_inserter(eval_input_data));
-      std::copy(req.path.rbegin(), req.path.rend(), std::back_inserter(eval_node_path));
-      eval_node_path.push_back(-1);
-      eval_queue.pop();
+      eval_input_data.resize(0);
+      for (auto& req : requests) {
+	std::copy(req->data.begin(), req->data.end(), std::back_inserter(eval_input_data));
+      }
+      EvalPolicy(requests, eval_input_data);
     }
 
-    UNLOCK_EXPAND;
+    LOCK_EXPAND;
+    if ((running && eval_value_queue.size() < value_batch_size)
+      || (!running && eval_value_queue.size() == 0)) {
+      UNLOCK_EXPAND;
+    } else {
+      std::vector<std::shared_ptr<value_eval_req>> requests;
 
-    EvalUctNode(eval_node_index, eval_node_color, eval_node_trans, eval_input_data, eval_node_path);
+      for (int i = 0; i < value_batch_size && !eval_value_queue.empty(); i++) {
+	auto req = eval_value_queue.front();
+	requests.push_back(req);
+	eval_value_queue.pop();
+      }
+      UNLOCK_EXPAND;
+
+      eval_input_data.resize(0);
+      for (auto& req : requests) {
+	std::copy(req->data.begin(), req->data.end(), std::back_inserter(eval_input_data));
+      }
+      EvalValue(requests, eval_input_data);
+    }
   }
 #endif
 }

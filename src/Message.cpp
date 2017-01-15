@@ -434,7 +434,7 @@ PrintPlayoutInformation( const uct_node_t *root, const po_info_t *po_info, doubl
   cerr << "Win                :  " << setw(7) << root->win << endl;
   cerr << "Thinking Time      :  " << setw(7) << finish_time << " sec" << endl;
   cerr << "Winning Percentage :  " << setw(7) << (winning_percentage * 100) << "%" << endl;
-  cerr << "Value              :  " << setw(7) << (value * 100) << "%" << "  " << root->value  << " " << root->value_move_count << endl;
+  cerr << "Value              :  " << setw(7) << (value * 100) << "%" << "  " << root->value_move_count << endl;
   cerr << "Winning Percentage2:  " << setw(7) << (winning_percentage2 * 100) << "%" << endl;
   cerr << "All Value          :  " << setw(7) << root->value_move_count << endl;
   if (finish_time != 0.0) {
