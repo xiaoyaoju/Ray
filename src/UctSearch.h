@@ -38,7 +38,7 @@ const double PROGRESSIVE_WIDENING = 1.8;
 const int EXPAND_THRESHOLD_9  = 20;
 const int EXPAND_THRESHOLD_13 = 25;
 //const int EXPAND_THRESHOLD_19 = 40;
-const int EXPAND_THRESHOLD_19 = 2;
+const int EXPAND_THRESHOLD_19 = 10;
 
 
 // 候補手の最大数(盤上全体 + パス)
@@ -63,7 +63,7 @@ const double RESIGN_THRESHOLD = 0.20;
 const int VIRTUAL_LOSS = 1;
 
 const double c_puct = 1;
-const double value_scale = 2.0;
+const double value_scale = 0.5;
 
 enum SEARCH_MODE {
   CONST_PLAYOUT_MODE, // 1手のプレイアウト回数を固定したモード
@@ -86,9 +86,11 @@ typedef struct {
   int pos;  // 着手する座標
   std::atomic<int> move_count;  // 探索回数
   std::atomic<int> win;         // 勝った回数
+  std::atomic<bool> eval_value;
   int index;   // インデックス
   double rate; // 着手のレート
   double nnrate; // ニューラルネットワークでのレート
+  std::atomic<double> value;
   bool flag;   // Progressive Wideningのフラグ
   bool open;   // 常に探索候補に入れるかどうかのフラグ
   bool ladder; // シチョウのフラグ
@@ -107,7 +109,7 @@ struct uct_node_t {
   child_node_t child[UCT_CHILD_MAX];  // 子ノードの情報
   statistic_t statistic[BOARD_MAX];   // 統計情報 
   bool evaled;
-  std::atomic<double> value;
+  //std::atomic<double> value;
   std::atomic<int> value_move_count;
   std::atomic<double> value_win;
 };
@@ -190,7 +192,7 @@ int ExpandRoot( game_info_t *game, int color );
 int ExpandNode( game_info_t *game, int color, int current );
 
 // ノードのレーティング
-void RatingNode( game_info_t *game, int color, int index, std::vector<int>& path );
+void RatingNode( game_info_t *game, int color, int index, int depth );
 
 // UCT探索
 void ParallelUctSearch( thread_arg_t *arg );
@@ -259,8 +261,5 @@ int RateComp( const void *a, const void *b );
 void SetUseNN(bool flag);
 
 void SetUseGPU(bool flag);
-
-void
-EvalUctNode(std::vector<int>& indices, std::vector<int>& color, std::vector<int>& trans, std::vector<float>& data, std::vector<int>& path);
 
 #endif
