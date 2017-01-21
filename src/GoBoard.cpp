@@ -298,7 +298,7 @@ CopyGame( game_info_t *dst, const game_info_t *src )
 {
   int i;
 
-  memcpy(dst->record,             src->record,             sizeof(struct move) * MAX_RECORDS);
+  memcpy(dst->record,             src->record,             sizeof(struct move) * src->moves);
   memcpy(dst->prisoner,           src->prisoner,           sizeof(int) * S_MAX);
   memcpy(dst->board,              src->board,              sizeof(char) * board_max);  
   memcpy(dst->pat,                src->pat,                sizeof(struct pattern) * board_max); 
