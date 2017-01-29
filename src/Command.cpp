@@ -26,6 +26,7 @@ const string command[COMMAND_MAX] = {
   "--no-debug",
   "--no-early-pass",
   "--no-nn",
+  "--no-gpu",
 };
 
 const string errmessage[COMMAND_MAX] = {
@@ -42,6 +43,7 @@ const string errmessage[COMMAND_MAX] = {
   "Prohibit any debug message",
   "No early pass",
   "Don't use NN",
+  "Don't use GPU",
 };
 
 
@@ -111,6 +113,9 @@ AnalyzeCommand( int argc, char **argv )
 	break;
       case COMMAND_NO_NN:
 	SetUseNN(false);
+	break;
+      case COMMAND_NO_GPU:
+	SetUseGPU(false);
 	break;
       default:
 	for (j = 0; j < COMMAND_MAX; j++){

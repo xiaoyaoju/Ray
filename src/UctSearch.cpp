@@ -149,6 +149,7 @@ clock_t begin_time;
 static bool early_pass = true;
 
 static bool use_nn = true;
+static bool use_gpu = true;
 static std::queue<node_eval_req> eval_queue;
 static int eval_count;
 static double owner_nn[BOARD_MAX];
@@ -264,6 +265,11 @@ SetUseNN(bool flag)
   use_nn = flag;
 }
 
+void
+SetUseGPU(bool flag)
+{
+  use_gpu = flag;
+}
 
 /////////////////////////
 //  UCTíTçıÇÃèâä˙ê›íË  //
@@ -2058,6 +2064,8 @@ ReadWeights()
   std::string networkConfiguration;
   // with the ones specified.
   //networkConfiguration += "outputNodeNames=\"h1.z:ol.z\"\n";
+  if (!use_gpu)
+    networkConfiguration += "deviceId=-1\n";
   networkConfiguration += "modelPath=\"";
   networkConfiguration += uct_params_path;
   networkConfiguration += "/model.bin\"";
