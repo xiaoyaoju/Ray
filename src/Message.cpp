@@ -29,7 +29,7 @@ SetDebugMessageMode( bool flag )
 //  盤面の表示  //
 //////////////////
 void
-PrintBoard( game_info_t *game )
+PrintBoard( const game_info_t *game )
 {
   const char stone[S_MAX] = { '+', 'B', 'W', '#' };
   int i, x, y, pos;
@@ -75,9 +75,9 @@ PrintBoard( game_info_t *game )
 //    連を構成する石の数, 座標  //
 /////////////////////////////////
 void
-PrintString( game_info_t *game )
+PrintString( const game_info_t *game )
 {
-  string_t *string = game->string;
+  auto string = game->string;
   int i, pos, neighbor;
 
   if (!debug_message) return ;
@@ -132,7 +132,7 @@ PrintString( game_info_t *game )
 //  各座標の連IDの表示  //
 //////////////////////////
 void
-PrintStringID( game_info_t *game )
+PrintStringID( const game_info_t *game )
 {
   int i, x, y, pos;
 
@@ -165,7 +165,7 @@ PrintStringID( game_info_t *game )
 //  連リストの繋がりを表示(Debug用)  //
 ///////////////////////////////////////
 void
-PrintStringNext( game_info_t *game )
+PrintStringNext( const game_info_t *game )
 {
   int i, x, y, pos;
 
@@ -202,13 +202,13 @@ PrintStringNext( game_info_t *game )
 //  Ownerの表示  //
 ///////////////////
 void
-PrintOwner( uct_node_t *root, int color, double *own )
+PrintOwner( const uct_node_t *root, int color, double *own )
 {
   int i, pos, x, y;
   double owner;
   int player = 0, opponent = 0;
   double score;
-  statistic_t *statistic = root->statistic;
+  auto statistic = root->statistic;
 
   for (i = 1, y = board_start; y <= board_end; y++, i++) {
     for (x = board_start; x <= board_end; x++) {
@@ -334,7 +334,7 @@ PrintOwnerNN(int color, double *own)
 //  最善応手列の出力  //
 ///////////////////////
 void
-PrintBestSequence( game_info_t *game, uct_node_t *uct_node, int root, int start_color )
+PrintBestSequence( const game_info_t *game, const uct_node_t *uct_node, int root, int start_color )
 {
   game_info_t *search_result;
   int current = root;
@@ -343,7 +343,7 @@ PrintBestSequence( game_info_t *game, uct_node_t *uct_node, int root, int start_
   int color = start_color;
   int i;
   int child_num;
-  child_node_t *uct_child;
+  const child_node_t *uct_child;
 
   if (!debug_message) return ;
 
@@ -421,7 +421,7 @@ PrintBestSequence( game_info_t *game, uct_node_t *uct_node, int root, int start_
 //  探索の情報の表示  //
 ///////////////////////
 void
-PrintPlayoutInformation( uct_node_t *root, po_info_t *po_info, double finish_time, int pre_simulated )
+PrintPlayoutInformation( const uct_node_t *root, const po_info_t *po_info, double finish_time, int pre_simulated )
 {
   double winning_percentage = (double)root->win / root->move_count;
   double value = (double)root->value_win / root->value_move_count;
