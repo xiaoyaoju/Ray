@@ -1498,7 +1498,6 @@ RateComp(const void *a, const void *b)
 int
 SelectMaxUcbChild(const game_info_t *game, int current, int color)
 {
-  int i;
   bool evaled = uct_node[current].evaled;
   child_node_t *uct_child = uct_node[current].child;
   int child_num = uct_node[current].child_num;
@@ -1509,9 +1508,9 @@ SelectMaxUcbChild(const game_info_t *game, int current, int color)
   double max_rate;
   double dynamic_parameter;
   rate_order_t order[PURE_BOARD_MAX + 1];  
-  int pos;
   int width;
   double ucb_bonus_weight = bonus_weight * sqrt(bonus_equivalence / (sum + bonus_equivalence));
+  const bool debug = current == current_root && sum % 10000 == 0;
 
   //if (evaled) {
     //cerr << "use nn" << endl;
@@ -1522,8 +1521,8 @@ SelectMaxUcbChild(const game_info_t *game, int current, int color)
       int o_index[UCT_CHILD_MAX], c_index[UCT_CHILD_MAX];
       CalculateCriticalityIndex(&uct_node[current], uct_node[current].statistic, color, c_index);
       CalculateOwnerIndex(&uct_node[current], uct_node[current].statistic, color, o_index);
-      for (i = 0; i < child_num; i++) {
-	pos = uct_child[i].pos;
+      for (int i = 0; i < child_num; i++) {
+	int pos = uct_child[i].pos;
 	dynamic_parameter = uct_owner[o_index[i]] + uct_criticality[c_index[i]];
 	order[i].rate = uct_child[i].rate + dynamic_parameter;
 	order[i].index = i;
@@ -1535,7 +1534,7 @@ SelectMaxUcbChild(const game_info_t *game, int current, int color)
       width = ((uct_node[current].width > child_num) ? child_num : uct_node[current].width);
 
       // ’TõŒó•â‚Ìè‚ğ“WŠJ‚µ’¼‚·
-      for (i = 0; i < width; i++) {
+      for (int i = 0; i < width; i++) {
 	uct_child[order[i].index].flag = true;
       }
     }
@@ -1545,9 +1544,9 @@ SelectMaxUcbChild(const game_info_t *game, int current, int color)
     if (sum > pw[uct_node[current].width]) {
       max_index = -1;
       max_rate = 0;
-      for (i = 0; i < child_num; i++) {
+      for (int i = 0; i < child_num; i++) {
 	if (uct_child[i].flag == false) {
-	  pos = uct_child[i].pos;
+	  int pos = uct_child[i].pos;
 	  dynamic_parameter = uct_owner[owner_index[pos]] + uct_criticality[criticality_index[pos]];
 	  if (uct_child[i].rate + dynamic_parameter > max_rate) {
 	    max_index = i;
@@ -1565,13 +1564,12 @@ SelectMaxUcbChild(const game_info_t *game, int current, int color)
   max_value = -1;
   max_child = 0;
 
-  double p_p = (double)uct_node[current].win / uct_node[current].move_count;
-  double p_v = (double)uct_node[current].value_win / (uct_node[current].value_move_count + .01);
-  double scale = std::max(0.01, std::min(1.0, 1.0 - (game->moves - 200) / 50.0)) * value_scale;
-  bool debug = current == current_root && uct_node[current].move_count % 10000 == 0;
+  const double p_p = (double)uct_node[current].win / uct_node[current].move_count;
+  const double p_v = (double)uct_node[current].value_win / (uct_node[current].value_move_count + .01);
+  const double scale = std::max(0.01, std::min(1.0, 1.0 - (game->moves - 200) / 50.0)) * value_scale;
 
   // UCB’lÅ‘å‚Ìè‚ğ‹‚ß‚é  
-  for (i = 0; i < child_num; i++) {
+  for (int i = 0; i < child_num; i++) {
     if (uct_child[i].flag || uct_child[i].open) {
       //double p2 = -1;
       double value_win = 0;
@@ -1596,8 +1594,8 @@ SelectMaxUcbChild(const game_info_t *game, int current, int color)
       if (evaled) {
 	if (debug) {
 	   cerr << uct_node[current].move_count << ".";
-	   cerr << GOGUI_X(uct_child[i].pos) << setw(2) << GOGUI_Y(uct_child[i].pos);
-	   cerr << ":" << setw(5) << move_count << " "
+	   cerr << FormatMove(uct_child[i].pos);
+	   cerr << ": move " << setw(5) << move_count << " policy "
 	    << setw(10) << (uct_child[i].nnrate  * 100) << " ";
 	}
 	if (move_count == 0) {
@@ -1633,10 +1631,11 @@ SelectMaxUcbChild(const game_info_t *game, int current, int color)
 	}
 #endif
 	double u = sqrt(sum) / (1 + uct_child[i].move_count);
-	ucb_value = p + c_puct * u * (uct_child[i].nnrate + 0.01);
+	double rate = max(uct_child[i].nnrate, 0.01);
+	ucb_value = p + c_puct * u * rate;
 
 	if (debug) {
-	  cerr << p << " " << (p + p_p) << " " << ucb_value << endl;
+	  cerr << " P:" << p << " " << (p + p_p) << " UCB:" << ucb_value << endl;
 	}
       } else {
 	if (uct_child[i].move_count == 0) {
@@ -2168,10 +2167,13 @@ void EvalUctNode(std::vector<int>& indices, std::vector<int>& color, std::vector
       int y = Y(pos) - OB_SIZE;
       int n = x + y * pure_board_size;
       double score = moves[n + ofs] / sum;
-      if (uct_child[i].rate < 0.0) {
+      if (uct_child[i].ladder) {
+	score /= 100;
+      }
+      /*if (uct_child[i].rate < 0.0) {
 	uct_child[i].nnrate = uct_child[i].rate;
       }
-      else {
+      else */{
 	//if (score > 0)
 	//uct_child[i].flag = true;
 	uct_child[i].nnrate = max(score, 0.0);
