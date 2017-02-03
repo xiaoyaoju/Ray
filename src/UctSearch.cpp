@@ -338,20 +338,20 @@ InitializeSearchSetting(void)
     po_info.num = playout;
     extend_time = false;
   } else if (mode == CONST_TIME_MODE) {
-    time_limit = threads * const_thinking_time;
+    time_limit = const_thinking_time;
     po_info.num = 100000000;
     extend_time = false;
   } else if (mode == TIME_SETTING_MODE) {
     if (pure_board_size < 11) {
-      time_limit = threads * remaining_time[0] / TIME_RATE_9;
+      time_limit = remaining_time[0] / TIME_RATE_9;
       po_info.num = (int)(PLAYOUT_SPEED * time_limit);
       extend_time = true;
     } else if (pure_board_size < 13) {
-      time_limit = threads * remaining_time[0] / (TIME_MAXPLY_13 + TIME_C_13);
+      time_limit = remaining_time[0] / (TIME_MAXPLY_13 + TIME_C_13);
       po_info.num = (int)(PLAYOUT_SPEED * time_limit);
       extend_time = true;
     } else {
-      time_limit = threads * remaining_time[0] / (TIME_MAXPLY_19 + TIME_C_19);
+      time_limit = remaining_time[0] / (TIME_MAXPLY_19 + TIME_C_19);
       po_info.num = (int)(PLAYOUT_SPEED * time_limit);
       extend_time = true;
     }
