@@ -148,6 +148,8 @@ bool reuse_subtree = false;
 // 自分の手番の色
 int my_color;
 
+const double pass_po_limit = 0.5;
+
 clock_t begin_time;
 
 static bool early_pass = true;
@@ -1372,9 +1374,6 @@ UctSearch(game_info_t *game, int color, mt19937_64 *mt, LGR& lgrf, LGRContext& l
 {
   int result = 0, next_index;
   double score;
-  bool end_of_game = game->moves > 3 &&
-    game->record[game->moves - 1].pos == PASS &&
-    game->record[game->moves - 3].pos == PASS;
   child_node_t *uct_child = uct_node[current].child;  
 
   // 現在見ているノードをロック
@@ -1388,6 +1387,10 @@ UctSearch(game_info_t *game, int color, mt19937_64 *mt, LGR& lgrf, LGRContext& l
   PutStone(game, uct_child[next_index].pos, color);
   // 色を入れ替える
   color = FLIP_COLOR(color);
+
+  bool end_of_game = game->moves > 2 &&
+    game->record[game->moves - 1].pos == PASS &&
+    game->record[game->moves - 2].pos == PASS;
 
   if (uct_child[next_index].move_count < expand_threshold || end_of_game) {
     int start = game->moves;
@@ -1591,8 +1594,14 @@ SelectMaxUcbChild(const game_info_t *game, int current, int color)
   const double p_v = (double)uct_node[current].value_win / (uct_node[current].value_move_count + .01);
   const double scale = std::max(0.01, std::min(1.0, 1.0 - (game->moves - 200) / 50.0)) * value_scale;
 
+  int start_child = 0;
+  if (!early_pass && current == current_root && child_num > 1) {
+    if (uct_child[0].move_count > uct_node[current].move_count * pass_po_limit) {
+      start_child = 1;
+    }
+  }
   // UCB値最大の手を求める  
-  for (int i = 0; i < child_num; i++) {
+  for (int i = start_child; i < child_num; i++) {
     if (uct_child[i].flag || uct_child[i].open) {
       //double p2 = -1;
       double value_win = 0;
