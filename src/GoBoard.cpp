@@ -1685,7 +1685,7 @@ WritePlanes(
   int color,
   int tran)
 {
-#define OUTPUT_FEATURE(x)	data.push_back((x) ? 1 : 0)
+#define OUTPUT_FEATURE(x)	data.push_back((x) ? 1.0f : 0.0f)
 
 #if 0
   int move2;
@@ -1740,8 +1740,8 @@ WritePlanes(
 	cerr << "bad pos " << n << endl;
       }
       //if (i == 0 && pos == move) cerr << "bad pos2 " << n << endl;
-      if (data[start + n] == 0.0)
-	data[start + n] = pow(2, -i / 10.0);
+      if (data[start + n] == 0.0f)
+	data[start + n] = pow(2.0f, -i / 10.0f);
     }
 #endif
     OUTPUT({ OUTPUT_FEATURE(p == koT); });
@@ -1754,8 +1754,8 @@ WritePlanes(
       OUTPUT({ int l = GetLibs(game, p); OUTPUT_FEATURE((c == opp) && (l == lib || (lib == 4 && l > lib))); });
     }
 #elif 1
-    OUTPUT({ int l = GetLibs(game, p); data.push_back((c == color) ? (std::min(l, 10) / 10.0) : 0.0); });
-    OUTPUT({ int l = GetLibs(game, p); data.push_back((c == opp) ? (std::min(l, 10) / 10.0) : 0.0); });
+    OUTPUT({ int l = GetLibs(game, p); data.push_back((c == color) ? (std::min(l, 10) / 10.0f) : 0.0f); });
+    OUTPUT({ int l = GetLibs(game, p); data.push_back((c == opp) ? (std::min(l, 10) / 10.0f) : 0.0f); });
 #endif
 
 #if 0
@@ -1795,7 +1795,7 @@ WritePlanes2(
   int color,
   int tran)
 {
-#define OUTPUT_FEATURE(x)	data.push_back((x) ? 1 : 0)
+#define OUTPUT_FEATURE(x)	data.push_back((x) ? 1.0f : 0.0f)
   const int opp = FLIP_COLOR(color);
 
   bool ladder[2][BOARD_MAX] = { false };
@@ -1845,13 +1845,13 @@ WritePlanes2(
 	cerr << "bad pos " << n << endl;
       }
       //if (i == 0 && pos == move) cerr << "bad pos2 " << n << endl;
-      if (data[start + n] == 0.0)
-	data[start + n] = pow(2, -i / 10.0);
+      if (data[start + n] == 0.0f)
+	data[start + n] = pow(2.0f, -i / 10.0f);
     }
     OUTPUT({ OUTPUT_FEATURE(p == koT); });
 
-    OUTPUT({ int l = GetLibs(game, p); data.push_back((c == color) ? (std::min(l, 10) / 10.0) : 0.0); });
-    OUTPUT({ int l = GetLibs(game, p); data.push_back((c == opp) ? (std::min(l, 10) / 10.0) : 0.0); });
+    OUTPUT({ int l = GetLibs(game, p); data.push_back((c == color) ? (std::min(l, 10) / 10.0f) : 0.0f); });
+    OUTPUT({ int l = GetLibs(game, p); data.push_back((c == opp) ? (std::min(l, 10) / 10.0f) : 0.0f); });
 
     OUTPUT({ OUTPUT_FEATURE(ladder[0][p]); });
     OUTPUT({ OUTPUT_FEATURE(ladder[1][p]); });
@@ -1862,14 +1862,14 @@ WritePlanes2(
 
     for (int i = 0; i < F_MAX1; i++) {
       OUTPUT({
-        bool flg = game->tactical_features1[p] & po_tactical_features_mask[i];
+        bool flg = (game->tactical_features1[p] & po_tactical_features_mask[i]) != 0;
         //if (flg) count1[i]++;
         OUTPUT_FEATURE(flg);
       });
     }
     for (int i = 0; i < F_MAX2; i++) {
       OUTPUT({
-        bool flg = game->tactical_features2[p] & po_tactical_features_mask[i];
+        bool flg = (game->tactical_features2[p] & po_tactical_features_mask[i]) != 0;
         //if (flg) count2[i]++;
         OUTPUT_FEATURE(flg);
       });
