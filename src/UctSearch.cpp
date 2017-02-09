@@ -2232,9 +2232,11 @@ static std::vector<float> eval_input_data;
 void EvalNode() {
 #if 1
   while (true) {
-    if (handle[0] == nullptr)
-      break;
     LOCK_EXPAND;
+    if (handle[0] == nullptr && ((!reuse_subtree && !ponder) || eval_queue.empty())) {
+      UNLOCK_EXPAND;
+      break;
+    }
 
     if (eval_queue.empty()) {
       UNLOCK_EXPAND;
