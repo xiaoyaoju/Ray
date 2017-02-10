@@ -1199,6 +1199,62 @@ PoCheckCaptureAfterKo( game_info_t *game, int color, int *update, int *update_nu
   }
 }
 
+bool
+PoCheckSnapBack( game_info_t *game, int color, int pos, int pos0 )
+{
+  const char *board = game->board;
+  const string_t *string = game->string;
+  const int *string_id = game->string_id;
+  int other = FLIP_COLOR(color);
+
+  if (board[pos0] != other)
+    return false;
+
+  int id = string_id[pos0];
+  if (string[id].libs == 2) {
+    int lib0 = string[id].lib[0];
+    int lib1 = string[id].lib[lib0];
+    if (IsNeighbor(lib0, lib1)) {
+      int lib = (lib0 == pos) ? lib1 : lib0;
+      int neighbor4[4];
+      GetNeighbor4(neighbor4, lib);
+      bool safe = false;
+      for (int p : neighbor4) {
+	if (p == pos)
+	  continue;
+	if (board[p] == S_EMPTY
+	  || (board[p] == other && string_id[p] != id)) {
+	  safe = true;
+	  break;
+	}
+	if (board[p] == color
+	  && string[string_id[p]].libs == 1) {
+	  safe = true;
+	  break;
+	}
+      }
+      if (!safe) {
+#if 0
+	PrintBoard(game);
+	cerr << "SNAPBACK? " << color << " " << FormatMove(pos) << " " << FormatMove(lib) << endl;
+	for (int f2 = 0; f2 < F_MAX2; f2++) {
+	if (game->tactical_features2[pos] & po_tactical_features_mask[f2])
+	cerr << po_features_name[F_MAX1 + f2];
+	}
+	cerr << endl;
+#endif
+	if (string[id].size <= 2) {
+	  game->tactical_features2[pos] |= po_tactical_features_mask[F_2POINT_C_ATARI_SMALL];
+	} else {
+	  game->tactical_features2[pos] |= po_tactical_features_mask[F_2POINT_C_ATARI_LARGE];
+	}
+	return true;
+      }
+    }
+  }
+  return false;
+}
+
 
 //////////////////
 //  自己アタリ  //
@@ -1363,7 +1419,17 @@ PoCheckSelfAtari( game_info_t *game, int color, int pos )
   // 自己アタリになる連の大きさが2以下,
   // または大きさが5以下でナカデの形になる場合は
   // 打っても良いものとする
-  if (size < 2) {
+  if (size == 0) {
+    // Check snap back
+    bool snapback = false;
+    snapback |= PoCheckSnapBack(game, color, pos, NORTH(pos));
+    snapback |= PoCheckSnapBack(game, color, pos, SOUTH(pos));
+    snapback |= PoCheckSnapBack(game, color, pos, WEST(pos));
+    snapback |= PoCheckSnapBack(game, color, pos, EAST(pos));
+    if (!snapback)
+      game->tactical_features2[pos] |= po_tactical_features_mask[F_SELF_ATARI_SMALL];
+    flag = true;
+  } else if (size < 2) {
     game->tactical_features2[pos] |= po_tactical_features_mask[F_SELF_ATARI_SMALL];
     flag = true;
   } else if (size < 5) {

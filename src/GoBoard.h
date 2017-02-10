@@ -256,4 +256,12 @@ int TransformMove(int p, int i);
 
 int RevTransformMove(int p, int i);
 
+inline bool IsNeighbor( int pos0, int pos1 ) {
+  int index_distance = pos0 - pos1;
+  return index_distance == 1
+    || index_distance == -1
+    || index_distance == board_size
+    || index_distance == -board_size;
+}
+
 #endif
