@@ -1381,8 +1381,8 @@ UctSearch(game_info_t *game, int color, mt19937_64 *mt, LGR& lgrf, LGRContext& l
   // UCB’lÅ‘å‚Ìè‚ğ‹‚ß‚é
   next_index = SelectMaxUcbChild(game, current, color);
   // Store context hash
-  lgrctx.hash[game->moves] = Pat3(game->pat, uct_child[next_index].pos);
-  lgrctx.hash_last[game->moves] = Pat3(game->pat, game->record[game->moves - 1].pos);
+  lgrctx.hash[game->moves] = MD2(game->pat, uct_child[next_index].pos);
+  lgrctx.hash_last[game->moves] = MD2(game->pat, game->record[game->moves - 1].pos);
   // ‘I‚ñ‚¾è‚ğ’…è
   PutStone(game, uct_child[next_index].pos, color);
   // F‚ğ“ü‚ê‘Ö‚¦‚é

@@ -120,8 +120,8 @@ const double PO_BIAS = 1.66542;
 
 class LGRContext {
 public:
-  unsigned int hash[MAX_MOVES];
-  unsigned int hash_last[MAX_MOVES];
+  uint32_t hash[MAX_MOVES];
+  uint32_t hash_last[MAX_MOVES];
 };
 
 class LGR {
@@ -133,7 +133,7 @@ public:
   bool hasLGRF1(int col, int pos1) const;
   void clearLGRF1(int col, int pos1);
 
-  void setTGR1(int col, int pos1, int val, uint16_t hash, uint16_t hash2);
+  void setTGR1(int col, int pos1, int val, uint32_t hash, uint32_t hash2);
   int getTGR1(int col, int pos1, const game_info_t* game) const;
 
   int getLGRF2(int col, int pos1, int pos2) const;
@@ -145,7 +145,7 @@ public:
 
 private:
   std::unique_ptr<int16_t[]> tgr1;
-  std::unique_ptr<uint16_t[]> tgr1_hash;
+  std::unique_ptr<uint32_t[]> tgr1_hash;
   std::unique_ptr<uint16_t[]> tgr1_count;
 
   std::unique_ptr<int[]> lgrf1;

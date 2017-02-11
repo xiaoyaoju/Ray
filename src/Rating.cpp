@@ -1661,7 +1661,7 @@ LGR::reset()
     size_t s = 2 * pure_board_max;
     tgr1.reset(new int16_t[s * tgr_num]);
     fill(tgr1.get(), tgr1.get() + s * tgr_num, PASS);
-    tgr1_hash.reset(new uint16_t[s * tgr_num]);
+    tgr1_hash.reset(new uint32_t[s * tgr_num]);
     tgr1_count.reset(new uint16_t[s]);
     fill(tgr1_count.get(), tgr1_count.get() + s, 0);
   }
@@ -1680,7 +1680,7 @@ LGR::reset()
 }
 
 void
-LGR::setTGR1(int col, int pos1, int val, uint16_t hash_last, uint16_t hash)
+LGR::setTGR1(int col, int pos1, int val, uint32_t hash_last, uint32_t hash)
 {
   pos1 = board_pos_id[pos1];
   int c = col - 1;
@@ -1704,7 +1704,7 @@ LGR::getTGR1(int col, int pos1, const game_info_t* game) const
 {
   pos1 = board_pos_id[pos1];
   int c = col - 1;
-  uint16_t hash_last = Pat3(game->pat, pos1);
+  //uint32_t hash_last = MD2(game->pat, pos1);
   //int index = (c * pure_board_max + pos1) * 0xffff + hash_last;
   int index = c * pure_board_max + pos1;
   uint16_t count = min(tgr_num, tgr1_count[index]);
@@ -1712,7 +1712,7 @@ LGR::getTGR1(int col, int pos1, const game_info_t* game) const
     int pos = tgr1[index * tgr_num + i];
     if (pos == PASS)
       continue;
-    uint16_t hash = Pat3(game->pat, pos);
+    uint32_t hash = MD2(game->pat, pos);
     if (tgr1_hash[index * tgr_num + i] == hash) {
       return pos;
     }
