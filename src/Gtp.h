@@ -29,6 +29,8 @@ typedef struct {
 
 #define CHOMP(command) if(command[strlen(command)-1] == '\n') command[strlen(command)-1] = '\0'
 
+// シミュレーションの手を使う
+void SetSimMove( bool );
 // gtp本体
 void GTP_main( void );
 // gtpの出力

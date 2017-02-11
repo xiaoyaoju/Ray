@@ -52,3 +52,36 @@ Simulation( game_info_t *game, int starting_color, std::mt19937_64 *mt )
   }
 
 }
+
+////////////////////////////////
+// シミュレーション              //
+////////////////////////////////
+int
+SimulationGenmove(game_info_t *game, int color)
+{
+  static std::mt19937_64 mt((random_device())());
+  int pos = -1;
+  int length;
+  int pass_count;
+
+  // シミュレーション打ち切り手数を設定
+  length = MAX_MOVES - game->moves;
+  if (length < 0) {
+    return PASS;
+  }
+
+  // レートの初期化
+  game->sum_rate[0] = game->sum_rate[1] = 0;
+  memset(game->sum_rate_row, 0, sizeof(long long) * 2 * BOARD_SIZE);
+  memset(game->rate, 0, sizeof(long long) * 2 * BOARD_MAX);
+
+  pass_count = (game->record[game->moves - 1].pos == PASS && game->moves > 1);
+
+  // 黒番のレートの計算
+  Rating(game, S_BLACK, &game->sum_rate[0], game->sum_rate_row[0], game->rate[0]);
+  // 白番のレートの計算
+  Rating(game, S_WHITE, &game->sum_rate[1], game->sum_rate_row[1], game->rate[1]);
+
+  // 着手を生成する
+  return RatingMove(game, color, &mt);
+}

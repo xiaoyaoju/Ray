@@ -6,6 +6,7 @@
 #include "Command.h"
 #include "DynamicKomi.h"
 #include "GoBoard.h"
+#include "Gtp.h"
 #include "Message.h"
 #include "UctSearch.h"
 #include "ZobristHash.h"
@@ -24,6 +25,7 @@ const string command[COMMAND_MAX] = {
   "--pondering",
   "--tree-size",
   "--no-debug",
+  "--sim-move",
   "--no-early-pass",
 };
 
@@ -39,6 +41,7 @@ const string errmessage[COMMAND_MAX] = {
   "Set pondering mode",
   "Set tree size (tree size must be 2 ^ n)",
   "Prohibit any debug message",
+  "Play simulation move",
   "No early pass",
 };
 
@@ -104,6 +107,8 @@ AnalyzeCommand( int argc, char **argv )
       case COMMAND_NO_DEBUG:
         SetDebugMessageMode(false);
         break;
+      case COMMAND_SIM_MOVE:
+	SetSimMove(true);
       case COMMAND_NO_EARLY_PASS:
 	SetEarlyPass(false);
 	break;

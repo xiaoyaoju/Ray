@@ -29,8 +29,19 @@ char *brank, *err_command, *err_genmove, *err_play, *err_komi;
 
 int player_color = 0;
 
+static bool sim_move = false;
+
 game_info_t *game;
 
+
+////////////////////////
+//  void SetSimMove() //
+////////////////////////
+void
+SetSimMove( bool flag )
+{
+  sim_move = flag;
+}
 
 ///////////////////////
 //  void GTP_main()  //
@@ -278,8 +289,11 @@ GTP_genmove( void )
   }
 
   player_color = color;
-  
-  point = UctSearchGenmove(game, color);
+
+  if (sim_move)
+    point = SimulationGenmove(game, color);
+  else
+    point = UctSearchGenmove(game, color);
   if (point != RESIGN) {
     PutStone(game, point, color);
   }
