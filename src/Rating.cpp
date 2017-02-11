@@ -285,11 +285,8 @@ RatingMove(game_info_t *game, int color, std::mt19937_64 *mt, LGR& lgr)
   // レートの部分更新
   PartialRating(game, color, sum_rate, sum_rate_row, rate);
 
-  // 合法手を選択するまでループ
-  while (true) {
-    if (*sum_rate == 0) return PASS;
-
-    // LGR
+  if (*sum_rate > 0) {
+      // LGR
     if (((*mt)() % 100) < tgr1_rate && game->moves > 0) {
       static std::atomic_int64_t lgr_total;
       static std::atomic_int64_t lgr_hit;
@@ -342,6 +339,11 @@ RatingMove(game_info_t *game, int color, std::mt19937_64 *mt, LGR& lgr)
 	cerr << "LGRF2 " << (100 * lgr_hit / lgr_total) << "%" << std::endl;
       }
     }
+  }
+
+  // 合法手を選択するまでループ
+  while (true) {
+    if (*sum_rate == 0) return PASS;
 
     rand_num = ((*mt)() % (*sum_rate)) + 1;
 
