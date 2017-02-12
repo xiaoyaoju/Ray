@@ -1618,46 +1618,50 @@ int TransformMove(int p, int i)
   if (p == PASS || p == RESIGN)
     return p;
   int p0 = p;
+  int x = X(p);
+  int y = Y(p);
   if (i & HASH_VMIRROR) {
-    p = POS(X(p), board_end - (Y(p) - board_start));
+    y = board_end - (y - board_start);
   }
   if (i & HASH_HMIRROR) {
-    p = POS(board_end - (X(p) - board_start), Y(p));
+    x = board_end - (x - board_start);
   }
   if (i & HASH_XYFLIP) {
-    p = POS(Y(p), X(p));
+    swap(x, y);
   }
-  int row = X(p);
-  int col = Y(p);
+  int row = x;
+  int col = y;
   if (row < board_start || row > board_end || col < board_start || col > board_end) {
     std::cerr << "BAD TRANS " << p0 << " -> " << p << " " << board_size << " " << i << " " << row << "," << col << "\n";
     exit(1);
   }
 
-  return p;
+  return POS(x, y);
 }
 int RevTransformMove(int p, int i)
 {
   if (p == PASS || p == RESIGN)
     return p;
   int p0 = p;
+  int x = X(p);
+  int y = Y(p);
   if (i & HASH_XYFLIP) {
-    p = POS(Y(p), X(p));
+    swap(x, y);
   }
   if (i & HASH_HMIRROR) {
-    p = POS(board_end - (X(p) - board_start), Y(p));
+    x = board_end - (x - board_start);
   }
   if (i & HASH_VMIRROR) {
-    p = POS(X(p), board_end - (Y(p) - board_start));
+    y = board_end - (y - board_start);
   }
-  int row = X(p);
-  int col = Y(p);
+  int row = x;
+  int col = y;
   if (row < board_start || row > board_end || col < board_start || col > board_end) {
     std::cerr << "BAD TRANS " << p0 << " -> " << p << " " << board_size << " " << i << " " << row << "," << col << "\n";
     exit(1);
   }
 
-  return p;
+  return POS(x, y);
 }
 
 static int
@@ -1804,6 +1808,7 @@ WritePlanes2(
   LadderExtension(game, color, ladder[0]);
   LadderExtension(game, opp, ladder[1]);
 
+  data.reserve(19 * 19 * 52);
   {
     //cout << "a\n";
     *moveT = RevTransformMove(move, tran);
