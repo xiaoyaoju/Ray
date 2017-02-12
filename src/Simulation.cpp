@@ -82,6 +82,9 @@ SimulationGenmove(game_info_t *game, int color)
   // 白番のレートの計算
   Rating(game, S_WHITE, &game->sum_rate[1], game->sum_rate_row[1], game->rate[1]);
 
+  // 確率分布を表示
+  PrintRate(game);
+
   // 着手を生成する
   return RatingMove(game, color, &mt);
 }
