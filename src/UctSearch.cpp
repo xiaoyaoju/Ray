@@ -1557,7 +1557,7 @@ SelectMaxUcbChild(const game_info_t *game, int current, int color)
 	dynamic_parameter = uct_owner[o_index[i]] + uct_criticality[c_index[i]];
 	order[i].rate = uct_child[i].rate + dynamic_parameter;
 	order[i].index = i;
-	uct_child[i].flag = uct_child[i].nnrate > 0.01;
+	uct_child[i].flag |= uct_child[i].nnrate > 0.01;
       }
       qsort(order, child_num, sizeof(rate_order_t), RateComp);
 
