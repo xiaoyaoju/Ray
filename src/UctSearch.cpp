@@ -583,7 +583,7 @@ UctSearchGenmove(game_info_t *game, int color)
   for (i = 0; i < pure_board_max; i++) {
     int pos = onboard_pos[i];
 
-    if (game->board[pos] == FLIP_COLOR(color) && owner[pos] > 50) {
+    if (game->board[pos] == FLIP_COLOR(color) && owner[pos] > 70) {
       count++;
     }
   }
