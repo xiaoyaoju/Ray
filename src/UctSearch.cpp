@@ -153,6 +153,8 @@ bool reuse_subtree = false;
 int my_color;
 
 const double pass_po_limit = 0.5;
+const int policy_batch_size = 16;
+const int value_batch_size = 64;
 
 clock_t begin_time;
 
@@ -725,6 +727,9 @@ UctSearchStat(game_info_t *game, int color, int num)
     ClearUctHash();
   }
 
+  double org_use_nn = use_nn;
+  use_nn = false;
+
   // íTçıäJénéûçèÇÃãLò^
   begin_time = clock();
 
@@ -758,8 +763,10 @@ UctSearchStat(game_info_t *game, int color, int num)
   for (i = 0; i < threads; i++) {
     handle[i]->join();
     delete handle[i];
-	handle[i] = nullptr;
+    handle[i] = nullptr;
   }
+
+  use_nn = org_use_nn;
 
   uct_child = uct_node[current_root].child;
 
@@ -1253,6 +1260,7 @@ ExtendTime(void)
 void
 ParallelUctSearch(thread_arg_t *arg)
 {
+  static std::atomic_int64_t queue_full;
   thread_arg_t *targ = (thread_arg_t *)arg;
   game_info_t *game;
   int color = targ->color;
@@ -1267,6 +1275,17 @@ ParallelUctSearch(thread_arg_t *arg)
   // íTçıâÒêîÇ™ËáílÇí¥Ç¶ÇÈ, Ç‹ÇΩÇÕíTçıÇ™ë≈ÇøêÿÇÁÇÍÇΩÇÁÉãÅ[ÉvÇî≤ÇØÇÈ
   if (targ->thread_id == 0) {
     do {
+      // Wait if dcnn queue is full
+      LOCK_EXPAND;
+      while (eval_value_queue.size() > value_batch_size * 3 || eval_policy_queue.size() > policy_batch_size * 3) {
+	std::atomic_fetch_add(&queue_full, 1);
+	UNLOCK_EXPAND;
+	this_thread::sleep_for(chrono::milliseconds(10));
+	if (queue_full % 1000 == 0)
+	  cerr << "EVAL QUEUE FULL" << endl;
+	LOCK_EXPAND;
+      }
+      UNLOCK_EXPAND;
       // íTçıâÒêîÇ1âÒëùÇ‚Ç∑	
       atomic_fetch_add(&po_info.count, 1);
       // î’ñ ÇÃÉRÉsÅ[
@@ -1929,6 +1948,9 @@ UctAnalyze( game_info_t *game, int color )
     pos = onboard_pos[i];
   }
 
+  double org_use_nn = use_nn;
+  use_nn = false;
+
   po_info.halt = 10000;
 
   for (i = 0; i < threads; i++) {
@@ -1942,8 +1964,10 @@ UctAnalyze( game_info_t *game, int color )
   for (i = 0; i < threads; i++) {
     handle[i]->join();
     delete handle[i];
-	handle[i] = nullptr;
+    handle[i] = nullptr;
   }
+
+  use_nn = org_use_nn;
 
   int x, y, black = 0, white = 0;
   double own;
@@ -2050,7 +2074,7 @@ UctSearchGenmoveCleanUp( game_info_t *game, int color )
   for (i = 0; i < threads; i++) {
     handle[i]->join();
     delete handle[i];
-	handle[i] = nullptr;
+    handle[i] = nullptr;
   }
 
   uct_child = uct_node[current_root].child;
@@ -2279,8 +2303,6 @@ static std::vector<float> eval_input_data;
 
 void EvalNode() {
 #if 1
-  const int policy_batch_size = 16;
-  const int value_batch_size = 64;
   while (true) {
     LOCK_EXPAND;
     bool running = handle[0] != nullptr;
