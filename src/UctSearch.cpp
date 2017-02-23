@@ -1260,7 +1260,7 @@ ExtendTime(void)
 void
 ParallelUctSearch(thread_arg_t *arg)
 {
-  static std::atomic_int64_t queue_full;
+  static std::atomic<int> queue_full;
   thread_arg_t *targ = (thread_arg_t *)arg;
   game_info_t *game;
   int color = targ->color;
