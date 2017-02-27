@@ -34,6 +34,7 @@
 #include <unistd.h>
 #include <pthread.h>
 #include <semaphore.h>
+#include <sys/time.h>
 #endif
 
 #include "Eval.h"
@@ -156,7 +157,11 @@ const double pass_po_limit = 0.5;
 const int policy_batch_size = 16;
 const int value_batch_size = 64;
 
+#if defined (_WIN32)
 clock_t begin_time;
+#else
+struct timeval begin_time;
+#endif
 
 static bool early_pass = true;
 
@@ -351,20 +356,20 @@ InitializeSearchSetting(void)
     po_info.num = playout;
     extend_time = false;
   } else if (mode == CONST_TIME_MODE) {
-    time_limit = threads * const_thinking_time;
+    time_limit = const_thinking_time;
     po_info.num = 100000000;
     extend_time = false;
   } else if (mode == TIME_SETTING_MODE) {
     if (pure_board_size < 11) {
-      time_limit = threads * remaining_time[0] / TIME_RATE_9;
+      time_limit = remaining_time[0] / TIME_RATE_9;
       po_info.num = (int)(PLAYOUT_SPEED * time_limit);
       extend_time = true;
     } else if (pure_board_size < 13) {
-      time_limit = threads * remaining_time[0] / (TIME_MAXPLY_13 + TIME_C_13);
+      time_limit = remaining_time[0] / (TIME_MAXPLY_13 + TIME_C_13);
       po_info.num = (int)(PLAYOUT_SPEED * time_limit);
       extend_time = true;
     } else {
-      time_limit = threads * remaining_time[0] / (TIME_MAXPLY_19 + TIME_C_19);
+      time_limit = remaining_time[0] / (TIME_MAXPLY_19 + TIME_C_19);
       po_info.num = (int)(PLAYOUT_SPEED * time_limit);
       extend_time = true;
     }
@@ -467,8 +472,12 @@ UctSearchGenmove(game_info_t *game, int color)
   eval_count_value = 0;
 
   // 探索開始時刻の記録
+#if defined (_WIN32)
   begin_time = clock();
-
+#else
+  gettimeofday(&begin_time, NULL);
+#endif
+  
   // UCTの初期化
   current_root = ExpandRoot(game, color);
 
@@ -489,11 +498,8 @@ UctSearchGenmove(game_info_t *game, int color)
   // Dynamic Komiの算出(置碁のときのみ)
   DynamicKomi(game, &uct_node[current_root], color);
 
-#if defined (_WIN32)
+  // 探索時間とプレイアウト回数の予定値を出力
   PrintPlayoutLimits(time_limit, po_info.halt);
-#else
-  PrintPlayoutLimits(time_limit / threads, po_info.halt);
-#endif
 
   for (i = 0; i < threads; i++) {
     t_arg[i].thread_id = i;
@@ -557,9 +563,10 @@ UctSearchGenmove(game_info_t *game, int color)
   }
 
   // 探索にかかった時間を求める
+#if defined (_WIN32)
   finish_time = GetSpendTime(begin_time);
-#if !defined (_WIN32)
-  finish_time /= threads;
+#else
+  finish_time = GetSpendTimeForLinux(&begin_time);
 #endif
 
   // パスの勝率の算出
@@ -1196,10 +1203,17 @@ InterruptionCheck(void)
   int rest = po_info.halt - po_info.count;
   child_node_t *uct_child = uct_node[current_root].child;
 
+#if defined (_WIN32)
   if (mode != CONST_PLAYOUT_MODE && 
       GetSpendTime(begin_time) * 10.0 < time_limit) {
       return false;
   }
+#else
+  if (mode != CONST_PLAYOUT_MODE && 
+      GetSpendTimeForLinux(&begin_time) * 10.0 < time_limit) {
+      return false;
+  }
+#endif
 
   // 探索回数が最も多い手と次に多い手を求める
   for (i = 0; i < child_num; i++) {
@@ -1304,7 +1318,11 @@ ParallelUctSearch(thread_arg_t *arg)
 	CalculateCriticality(color);
 	interval += CRITICALITY_INTERVAL;
       }
+#if defined (_WIN32)
       if (GetSpendTime(begin_time) > time_limit) break;
+#else
+      if (GetSpendTimeForLinux(&begin_time) > time_limit) break;
+#endif
     } while (po_info.count < po_info.halt && !interruption && enough_size);
   } else {
     do {
@@ -1320,7 +1338,11 @@ ParallelUctSearch(thread_arg_t *arg)
       interruption = InterruptionCheck();
       // ハッシュに余裕があるか確認
       enough_size = CheckRemainingHashSize();
+#if defined (_WIN32)
       if (GetSpendTime(begin_time) > time_limit) break;
+#else
+      if (GetSpendTimeForLinux(&begin_time) > time_limit) break;
+#endif
     } while (po_info.count < po_info.halt && !interruption && enough_size);
   }
 
@@ -1918,9 +1940,6 @@ CalculateNextPlayouts( game_info_t *game, int color, double best_wp, double fini
       time_limit = remaining_time[color] / (TIME_C_19 + ((TIME_MAXPLY_19 - (game->moves + 1) > 0) ? TIME_MAXPLY_19 - (game->moves + 1) : 0));
       po_info.num = po_per_sec * time_limit;
     }
-#if !defined (_WIN32)
-    time_limit *= threads;
-#endif
   }
 }
 
@@ -2031,7 +2050,6 @@ int
 UctSearchGenmoveCleanUp( game_info_t *game, int color )
 {
   int i, pos;
-  clock_t begin_time;
   double finish_time;
   int select_index;
   int max_count;
@@ -2044,7 +2062,11 @@ UctSearchGenmoveCleanUp( game_info_t *game, int color )
   memset(criticality_index, 0, sizeof(int)* board_max); 
   memset(criticality, 0, sizeof(double)* board_max);    
 
+#if defined (_WIN32)
   begin_time = clock();
+#else
+  gettimeofday(&begin_time, NULL);
+#endif
 
   po_info.count = 0;
 
@@ -2089,9 +2111,10 @@ UctSearchGenmoveCleanUp( game_info_t *game, int color )
     }
   }
 
+#if defined (_WIN32)
   finish_time = GetSpendTime(begin_time);
-#if !defined (_WIN32)
-  finish_time /= threads;
+#else
+  finish_time = GetSpendTimeForLinux(&begin_time);
 #endif
 
   wp = (double)uct_node[current_root].win / uct_node[current_root].move_count;
