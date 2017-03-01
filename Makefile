@@ -5,8 +5,9 @@ OPTIMIZE = -O3
 CPP11 = -std=c++11
 WARNING = -Wall
 DEBUG = -g
-CFLAGS = ${OPTIMIZE} ${WARNING} ${CPP11} ${DEBUG}
-LIBS = -lm -pthread #-static-libstdc++ -static-libgcc
+CNTKDIR = /home/ubuntu/src/cntk
+CFLAGS = ${OPTIMIZE} ${WARNING} ${CPP11} ${DEBUG}  -I${CNTKDIR}/Source/Common/Include/
+LIBS = -lm -pthread  -L${CNTKDIR}/lib -leval #-static-libstdc++ -static-libgcc
 RM = rm
 
 SRCS=${shell ls src/*.cpp}
