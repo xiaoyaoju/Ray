@@ -738,7 +738,11 @@ UctSearchStat(game_info_t *game, int color, int num)
   use_nn = false;
 
   // 探索開始時刻の記録
+#if defined (_WIN32)
   begin_time = clock();
+#else
+  gettimeofday(&begin_time, NULL);
+#endif
 
   // UCTの初期化
   current_root = ExpandRoot(game, color);
@@ -789,9 +793,10 @@ UctSearchStat(game_info_t *game, int color, int num)
   }
 
   // 探索にかかった時間を求める
+#if defined (_WIN32)
   finish_time = GetSpendTime(begin_time);
-#if !defined (_WIN32)
-  finish_time /= threads;
+#else
+  finish_time = GetSpendTimeForLinux(&begin_time);
 #endif
 
   // パスの勝率の算出
