@@ -15,6 +15,7 @@
 #include <thread>
 #include <random>
 #include <queue>
+#include <mpi.h>
 
 #include "DynamicKomi.h"
 #include "GoBoard.h"
@@ -46,6 +47,8 @@ using namespace std;
 #define UNLOCK_NODE(var) mutex_nodes[(var)].unlock()
 #define LOCK_EXPAND mutex_expand.lock();
 #define UNLOCK_EXPAND mutex_expand.unlock();
+
+#define USE_MPI 1
 
 typedef std::pair<std::wstring, std::vector<float>*> MapEntry;
 typedef std::map<std::wstring, std::vector<float>*> Layer;
@@ -170,6 +173,11 @@ static int eval_count_policy, eval_count_value;
 static double owner_nn[BOARD_MAX];
 
 static Microsoft::MSR::CNTK::IEvaluateModel<float>* nn_model = nullptr;
+
+#if USE_MPI
+static float root_offset[UCT_CHILD_MAX * 4];
+static int mpi_rank = -1;
+#endif
 
 //template<double>
 double atomic_fetch_add(std::atomic<double> *obj, double arg) {
@@ -501,6 +509,31 @@ UctSearchGenmove(game_info_t *game, int color)
   // 探索時間とプレイアウト回数の予定値を出力
   PrintPlayoutLimits(time_limit, po_info.halt);
 
+#if USE_MPI
+  fill(std::begin(root_offset), std::end(root_offset), 0);
+  MPI_Comm_rank(MPI_COMM_WORLD, &mpi_rank);
+  cerr << "Genmove #" << mpi_rank << endl;
+
+  if (mpi_rank == 0) {
+    std::vector<int> records;
+    records.resize(2 + value_batch_size * MAX_RECORDS * 2);
+
+    std::vector<float> eval_input_data;
+    int ptr = 0;
+    records[ptr++] = game->moves;
+    records[ptr++] = color;
+    for (int i = 0; i < game->moves; i++) {
+      records[ptr++] = game->record[i].color;
+      records[ptr++] = game->record[i].pos;
+    }
+
+    cerr << "Send game #" << mpi_rank << endl;
+    MPI_Bcast(&records[0], 2 + MAX_RECORDS * 2, MPI_INT, 0, MPI_COMM_WORLD);
+  } else {
+    po_info.halt = std::numeric_limits<int>::max();
+  }
+#endif
+
   for (i = 0; i < threads; i++) {
     t_arg[i].thread_id = i;
     t_arg[i].game = game;
@@ -555,12 +588,29 @@ UctSearchGenmove(game_info_t *game, int color)
   max_count = early_pass ? (int)uct_child[PASS_INDEX].move_count : 0;
 
   // 探索回数最大の手を見つける
+#if USE_MPI
+  int move_count_sum  = root_offset[0 * 4 + 0];
+  int max_win         = root_offset[0 * 4 + 1];
+  int max_value_count = root_offset[0 * 4 + 2];
+  int max_value       = root_offset[0 * 4 + 3];
+  for (i = 1; i < uct_node[current_root].child_num; i++) {
+    move_count_sum += root_offset[i * 4 + 0];
+    if (root_offset[i * 4 + 0] > max_count) {
+      select_index = i;
+      max_count       = root_offset[i * 4 + 0];
+      max_win         = root_offset[i * 4 + 1];
+      max_value_count = root_offset[i * 4 + 2];
+      max_value       = root_offset[i * 4 + 3];
+    }
+  }
+#else
   for (i = 1; i < uct_node[current_root].child_num; i++){
     if (uct_child[i].move_count > max_count) {
       select_index = i;
       max_count = uct_child[i].move_count;
     }
   }
+#endif
 
   // 探索にかかった時間を求める
   finish_time = GetSpendTime(begin_time);
@@ -617,6 +667,10 @@ UctSearchGenmove(game_info_t *game, int color)
     pos = uct_child[select_index].pos;
   }
 
+  if (mpi_rank > 0) {
+    return pos;
+  }
+
   // 最善応手列を出力
   PrintBestSequence(game, uct_node, current_root, color);
   // 探索の情報を出力(探索回数, 勝敗, 思考時間, 勝率, 探索速度)
@@ -627,6 +681,13 @@ UctSearchGenmove(game_info_t *game, int color)
   ClearEvalQueue();
  
   if (use_nn) {
+    double winning_percentage = (double)max_win / max_count;
+    double winning_percentage2 = (max_win + max_value * value_scale) / (max_count + max_value_count * value_scale);
+
+    cerr << "P All Playouts     :  " << setw(7) << move_count_sum << endl;
+    cerr << "Winning Percentage :  " << setw(7) << (winning_percentage * 100) << "%" << endl;
+    cerr << "Winning Percentage2:  " << setw(7) << (winning_percentage2 * 100) << "%" << endl;
+
     cerr << "Eval NN Policy     :  " << setw(7) << (eval_count_policy + eval_policy_queue.size()) << endl;
     cerr << "Eval NN Value      :  " << setw(7) << (eval_count_value + eval_value_queue.size()) << endl;
     cerr << "Eval NN            :  " << setw(7) << eval_count_policy << "/" << eval_count_value << endl;
@@ -1270,13 +1331,14 @@ ParallelUctSearch(thread_arg_t *arg)
   bool enough_size = true;
   int winner = 0;
   int interval = CRITICALITY_INTERVAL;
+  double sync_time = GetSpendTime(begin_time) + 0.5;
 
   game = AllocateGame();
 
   // スレッドIDが0のスレッドだけ別の処理をする
   // 探索回数が閾値を超える, または探索が打ち切られたらループを抜ける
   if (targ->thread_id == 0) {
-    do {
+    while (true) {
       // Wait if dcnn queue is full
       LOCK_EXPAND;
       while (eval_value_queue.size() > value_batch_size * 3 || eval_policy_queue.size() > policy_batch_size * 3) {
@@ -1306,10 +1368,67 @@ ParallelUctSearch(thread_arg_t *arg)
 	CalculateCriticality(color);
 	interval += CRITICALITY_INTERVAL;
       }
-      if (GetSpendTime(begin_time) > time_limit) break;
-    } while (po_info.count < po_info.halt && !interruption && enough_size);
+      double now = GetSpendTime(begin_time);
+      bool end;
+      if (mpi_rank == 0) {
+        end = (now > time_limit)
+          || !(po_info.count < po_info.halt && !interruption && enough_size);
+      } else {
+        end = false;
+      }
+
+#if USE_MPI
+      if (now > sync_time || end) {
+        float buf[UCT_CHILD_MAX * 4];
+
+        child_node_t *uct_child = uct_node[current_root].child;
+        int child_num = uct_node[current_root].child_num;
+
+        // Send current staticts
+        for (int i = 0; i < child_num; i++) {
+          buf[i * 4 + 0] = uct_child[i].move_count;
+          buf[i * 4 + 1] = uct_child[i].win;
+          buf[i * 4 + 2] = 0;
+          buf[i * 4 + 3] = 0;
+          if (uct_child[i].index >= 0 && i != 0) {
+            auto node = &uct_node[uct_child[i].index];
+            if (node->value_move_count > 0) {
+              double value_win = node->value_win;
+              int value_move_count = node->value_move_count;
+              value_win = value_move_count - value_win;
+
+              buf[i * 4 + 2] = value_move_count;
+              buf[i * 4 + 3] = value_win;
+            }
+          }
+          //buf[i * 4 + 0] = uct_child[i].;
+        }
+        cerr << "REDUCE #" << mpi_rank << endl;
+        LOCK_NODE(current_root);
+        MPI_Allreduce(buf, root_offset, UCT_CHILD_MAX * 4, MPI_FLOAT, MPI_SUM, MPI_COMM_WORLD);
+        UNLOCK_NODE(current_root);
+
+        int endbuf[1];
+        if (mpi_rank == 0) {
+          endbuf[0] = end;
+          cerr << "Send end #" << mpi_rank << " " << endbuf[0] << endl;
+        }
+        MPI_Bcast(endbuf, 1, MPI_INT, 0, MPI_COMM_WORLD);
+        if (mpi_rank > 0) {
+          cerr << "W Recv end #" << mpi_rank << " " << endbuf[0] << endl;
+          end = endbuf[0];
+        }
+        sync_time = now + 0.5;
+      }
+#endif
+      if (end) {
+        po_info.halt = po_info.count - 1;
+        break;
+      }
+    }
+    cerr << "Exit #" << mpi_rank << "." << arg->thread_id << endl;
   } else {
-    do {
+    while (true) {
       // 探索回数を1回増やす	
       atomic_fetch_add(&po_info.count, 1);
       // 盤面のコピー
@@ -1322,8 +1441,18 @@ ParallelUctSearch(thread_arg_t *arg)
       interruption = InterruptionCheck();
       // ハッシュに余裕があるか確認
       enough_size = CheckRemainingHashSize();
-      if (GetSpendTime(begin_time) > time_limit) break;
-    } while (po_info.count < po_info.halt && !interruption && enough_size);
+
+      double now = GetSpendTime(begin_time);
+      bool end;
+      if (mpi_rank == 0) {
+        end = (now > time_limit)
+          || !(po_info.count < po_info.halt && !interruption && enough_size);
+      } else {
+        end = !(po_info.count < po_info.halt && enough_size);
+      }
+      if (end)
+        break;
+    }
   }
 
   // メモリの解放
@@ -1415,7 +1544,6 @@ UctSearch(game_info_t *game, int color, mt19937_64 *mt, int current, int *winner
     game->record[game->moves - 2].pos == PASS;
 
   if (uct_child[next_index].move_count < expand_threshold || end_of_game) {
-    int start = game->moves;
     path.push_back(current);
 
     // Virtual Lossを加算
@@ -1664,8 +1792,18 @@ SelectMaxUcbChild(const game_info_t *game, int current, int color)
 	value_win = uct_child[i].value;
       }
 
-      const double win = uct_child[i].win;
-      const double move_count = uct_child[i].move_count;
+      const double move_count0 = uct_child[i].move_count;
+      const double win0 = uct_child[i].win;
+
+      double move_count = move_count0;
+      double win = win0;
+
+      if (current == current_root) {
+        move_count += root_offset[i * 4 + 0];
+        win += root_offset[i * 4 + 1];
+        value_move_count += root_offset[i * 4 + 2] = value_move_count;
+        value_win += root_offset[i * 4 + 3];
+      }
 
       if (evaled) {
 	if (debug) {
@@ -2335,4 +2473,43 @@ void EvalNode() {
     }
   }
 #endif
+}
+
+
+void
+StartMPIWorker()
+{
+  MPI_Comm_rank(MPI_COMM_WORLD, &mpi_rank);
+
+  game_info_t game;
+
+  std::vector<int> records;
+  records.resize(2 + MAX_RECORDS * 2);
+
+  while (true) {
+    cerr << "Recv game #" << mpi_rank << endl;
+    MPI_Bcast(&records[0], 2 + MAX_RECORDS * 2, MPI_INT, 0, MPI_COMM_WORLD);
+    //cerr << "W Recv #" << rank << " E:" << status.MPI_ERROR << " S:" << status.MPI_SOURCE << " T:" << status.MPI_TAG << endl;
+
+    std::vector<float> eval_input_data;
+    int ptr = 0;
+    int moves = records[ptr++];
+    int color = records[ptr++];
+    if (moves < 0) {
+      break;
+    } else {
+      ClearBoard(&game);
+      for (int i = 0; i < moves; i++) {
+        int col = records[ptr++];
+        int pos = records[ptr++];
+        if (col == 0)
+          continue;
+        PutStone(&game, pos, col);
+      }
+      cerr << "Do game #" << mpi_rank << endl;
+      PrintBoard(&game);
+      UctSearchGenmove(&game, color);
+    }
+  }
+  cerr << "Exit #" << mpi_rank << endl;
 }

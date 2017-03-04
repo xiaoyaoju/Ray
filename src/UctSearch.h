@@ -259,4 +259,7 @@ void SetUseNN(bool flag);
 
 void SetUseGPU(bool flag);
 
+// Start MPI worker for value evaluation
+void StartMPIWorker();
+
 #endif

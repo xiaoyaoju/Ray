@@ -1,5 +1,7 @@
 TARGET=ray
-CC = g++
+#CC = g++
+CC = mpic++
+#CC = mpic++.openmpi
 #CC = x86_64-w64-mingw32-g++
 OPTIMIZE = -O3
 CPP11 = -std=c++11

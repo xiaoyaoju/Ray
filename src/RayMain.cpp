@@ -1,8 +1,10 @@
 #include <cstring>
 #include <cstdio>
+#include <iostream>
 #if defined (_WIN32)
 #include <windows.h>
 #endif
+#include <mpi.h>
 
 #include "Command.h"
 #include "GoBoard.h"
@@ -20,6 +22,18 @@ main( int argc, char **argv )
 {
   char program_path[1024];
   int last;
+
+  //Init MPI
+  //MPI_Init(&argc, &argv);
+  int provided;
+  MPI_Init_thread(&argc, &argv, MPI_THREAD_SERIALIZED, &provided);
+  if (provided < MPI_THREAD_SERIALIZED) {
+    std::cerr << "No MPI_THREAD_SERIALIZED" << std::endl;
+    return -1;
+  }
+  int rank, num_proc;
+  MPI_Comm_size(MPI_COMM_WORLD, &num_proc);
+  MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 
   // 実行ファイルのあるディレクトリのパスを抽出
 #if defined (_WIN32)
@@ -64,8 +78,15 @@ main( int argc, char **argv )
   InitializeUctHash();
   SetNeighbor();
 
-  // GTP
-  GTP_main();
+  if (rank == 0) {
+    // GTP
+    GTP_main();
+  } else {
+    StartMPIWorker();
+  }
+
+  // Cleanup
+  MPI_Finalize();
 
   return 0;
 }
