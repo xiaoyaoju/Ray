@@ -62,7 +62,12 @@ GTP_main( void )
   GTP_setCommand();
   GTP_message();
 
-  while (fgets(input, sizeof(input), stdin) != NULL) {
+  while (true) {
+    if (fgets(input, sizeof(input), stdin) == NULL) {
+      if (feof(stdin))
+        break;
+      continue;
+    }
     char *command;
     bool nocommand = true;
 
@@ -86,6 +91,7 @@ GTP_main( void )
     fflush(stdin);
     fflush(stdout);
   }
+  cerr << "EXIT" << endl;
 }
 
 
