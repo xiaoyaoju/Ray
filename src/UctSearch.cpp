@@ -182,6 +182,15 @@ double atomic_fetch_add(std::atomic<double> *obj, double arg) {
   return expected;
 }
 
+static void
+ClearEvalQueue()
+{
+  queue<shared_ptr<value_eval_req>> empty_value;
+  eval_value_queue.swap(empty_value);
+  queue<shared_ptr<policy_eval_req>> empty_policy;
+  eval_policy_queue.swap(empty_policy);
+}
+
 ///////////////////
 //
 //
@@ -464,10 +473,8 @@ UctSearchGenmove(game_info_t *game, int color)
     ClearUctHash();
   }
 
-  queue<shared_ptr<value_eval_req>> empty_value;
-  eval_value_queue.swap(empty_value);
-  queue<shared_ptr<policy_eval_req>> empty_policy;
-  eval_policy_queue.swap(empty_policy);
+  ClearEvalQueue();
+
   eval_count_policy = 0;
   eval_count_value = 0;
 
@@ -627,6 +634,8 @@ UctSearchGenmove(game_info_t *game, int color)
   PrintPlayoutInformation(&uct_node[current_root], &po_info, finish_time, pre_simulated);
   // 次の探索でのプレイアウト回数の算出
   CalculateNextPlayouts(game, color, best_wp, finish_time);
+
+  ClearEvalQueue();
  
   if (use_nn) {
     cerr << "Eval NN Policy     :  " << setw(7) << (eval_count_policy + eval_policy_queue.size()) << endl;
