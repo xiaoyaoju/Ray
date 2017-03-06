@@ -5,7 +5,6 @@
 #include <random>
 
 #include "GoBoard.h"
-#include "UctRating.h"
 
 
 enum FEATURE1{

@@ -3,7 +3,6 @@
 #include "Point.h"
 #include "Pattern.h"
 #include "Semeai.h"
-#include "UctRating.h"
 
 // IsCapturableAtariŠÖ”—p
 game_info_t capturable_game;
