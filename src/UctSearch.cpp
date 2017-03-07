@@ -2352,12 +2352,11 @@ void EvalNode() {
     if (eval_policy_queue.empty() && eval_value_queue.empty()) {
       UNLOCK_EXPAND;
       this_thread::sleep_for(chrono::milliseconds(1));
-      cerr << "EMPTY QUEUE" << endl;
+      //cerr << "EMPTY QUEUE" << endl;
       continue;
     }
-    if ((running && eval_policy_queue.size() < policy_batch_size)
-      || (!running && eval_policy_queue.size() == 0)) {
-      UNLOCK_EXPAND;
+
+    if (eval_policy_queue.size() == 0) {
     } else {
       std::vector<std::shared_ptr<policy_eval_req>> requests;
 
@@ -2373,11 +2372,10 @@ void EvalNode() {
 	std::copy(req->data.begin(), req->data.end(), std::back_inserter(eval_input_data));
       }
       EvalPolicy(requests, eval_input_data);
+      LOCK_EXPAND;
     }
 
-    LOCK_EXPAND;
-    if ((running && eval_value_queue.size() < value_batch_size)
-      || (!running && eval_value_queue.size() == 0)) {
+    if (running && eval_value_queue.size() == 0) {
       UNLOCK_EXPAND;
     } else {
       std::vector<std::shared_ptr<value_eval_req>> requests;
