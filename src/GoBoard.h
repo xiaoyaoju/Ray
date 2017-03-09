@@ -209,6 +209,9 @@ void InitializeConst( void );
 // 盤面の初期化
 void InitializeBoard( game_info_t *game );
 
+// 盤面のクリア
+void ClearBoard( game_info_t *game );
+
 // 合法手判定
 // 合法手ならばtrueを返す
 bool IsLegal( const game_info_t *game, int pos, int color );

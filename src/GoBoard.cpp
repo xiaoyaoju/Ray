@@ -295,6 +295,54 @@ InitializeBoard( game_info_t *game )
 }
 
 
+////////////////////////
+//  対局情報のクリア    //
+////////////////////////
+void
+ClearBoard( game_info_t *game )
+{
+  int i, x, y, pos;
+
+  memset(game, 0, sizeof(game_info_t));
+
+  game->current_hash = 0;
+  game->previous1_hash = 0;
+  game->previous2_hash = 0;
+
+  game->moves = 1;
+
+  game->pass_count = 0;
+
+  for (i = 0; i < BOARD_MAX; i++) { 
+    game->candidates[i] = false;
+  }
+
+
+  for (y = 0; y < board_size; y++){
+    for (x = 0; x < OB_SIZE; x++) {
+      game->board[POS(x, y)] = S_OB;
+      game->board[POS(y, x)] = S_OB;
+      game->board[POS(y, board_size - 1 - x)] = S_OB;
+      game->board[POS(board_size - 1 - x, y)] = S_OB;
+    }
+  }
+
+  for (y = board_start; y <= board_end; y++) {
+    for (x = board_start; x <= board_end; x++) {
+      pos = POS(x, y);
+      game->candidates[pos] = true;
+    }
+  }
+
+  memset(game->string, 0, sizeof(string_t) * MAX_STRING);
+  for (i = 0; i < MAX_STRING; i++) {
+    game->string[i].flag = false;
+  }
+
+  ClearPattern(game->pat);
+}
+
+
 //////////////
 //  コピー  //
 //////////////
