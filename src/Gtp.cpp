@@ -1,7 +1,6 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cmath>
-#include <ctime>
 #include <cstring>
 #include <cctype>
 #include <iostream>
@@ -1237,7 +1236,7 @@ GTP_stat_po(void)
   pass_count = (game_prev->record[game_prev->moves - 1].pos == PASS && game_prev->moves > 1);
 
 
-  auto begin_time = clock();
+  auto begin_time = ray_clock::now();
   for (int i = 0; i < 1000; i++) {
     // •”Ô‚ÌƒŒ[ƒg‚ÌŒvŽZ
     Rating(game_prev, S_BLACK, &game_prev->sum_rate[0], game_prev->sum_rate_row[0], game_prev->rate[0]);

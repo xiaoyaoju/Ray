@@ -1,5 +1,6 @@
 #include <algorithm>
 #include <atomic>
+#include <chrono>
 #include <climits>
 #include <cassert>
 #include <cmath>
@@ -157,11 +158,7 @@ const double pass_po_limit = 0.5;
 const int policy_batch_size = 16;
 const int value_batch_size = 64;
 
-#if defined (_WIN32)
-clock_t begin_time;
-#else
-struct timeval begin_time;
-#endif
+ray_clock::time_point begin_time;
 
 static bool early_pass = true;
 
@@ -479,11 +476,7 @@ UctSearchGenmove(game_info_t *game, int color)
   eval_count_value = 0;
 
   // 探索開始時刻の記録
-#if defined (_WIN32)
-  begin_time = clock();
-#else
-  gettimeofday(&begin_time, NULL);
-#endif
+  begin_time = ray_clock::now();
   
   // UCTの初期化
   current_root = ExpandRoot(game, color);
@@ -570,11 +563,7 @@ UctSearchGenmove(game_info_t *game, int color)
   }
 
   // 探索にかかった時間を求める
-#if defined (_WIN32)
   finish_time = GetSpendTime(begin_time);
-#else
-  finish_time = GetSpendTimeForLinux(&begin_time);
-#endif
 
   // パスの勝率の算出
   if (uct_child[PASS_INDEX].move_count != 0) {
@@ -747,11 +736,7 @@ UctSearchStat(game_info_t *game, int color, int num)
   use_nn = false;
 
   // 探索開始時刻の記録
-#if defined (_WIN32)
-  begin_time = clock();
-#else
-  gettimeofday(&begin_time, NULL);
-#endif
+  begin_time = ray_clock::now();
 
   // UCTの初期化
   current_root = ExpandRoot(game, color);
@@ -802,11 +787,7 @@ UctSearchStat(game_info_t *game, int color, int num)
   }
 
   // 探索にかかった時間を求める
-#if defined (_WIN32)
   finish_time = GetSpendTime(begin_time);
-#else
-  finish_time = GetSpendTimeForLinux(&begin_time);
-#endif
 
   // パスの勝率の算出
   if (uct_child[PASS_INDEX].move_count != 0) {
@@ -1217,17 +1198,10 @@ InterruptionCheck(void)
   int rest = po_info.halt - po_info.count;
   child_node_t *uct_child = uct_node[current_root].child;
 
-#if defined (_WIN32)
   if (mode != CONST_PLAYOUT_MODE && 
       GetSpendTime(begin_time) * 10.0 < time_limit) {
       return false;
   }
-#else
-  if (mode != CONST_PLAYOUT_MODE && 
-      GetSpendTimeForLinux(&begin_time) * 10.0 < time_limit) {
-      return false;
-  }
-#endif
 
   // 探索回数が最も多い手と次に多い手を求める
   for (i = 0; i < child_num; i++) {
@@ -1332,11 +1306,7 @@ ParallelUctSearch(thread_arg_t *arg)
 	CalculateCriticality(color);
 	interval += CRITICALITY_INTERVAL;
       }
-#if defined (_WIN32)
       if (GetSpendTime(begin_time) > time_limit) break;
-#else
-      if (GetSpendTimeForLinux(&begin_time) > time_limit) break;
-#endif
     } while (po_info.count < po_info.halt && !interruption && enough_size);
   } else {
     do {
@@ -1352,11 +1322,7 @@ ParallelUctSearch(thread_arg_t *arg)
       interruption = InterruptionCheck();
       // ハッシュに余裕があるか確認
       enough_size = CheckRemainingHashSize();
-#if defined (_WIN32)
       if (GetSpendTime(begin_time) > time_limit) break;
-#else
-      if (GetSpendTimeForLinux(&begin_time) > time_limit) break;
-#endif
     } while (po_info.count < po_info.halt && !interruption && enough_size);
   }
 
@@ -2076,11 +2042,7 @@ UctSearchGenmoveCleanUp( game_info_t *game, int color )
   memset(criticality_index, 0, sizeof(int)* board_max); 
   memset(criticality, 0, sizeof(double)* board_max);    
 
-#if defined (_WIN32)
-  begin_time = clock();
-#else
-  gettimeofday(&begin_time, NULL);
-#endif
+  begin_time = ray_clock::now();
 
   po_info.count = 0;
 
@@ -2125,11 +2087,7 @@ UctSearchGenmoveCleanUp( game_info_t *game, int color )
     }
   }
 
-#if defined (_WIN32)
   finish_time = GetSpendTime(begin_time);
-#else
-  finish_time = GetSpendTimeForLinux(&begin_time);
-#endif
 
   wp = (double)uct_node[current_root].win / uct_node[current_root].move_count;
 
