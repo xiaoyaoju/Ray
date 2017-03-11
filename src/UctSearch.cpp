@@ -559,9 +559,15 @@ UctSearchGenmove(game_info_t *game, int color)
   // éûä‘âÑí∑ÇçsÇ§ê›íËÇ…Ç»Ç¡ÇƒÇ¢Çƒ,
   // íTçıéûä‘âÑí∑ÇÇ∑Ç◊Ç´Ç∆Ç´ÇÕ
   // íTçıâÒêîÇ1.5î{Ç…ëùÇ‚Ç∑
-  if (game->moves > pure_board_size * 3 - 17 &&
+  int expand[1] = { 0 };
+  if (mpi_rank == 0) {
+    expand[0] = game->moves > pure_board_size * 3 - 17 &&
       extend_time &&
-      ExtendTime()) {
+      ExtendTime();
+    cerr << "Send expand #" << mpi_rank << " " << expand[0] << endl;
+  }
+  MPI_Bcast(expand, 1, MPI_INT, 0, MPI_COMM_WORLD);
+  if (expand[0]) {
     po_info.halt = (int)(1.5 * po_info.halt);
     time_limit *= 1.5;
     for (i = 0; i < threads; i++) {
@@ -611,6 +617,10 @@ UctSearchGenmove(game_info_t *game, int color)
     }
   }
 #endif
+
+  if (mpi_rank > 0) {
+    return pos;
+  }
 
   // íTçıÇ…Ç©Ç©Ç¡ÇΩéûä‘ÇãÅÇﬂÇÈ
   finish_time = GetSpendTime(begin_time);
@@ -665,10 +675,6 @@ UctSearchGenmove(game_info_t *game, int color)
     pos = RESIGN;
   } else {
     pos = uct_child[select_index].pos;
-  }
-
-  if (mpi_rank > 0) {
-    return pos;
   }
 
   // ç≈ëPâûéËóÒÇèoóÕ
@@ -1340,14 +1346,16 @@ ParallelUctSearch(thread_arg_t *arg)
   if (targ->thread_id == 0) {
     while (true) {
       // Wait if dcnn queue is full
+      int n = 0;
       LOCK_EXPAND;
-      while (eval_value_queue.size() > value_batch_size * 3 || eval_policy_queue.size() > policy_batch_size * 3) {
+      while (n < 10 && (eval_value_queue.size() > value_batch_size * 3 || eval_policy_queue.size() > policy_batch_size * 3)) {
 	std::atomic_fetch_add(&queue_full, 1);
 	UNLOCK_EXPAND;
 	this_thread::sleep_for(chrono::milliseconds(10));
 	if (queue_full % 1000 == 0)
-	  cerr << "EVAL QUEUE FULL" << endl;
+	  cerr << "EVAL QUEUE FULL #" << mpi_rank << "." << arg->thread_id << endl;
 	LOCK_EXPAND;
+	n++;
       }
       UNLOCK_EXPAND;
       // íTçıâÒêîÇ1âÒëùÇ‚Ç∑	
@@ -1429,6 +1437,16 @@ ParallelUctSearch(thread_arg_t *arg)
     cerr << "Exit #" << mpi_rank << "." << arg->thread_id << endl;
   } else {
     while (true) {
+      // Wait if dcnn queue is full
+      LOCK_EXPAND;
+      while (eval_value_queue.size() > value_batch_size * 3 || eval_policy_queue.size() > policy_batch_size * 3) {
+	std::atomic_fetch_add(&queue_full, 1);
+	UNLOCK_EXPAND;
+	this_thread::sleep_for(chrono::milliseconds(10));
+	LOCK_EXPAND;
+      }
+      UNLOCK_EXPAND;
+
       // íTçıâÒêîÇ1âÒëùÇ‚Ç∑	
       atomic_fetch_add(&po_info.count, 1);
       // î’ñ ÇÃÉRÉsÅ[
@@ -1709,7 +1727,7 @@ SelectMaxUcbChild(const game_info_t *game, int current, int color)
   rate_order_t order[PURE_BOARD_MAX + 1];  
   int width;
   double ucb_bonus_weight = bonus_weight * sqrt(bonus_equivalence / (sum + bonus_equivalence));
-  const bool debug = current == current_root && sum % 10000 == 0;
+  const bool debug = current == current_root && sum % 10000 == 0 && mpi_rank == 0;
 
   //if (evaled) {
     //cerr << "use nn" << endl;
@@ -2261,6 +2279,12 @@ ReadWeights()
   //networkConfiguration += "outputNodeNames=\"h1.z:ol.z\"\n";
   if (!use_gpu)
     networkConfiguration += "deviceId=-1\n";
+  else {
+#if USE_MPI
+    MPI_Comm_rank(MPI_COMM_WORLD, &mpi_rank);
+    networkConfiguration += "deviceId=" + to_string(mpi_rank) + "\n";
+#endif
+  }
   networkConfiguration += "modelPath=\"";
   networkConfiguration += uct_params_path;
   networkConfiguration += "/model.bin\"";
@@ -2507,7 +2531,7 @@ StartMPIWorker()
         PutStone(&game, pos, col);
       }
       cerr << "Do game #" << mpi_rank << endl;
-      PrintBoard(&game);
+      //PrintBoard(&game);
       UctSearchGenmove(&game, color);
     }
   }
