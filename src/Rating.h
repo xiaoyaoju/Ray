@@ -165,7 +165,7 @@ void PoCheckFeaturesLib2( game_info_t *game, int color, int id, int *update, int
 void PoCheckFeaturesLib3( game_info_t *game, int color, int id, int *update, int *update_num );
 
 //  “Á’¥‚Ì”»’è
-void PoCheckFeatures( game_info_t *game, int color, int *update, int *update_num );
+void PoCheckFeatures( game_info_t *game, int color, int previous_move, int *update, int *update_num );
 
 //  …‚ğ‰ğÁ‚·‚éƒgƒŠ‚Ì”»’è
 void PoCheckCaptureAfterKo( game_info_t *game, int color, int *update, int *update_num );

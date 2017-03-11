@@ -572,7 +572,7 @@ PartialRating( game_info_t *game, int color, long long *sum_rate, long long *sum
 
   if (pm1 != PASS) {
     Neighbor12(pm1, distance_2, distance_3, distance_4);
-    PoCheckFeatures(game, color, update_pos, update_num);
+    PoCheckFeatures(game, color, pm1, update_pos, update_num);
     PoCheckRemove2Stones(game, color, update_pos, update_num);
 
     SearchNakade(game, &nakade_num, nakade_pos);
@@ -590,6 +590,13 @@ PartialRating( game_info_t *game, int color, long long *sum_rate, long long *sum
   if (pm2 != PASS) Neighbor12Update(game, color, sum_rate, sum_rate_row, rate, 1, &pm2, flag);
   // 3手前の着手の12近傍の更新
   if (pm3 != PASS) Neighbor12Update(game, color, sum_rate, sum_rate_row, rate, 1, &pm3, flag);
+
+  // 3, 5, 7
+  for (int i = 0; i < 3; i++) {
+    int n = (i + 1) * 2 + 1;
+    if (game->moves > n)
+      PoCheckFeatures(game, color, game->record[game->moves - n].pos, update_pos, update_num);
+  }
 
   // 以前の着手で戦術的特徴が現れた箇所の更新
   OtherUpdate(game, color, sum_rate, sum_rate_row, rate, prev_feature, prev_feature_pos, flag);
@@ -621,7 +628,7 @@ Rating( game_info_t *game, int color, long long *sum_rate, long long *sum_rate_r
 
   pm1 = game->record[game->moves - 1].pos;
 
-  PoCheckFeatures(game, color, update_pos, &update_num);
+  PoCheckFeatures(game, color, pm1, update_pos, &update_num);
   if (game->ko_move == game->moves - 2) {
     PoCheckCaptureAfterKo(game, color, update_pos, &update_num);
   }
@@ -1002,18 +1009,14 @@ PoCheckFeaturesLib3( game_info_t *game, int color, int id, int *update, int *upd
 //  特徴の判定  //
 //////////////////
 void
-PoCheckFeatures( game_info_t *game, int color, int *update, int *update_num )
+PoCheckFeatures( game_info_t *game, int color, int previous_move, int *update, int *update_num )
 {
   string_t *string = game->string;
   char *board = game->board;
   int *string_id = game->string_id;
-  int previous_move = game->record[game->moves - 1].pos;
   int id;
   int check[3] = { 0 };
   int checked = 0;
-
-  if (game->moves > 1) previous_move = game->record[game->moves - 1].pos;
-  else return;
 
   if (previous_move == PASS) return;
 
@@ -1595,7 +1598,7 @@ AnalyzePoRating( game_info_t *game, int color, double rate[] )
   
   pm1 = game->record[moves - 1].pos;
   
-  PoCheckFeatures(game, color, update_pos, &update_num);
+  PoCheckFeatures(game, color, pm1, update_pos, &update_num);
   PoCheckRemove2Stones(game, color, update_pos, &update_num);
   if (game->ko_move == moves - 2) {
     PoCheckCaptureAfterKo(game, color, update_pos, &update_num);
