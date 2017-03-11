@@ -11,6 +11,7 @@ void SetDebugMessageMode( bool flag );
 
 //  盤面の表示
 void PrintBoard( const game_info_t *game );
+void PrintRate( const game_info_t *game );
 
 //  連の情報の表示              
 //    呼吸点の数, 座標          

@@ -40,7 +40,17 @@ static uct_node_t store_node;
 static double store_winning_percentage;
 
 static std::ofstream stream("data.txt", std::ios::app | std::ios::binary);
+static bool sim_move = false;
 
+
+////////////////////////
+//  void SetSimMove() //
+////////////////////////
+void
+SetSimMove( bool flag )
+{
+  sim_move = flag;
+}
 
 ///////////////////////
 //  void GTP_main()  //
@@ -315,8 +325,11 @@ GTP_genmove( void )
   }
 
   player_color = color;
-  
-  point = UctSearchGenmove(game, color);
+
+  if (sim_move)
+    point = SimulationGenmove(game, color);
+  else
+    point = UctSearchGenmove(game, color);
   if (point != RESIGN) {
     PutStone(game, point, color);
   }

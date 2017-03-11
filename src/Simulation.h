@@ -9,4 +9,6 @@
 // 対局のシミュレーション(知識あり)
 void Simulation( game_info_t *game, int color, std::mt19937_64 *mt );
 
+int SimulationGenmove(game_info_t *game, int color);
+
 #endif

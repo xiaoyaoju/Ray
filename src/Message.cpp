@@ -2,6 +2,7 @@
 #include <cstring>
 #include <cmath>
 #include <cstdlib>
+#include <algorithm>
 #include <iostream>
 #include <iomanip>
 #include <sstream>
@@ -34,7 +35,7 @@ PrintBoard( const game_info_t *game )
   const char stone[S_MAX] = { '+', 'B', 'W', '#' };
   int i, x, y, pos;
 
-  if (!debug_message) return ;
+  if (!debug_message) return;
 
   cerr << "Prisoner(Black) : " << game->prisoner[S_BLACK] << endl;
   cerr << "Prisoner(White) : " << game->prisoner[S_WHITE] << endl;
@@ -66,6 +67,47 @@ PrintBoard( const game_info_t *game )
     cerr << "-";
   }
   cerr << "+" << endl;
+}
+
+void
+PrintRate( const game_info_t *game )
+{
+  int i, x, y, pos;
+
+  if (!debug_message) return;
+
+  for (int c = 0; c < 2; c++) {
+    if (c == 0)
+      cerr << "Black" << endl;
+    else
+      cerr << "White" << endl;
+    cerr << "    ";
+    for (i = 1, y = board_start; y <= board_end; y++, i++) {
+      cerr << "         " << gogui_x[i];
+    }
+    cerr << endl;
+
+    cerr << "   +";
+    for (i = 0; i < pure_board_size * 10 + 1; i++) {
+      cerr << "-";
+    }
+    cerr << "+" << endl;
+
+    for (i = 1, y = board_start; y <= board_end; y++, i++) {
+      cerr << setw(2) << (pure_board_size + 1 - i) << ":|";
+      for (x = board_start; x <= board_end; x++) {
+	pos = POS(x, y);
+	cerr << " " << setw(9) << min(game->rate[c][pos], 999999999LL);
+      }
+      cerr << " |" << endl;
+    }
+
+    cerr << "   +";
+    for (i = 1; i <= pure_board_size * 10 + 1; i++) {
+      cerr << "-";
+    }
+    cerr << "+" << endl;
+  }
 }
 
 
