@@ -1648,28 +1648,24 @@ SelectMaxUcbChild(const game_info_t *game, int current, int color)
   // UCBílç≈ëÂÇÃéËÇãÅÇﬂÇÈ  
   for (int i = start_child; i < child_num; i++) {
     if (uct_child[i].flag || uct_child[i].open) {
-      //double p2 = -1;
       double value_win = 0;
       double value_move_count = 0;
 
-#if 1
       if (uct_child[i].index >= 0 && i != 0) {
 	auto node = &uct_node[uct_child[i].index];
 	if (node->value_move_count > 0) {
-	  //p2 = 1 - (double)node->value_win / node->value_move_count;
 	  value_win = node->value_win;
 	  value_move_count = node->value_move_count;
 	  value_win = value_move_count - value_win;
 	}
-	//cerr << "VA:" << (value_win / value_move_count) << " VS:" << uct_child[i].value << endl;
       }
       if (value_move_count == 0 && uct_child[i].value >= 0) {
 	value_move_count = 1;
 	value_win = uct_child[i].value;
       }
-#endif
-      double win = uct_child[i].win;
-      double move_count = uct_child[i].move_count;
+
+      const double win = uct_child[i].win;
+      const double move_count = uct_child[i].move_count;
 
       if (evaled) {
 	if (debug) {
@@ -1684,10 +1680,7 @@ SelectMaxUcbChild(const game_info_t *game, int current, int color)
 	  double p0 = win / move_count;
 	  if (value_move_count > 0) {
 	    double p1 = value_win / value_move_count;
-	    //p = (uct_child[i].win + value_win) / (uct_child[i].move_count + value_move_count);
 	    p = p0 * (1 - scale)  + p1 * scale;
-	    //p = (p0 + p1) / 2;
-	    //if (current == current_root) cerr << i << ":" << p0 << " " << p1 << " => " << p << endl;
 	    if (debug) {
 		cerr << "DP:" << setw(10) << (p0 * 100) << " DV:" << setw(10) << (p1 * 100) << " => " << setw(10) << (p * 100)
 		<< " " << p_v << " V:" << (value_win / value_move_count);
@@ -1697,18 +1690,7 @@ SelectMaxUcbChild(const game_info_t *game, int current, int color)
 	    p = p0 * (1 - scale) + p_v * scale;
 	  }
 	}
-	//if (p2 >= 0) p = (p * 9 + p2) / 10;
-#if 0
-	if (uct_child[i].index >= 0) {
-	  uct_node_t *n = &uct_node[uct_child[i].index];
-	  if (n->evaled) {
-	    double value = color == S_BLACK ? (n->value + 1) / 2 : (1 - n->value) / 2;
-	    //cerr << "value " << p << " " << value << endl;
-	    p = (p + value) / 2;
-	  }
-	}
-#endif
-	double u = sqrt(sum) / (1 + uct_child[i].move_count);
+	double u = sqrt(sum) / (1 + move_count);
 	double rate = max(uct_child[i].nnrate, 0.01);
 	ucb_value = p + c_puct * u * rate;
 
@@ -1716,14 +1698,14 @@ SelectMaxUcbChild(const game_info_t *game, int current, int color)
 	  cerr << " P:" << p << " UCB:" << ucb_value << endl;
 	}
       } else {
-	if (uct_child[i].move_count == 0) {
+	if (move_count == 0) {
 	  ucb_value = FPU;
 	} else {
 	  double div, v;
 	  // UCB1-TUNED value
-	  p = (double) uct_child[i].win / uct_child[i].move_count;
+	  p = (double) win / move_count;
 	  //if (p2 >= 0) p = (p * 9 + p2) / 10;
-	  div = log(sum) / uct_child[i].move_count;
+	  div = log(sum) / move_count;
 	  v = p - p * p + sqrt(2.0 * div);
 	  ucb_value = p + sqrt(div * ((0.25 < v) ? 0.25 : v));
 
