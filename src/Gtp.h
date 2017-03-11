@@ -27,7 +27,10 @@ typedef struct {
   char *command;
 } GTP_command_t;
 
-#define CHOMP(command) if(command[strlen(command)-1] == '\n') command[strlen(command)-1] = '\0'
+#define CHOMP(command) do {\
+  if(command[strlen(command)-1] == '\n') command[strlen(command)-1] = '\0'; \
+  if(command[strlen(command)-1] == '\r') command[strlen(command)-1] = '\0'; \
+  }while (false)
 
 // gtp–{‘Ì
 void GTP_main( void );
