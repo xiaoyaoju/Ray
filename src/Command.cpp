@@ -113,6 +113,7 @@ AnalyzeCommand( int argc, char **argv )
         break;
       case COMMAND_SIM_MOVE:
 	SetSimMove(true);
+        break;
       case COMMAND_NO_EARLY_PASS:
 	SetEarlyPass(false);
 	break;
