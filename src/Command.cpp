@@ -29,6 +29,7 @@ const string command[COMMAND_MAX] = {
   "--no-early-pass",
   "--no-nn",
   "--no-gpu",
+  "--no-expand",
 };
 
 const string errmessage[COMMAND_MAX] = {
@@ -47,6 +48,7 @@ const string errmessage[COMMAND_MAX] = {
   "No early pass",
   "Don't use NN",
   "Don't use GPU",
+  "No MCTS",
 };
 
 
@@ -123,6 +125,9 @@ AnalyzeCommand( int argc, char **argv )
       case COMMAND_NO_GPU:
 	SetUseGPU(false);
 	break;
+      case COMMAND_NO_EXPAND:
+        SetNoExpand(true);
+        break;
       default:
 	for (j = 0; j < COMMAND_MAX; j++){
 	  fprintf(stderr, "%-22s : %s\n", command[j].c_str(), errmessage[j].c_str());

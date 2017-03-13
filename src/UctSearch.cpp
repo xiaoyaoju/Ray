@@ -89,6 +89,9 @@ static int pw[PURE_BOARD_MAX + 1];
 // ノード展開の閾値
 static int expand_threshold = EXPAND_THRESHOLD_19;
 
+// ノードを展開しない
+static bool no_expand = false;
+
 // 試行時間を延長するかどうかのフラグ
 static bool extend_time = false;
 
@@ -293,6 +296,12 @@ void
 SetUseGPU(bool flag)
 {
   use_gpu = flag;
+}
+
+void
+SetNoExpand(bool flag)
+{
+  no_expand = flag;
 }
 
 /////////////////////////
@@ -1414,7 +1423,7 @@ UctSearch(game_info_t *game, int color, mt19937_64 *mt, int current, int *winner
     game->record[game->moves - 1].pos == PASS &&
     game->record[game->moves - 2].pos == PASS;
 
-  if (uct_child[next_index].move_count < expand_threshold || end_of_game) {
+  if (no_expand || uct_child[next_index].move_count < expand_threshold || end_of_game) {
     int start = game->moves;
     path.push_back(current);
 

@@ -162,6 +162,9 @@ void SetTime( double time );
 // 相手がパスしたらパスする
 void SetEarlyPass( bool pass );
 
+// ノード展開の有無指定
+void SetNoExpand(bool flag);
+
 // パラメータの設定
 void SetParameter( void );
 
