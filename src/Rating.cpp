@@ -1361,11 +1361,11 @@ PoCheckSelfAtari( game_info_t *game, int color, int pos )
   // ‘Å‚Á‚Ä‚à—Ç‚¢‚à‚Ì‚Æ‚·‚é
   if (size == 0) {
     // Check snap back
-    bool snapback = false;
-    snapback |= PoCheckSnapBack(game, color, pos, NORTH(pos));
-    snapback |= PoCheckSnapBack(game, color, pos, SOUTH(pos));
-    snapback |= PoCheckSnapBack(game, color, pos, WEST(pos));
-    snapback |= PoCheckSnapBack(game, color, pos, EAST(pos));
+    bool snapback =
+      PoCheckSnapBack(game, color, pos, NORTH(pos))
+      || PoCheckSnapBack(game, color, pos, SOUTH(pos))
+      || PoCheckSnapBack(game, color, pos, WEST(pos))
+      || PoCheckSnapBack(game, color, pos, EAST(pos));
     if (!snapback)
       game->tactical_features2[pos] |= po_tactical_features_mask[F_SELF_ATARI_SMALL];
     flag = true;
