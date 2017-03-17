@@ -6,6 +6,7 @@
 #include <algorithm>
 
 #include "GoBoard.h"
+#include "Semeai.h"
 #include "UctRating.h"
 #include "ZobristHash.h"
 #include "UctSearch.h"
@@ -41,6 +42,7 @@ unsigned char false_eye[PAT3_MAX];
 unsigned char territory[PAT3_MAX];  // 領地のパターン
 unsigned char nb4_empty[PAT3_MAX];  // 上下左右の空点の数
 bool empty_pat[PAT3_MAX];           //  8近傍に石がないパターン
+unsigned char eye_condition[PAT3_MAX];
 
 int border_dis_x[BOARD_MAX];                     // x方向の距離   
 int border_dis_y[BOARD_MAX];                     // y方向の距離   
@@ -50,6 +52,8 @@ int onboard_pos[PURE_BOARD_MAX];  //  実際の盤上の位置との対応
 
 int corner[4];
 int corner_neighbor[4][2];
+
+int cross[4];
 
 ///////////////
 // 関数宣言  //
@@ -439,6 +443,11 @@ InitializeConst( void )
     }
   }
 
+  cross[0] = - board_size - 1;
+  cross[1] = - board_size + 1;
+  cross[2] = board_size - 1;
+  cross[3] = board_size + 1;
+
   corner[0] = POS(board_start, board_start);
   corner[1] = POS(board_start, board_end);
   corner[2] = POS(board_end, board_start);
@@ -489,7 +498,7 @@ static void
 InitializeEye( void )
 {
   int i, j;
-  unsigned int transp[8];
+  unsigned int transp[8], pat3_transp16[16];
   //  眼のパターンはそれぞれ1か所あたり2ビットで表現
   //	123
   //	4*5
@@ -520,12 +529,98 @@ InitializeEye( void )
     // ###     ###     OOO     ###
     0xFF74, 0xFF75, 0x5566, 0xFD66,
   };
-  const int false_eye_pat3[2] = {
-    // XOO     XO# 
-    // O*O     O*# 
-    // ###     ### 
-    0xFD56, 0xFF76,
+  const unsigned int false_eye_pat3[4] = {
+    // OOX     OOO     XOO     XO# 
+    // O*O     O*O     O*O     O*# 
+    // XOO     XOX     ###     ### 
+    0x5965, 0x9955, 0xFD56, 0xFF76,
   };
+
+  const unsigned int complete_half_eye[12] = {
+    // XOX     OOX     XOX     XOX     XOX
+    // O*O     O*O     O*O     O*O     O*O
+    // OOO     XOO     +OO     XOO     +O+
+    0x5566, 0x5965, 0x5166, 0x5966, 0x1166,
+    // +OX     XOX     XOX     XOO     XO+
+    // O*O     O*O     O*O     O*O     O*O
+    // XO+     XO+     XOX     ###     ###
+    0x1964, 0x1966, 0x9966, 0xFD56, 0xFD46,
+    // XOX     XO#
+    // O*O     O*#
+    // ###     ###
+    0xFD66, 0xFF76
+  };
+  const unsigned int half_3_eye[2] = {
+    // +O+     XO+
+    // O*O     O*O
+    // +O+     +O+
+    0x1144, 0x1146
+  };
+  const unsigned int half_2_eye[4] = {
+    // +O+     XO+     +OX     +O+
+    // O*O     O*O     O*O     O*O
+    // +OO     +OO     +OO     ###
+    0x5144, 0x5146, 0x5164, 0xFD44,
+  };
+  const unsigned int half_1_eye[6] = {
+    // +O+     XO+     OOX     OOX     +OO
+    // O*O     O*O     O*O     O*O     O*O
+    // OOO     OOO     +OO     +OO     ###
+    0x5544, 0x5564, 0x5145, 0x5165, 0xFD54,
+    // +O#
+    // O*#
+    // ###
+    0xFF74,
+  };
+  const unsigned int complete_one_eye[5] = {
+    // OOO     +OO     XOO     OOO     OO#
+    // O*O     O*O     O*O     O*O     O*#
+    // OOO     OOO     OOO     ###     ###
+    0x5555, 0x5554, 0x5556, 0xFD55, 0xFF75,
+  };
+
+  
+  for (i = 0; i < PAT3_MAX; i++) {
+    eye_condition[i] = E_NOT_EYE;
+  }
+
+  for (i = 0; i < 12; i++) {
+    Pat3Transpose16(complete_half_eye[i], pat3_transp16);
+    for (j = 0; j < 16; j++) {
+      eye_condition[pat3_transp16[j]] = E_COMPLETE_HALF_EYE;
+    }
+  }
+
+  for (i = 0; i < 2; i++) {
+    Pat3Transpose16(half_3_eye[i], pat3_transp16);
+    for (j = 0; j < 16; j++) {
+      eye_condition[pat3_transp16[j]] = E_HALF_3_EYE;
+    }
+  }
+
+  for (i = 0; i < 4; i++) {
+    Pat3Transpose16(half_2_eye[i], pat3_transp16);
+    for (j = 0; j < 16; j++) {
+      eye_condition[pat3_transp16[j]] = E_HALF_2_EYE;
+    }
+  }
+
+  for (i = 0; i < 6; i++) {
+    Pat3Transpose16(half_1_eye[i], pat3_transp16);
+    for (j = 0; j < 16; j++) {
+      eye_condition[pat3_transp16[j]] = E_HALF_1_EYE;
+    }
+  }
+
+  for (i = 0; i < 5; i++) {
+    Pat3Transpose16(complete_one_eye[i], pat3_transp16);
+    for (j = 0; j < 16; j++) {
+      eye_condition[pat3_transp16[j]] = E_COMPLETE_ONE_EYE;
+    }
+  }
+
+  
+
 
   // BBB
   // B*B
@@ -555,7 +650,7 @@ InitializeEye( void )
     }
   }
 
-  for (i = 0; i < 2; i++) {
+  for (i = 0; i < 4; i++) {
     Pat3Transpose8(false_eye_pat3[i], transp);
     for (j = 0; j < 8; j++) {
       false_eye[transp[j]] = S_BLACK;
@@ -641,7 +736,7 @@ IsLegal( const game_info_t *game, int pos, int color )
 //  盤端での処理  //
 ////////////////////
 bool
-IsEdgeConnection( const game_info_t *game, int pos, int color )
+IsFalseEyeConnection( game_info_t *game, int pos, int color )
 {
   // +++++XOO#
   // +++++XO+#
@@ -676,16 +771,47 @@ IsEdgeConnection( const game_info_t *game, int pos, int color )
   int liberty[STRING_LIB_MAX];
   int i, j, count;
   bool checked;
-  int neighbor4[4];
+  int neighbor4[4], neighbor;
   bool already_checked;
+  int other = FLIP_COLOR(color);
+  int player_id[4] = {0};
+  int player_ids = 0;
 
+  // 欠け眼を構成する連のIDを取り出す
   GetNeighbor4(neighbor4, pos);
+  for (i = 0; i < 4; i++) {
+    checked = false;
+    for (j = 0; j < player_ids; j++) {
+      if (player_id[j] == string_id[neighbor4[i]]) {
+	checked = true;
+      }
+    }
+    if (!checked) {
+      player_id[player_ids++] = string_id[neighbor4[i]];
+    }
+  }
+
+
+  // 斜め方向に取れる, または取れそうな石があったらfalseを返す
+  for (i = 0; i < 4; i++) {
+    if (board[pos + cross[i]] == other) {
+      id = string_id[pos + cross[i]];
+      if (IsAlreadyCaptured(game, other, id, player_id, player_ids)) {
+	return false;
+      }
+    }
+  }
 
   // 隣接する座標が自分の連なら
   // その連の呼吸点を取り出す
   for (i = 0; i < 4; i++) {
     if (board[neighbor4[i]] == color) {
       id = string_id[neighbor4[i]];
+      if (string[id].libs == 2) {
+	lib = string[id].lib[0];
+	if (lib == pos) lib = string[id].lib[lib];
+	if (IsSelfAtari(game, color, lib)) return true;
+      }
       already_checked = false;
       for (j = 0; j < strings; j++) {
 	if (checked_string[j] == id) {
@@ -723,6 +849,15 @@ IsEdgeConnection( const game_info_t *game, int pos, int color )
     lib_sum += string_liberties[i] - 1;
   }
 
+  neighbor = string[checked_string[0]].neighbor[0];
+  while (neighbor != NEIGHBOR_END) {
+    if (string[neighbor].libs == 1 &&
+	string[checked_string[1]].neighbor[neighbor] != 0) {
+      return false;
+    }
+    neighbor = string[checked_string[0]].neighbor[neighbor];
+  }
+
   // 隣接する連が一続きなら眼なのでfalseを返す
   if (strings == 1) {
     return false;
@@ -735,7 +870,6 @@ IsEdgeConnection( const game_info_t *game, int pos, int color )
   } else {
     return false;
   }
-
 }
 
 
@@ -753,6 +887,10 @@ IsLegalNotEye( game_info_t *game, int pos, int color )
     // 候補手から除外
     game->candidates[pos] = false;
 
+    return false;
+  }
+
+  if (game->seki[pos]) {
     return false;
   }
 
@@ -777,7 +915,7 @@ IsLegalNotEye( game_info_t *game, int pos, int color )
 
     // 盤端の特殊処理
     if (false_eye[Pat3(game->pat, pos)] == color) {
-      if (IsEdgeConnection(game, pos, color)) {
+      if (IsFalseEyeConnection(game, pos, color)) {
 	return true;
       } else {
 	game->candidates[pos] = false;
@@ -1362,6 +1500,7 @@ PoRemoveLiberty( game_info_t *game, string_t *string, int pos, int color )
   if (string->libs == 1) {
     game->candidates[string->lib[0]] = true;
     game->update_pos[color][game->update_num[color]++] = string->lib[0];
+    game->seki[string->lib[0]] = false;
   }
 }
 
@@ -1458,6 +1597,7 @@ PoRemoveString( game_info_t *game, string_t *string, int color )
       lib = str[neighbor].lib[0];
       while (lib != LIBERTY_END) {
 	update_pos[(*update_num)++] = lib;
+	game->seki[lib] = false;
 	lib = str[neighbor].lib[lib];
       }
     }
