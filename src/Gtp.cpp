@@ -4,6 +4,7 @@
 #include <cstring>
 #include <cctype>
 #include <iostream>
+#include <memory>
 #include <fstream>
 #include <vector>
 #include <random>
@@ -39,7 +40,7 @@ static game_info_t *store_game;
 static uct_node_t store_node;
 static double store_winning_percentage;
 
-static std::ofstream stream("data.txt", std::ios::app | std::ios::binary);
+static unique_ptr<ofstream> stream_ptr;
 static bool sim_move = false;
 
 
@@ -894,55 +895,9 @@ GTP_kgs_genmove_cleanup( void )
   GTP_response(pos, true);
 }
  
-#if 0
-void GTP_features_planes_file(void)
-{
-  int color = game->record[game->moves - 1].color;
-  int move = game->record[game->moves - 1].pos;
-  if (move == RESIGN || move == PASS) {
-    GTP_response(brank, true);
-    return;
-  }
-#if 0
-  UctSearchStat(game_prev, color, 100);
-#endif
-  uct_node_t *root = &uct_node[current_root];
-
-  std::vector<float> data, data2;
-  int moveT;
-  int t = rand() / 11 % 8;
-  WritePlanes(data, data2, game_prev, root, move, &moveT, color, t);
-  int x = CORRECT_X(moveT) - 1;
-  int y = CORRECT_Y(moveT) - 1;
-  int label = x + y * pure_board_size;
-  if (label < 0 || label > 19 * 19) {
-    cerr << "bad label " << x << " " << y << endl;
-    abort();
-  }
-
-  stream << "|labels " << label << ":1";
-  stream << "|features ";
-  //stream << '\n';
-  for (auto i = 0; i < data.size(); i++) {
-    //if (i % 19 == 0) stream << '\n';
-    float f = data[i];
-    if (f != 0) {
-      stream << i << ':' << f << ' ';
-    }
-  }
-#if 0
-  stream << "|features2 ";
-  for (auto i = 0; i < data2.size(); i++) {
-    stream << data2[i] << ' ';
-  }
-#endif
-  stream << '\n';
-  GTP_response(brank, true);
-}
-#else
-
 static int features_turn_count = 0;
 static int features_turn_next = 1;
+void DumpFeature(const uct_node_t& node, int color, int move, int win);
 
 void GTP_features_planes_file(void)
 {
@@ -992,37 +947,21 @@ void GTP_features_planes_file(void)
     return;
   }
 
-/*
-  bool stat = 0;
-  if (true) {
-    features_turn_count++;
-    if (features_turn_count < features_turn_next) {
-      //GTP_response(brank, true);
-      //return;
-    } else {
-      features_turn_count = 0;
-      features_turn_next = 20 + rand() % 30;
-      UctSearchStat(game_prev, color, 1000);
-      stat = 1;
-    }
-  }
+  DumpFeature(store_node, color, move, win);
 
-  uct_node_t *root = &uct_node[current_root];
-  */
-#if 0
-  int update_num = 0;
-  int update_pos[PURE_BOARD_MAX];
-  PoCheckFeatures(game_prev, color, update_pos, &update_num);
-#else
+  GTP_response(brank, true);
+}
+
+void DumpFeature(const uct_node_t& node, int color, int move, int win)
+{
   double rate[PURE_BOARD_MAX];
   AnalyzePoRating(game_prev, color, rate);
-#endif
 
   std::vector<float> data, data2;
   int moveT;
   int t = rand() / 11 % 8;
   //static int t = 0; t++;
-  WritePlanes2(data, &data2, game_prev, &store_node, move, &moveT, color, t);
+  WritePlanes(data, &data2, game_prev, &node, move, &moveT, color, t);
 
   int x = CORRECT_X(moveT) - 1;
   int y = CORRECT_Y(moveT) - 1;
@@ -1033,9 +972,13 @@ void GTP_features_planes_file(void)
   }
   if (isnan(data2[0])) {
     cerr << "bad stat" << endl;
-    GTP_response(err_genmove, true);
     return;
   }
+
+  if (!stream_ptr) {
+    stream_ptr = make_unique<ofstream>("data.txt", std::ios::app | std::ios::binary);
+  }
+  auto& stream = *stream_ptr;
 
   stream << "|win " << win;
   stream << "|move " << label << ":1";
@@ -1061,9 +1004,7 @@ void GTP_features_planes_file(void)
   }
 #endif
   stream << endl;
-  GTP_response(brank, true);
 }
-#endif
 
 void GTP_features_clear(void)
 {
@@ -1137,7 +1078,7 @@ GTP_stat(void)
     int moveT;
     int t = i;// rand() / 11 % 8;
 	      //static int t = 0; t++;
-    WritePlanes2(data, &data2, game, &store_node, POS(10, 11), &moveT, player_color, t);
+    WritePlanes(data, &data2, game, &store_node, POS(10, 11), &moveT, player_color, t);
 
     std::vector<int> eval_node_index;
     std::vector<int> eval_node_color;

@@ -260,12 +260,7 @@ void GetNeighbor4( int neighbor4[4], int pos );
 struct uct_node_t;
 
 void
-WritePlanes(std::vector<float>& data, std::vector<float>& data2, const game_info_t *game, const uct_node_t *root,
-  int move, int *moveT,
-  int color, int tran = 0);
-
-void
-WritePlanes2(std::vector<float>& data, std::vector<float>* data2, const game_info_t *game, const uct_node_t *root,
+WritePlanes(std::vector<float>& data, std::vector<float>* data2, const game_info_t *game, const uct_node_t *root,
   int move, int *moveT,
   int color, int tran);
 

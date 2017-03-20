@@ -1113,7 +1113,7 @@ RatingNode(game_info_t *game, int color, int index, int depth)
     req->trans = rand() / (RAND_MAX / 8 + 1);
     //req.path.swap(path);
     int moveT;
-    WritePlanes2(req->data, nullptr, game, root, move, &moveT, color, req->trans);
+    WritePlanes(req->data, nullptr, game, root, move, &moveT, color, req->trans);
 #if 1
     eval_policy_queue.push(req);
     //push_back(u);
@@ -1467,7 +1467,7 @@ UctSearch(game_info_t *game, int color, mt19937_64 *mt, int current, int *winner
       req->trans = rand() / (RAND_MAX / 8 + 1);
       req->path.swap(path);
       int moveT;
-      WritePlanes2(req->data, nullptr, game, root, move, &moveT, color, req->trans);
+      WritePlanes(req->data, nullptr, game, root, move, &moveT, color, req->trans);
       LOCK_EXPAND;
       eval_value_queue.push(req);
       UNLOCK_EXPAND;
