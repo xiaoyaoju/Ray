@@ -26,7 +26,7 @@ CheckSeki( game_info_t *game, bool seki[] )
   int neighbor4[4];
   bool already_checked;
 
-  // 双方が自己アタリになっている座標を抽出
+  // 双方が自己あたりになっている座標を抽出
   for (i = 0; i < pure_board_max; i++) {
     pos = onboard_pos[i];
     if (IsSelfAtari(game, S_BLACK, pos) &&
@@ -36,7 +36,7 @@ CheckSeki( game_info_t *game, bool seki[] )
   }
 
   for (i = 0; i < MAX_STRING; i++) {
-    // 連が存在しない, 
+    // 連が存在しない,
     // または連の呼吸点数が2個でなければ次を調べる
     if (!string[i].flag || string[i].libs != 2) continue;
 
@@ -46,7 +46,7 @@ CheckSeki( game_info_t *game, bool seki[] )
 
     lib1 = string[i].lib[0];
     lib2 = string[i].lib[lib1];
-    // 連の持つ呼吸点が共にセキの候補
+    // 連の持つ呼吸点がともにセキの候補
     if (seki_candidate[lib1] &&
 	seki_candidate[lib2]) {
       // 呼吸点1の周囲の連のIDを取り出す
