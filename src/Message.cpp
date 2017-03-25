@@ -18,7 +18,7 @@ bool debug_message = true;
 
 
 ////////////////////////////////////
-//  ƒGƒ‰[ƒƒbƒZ[ƒW‚Ìo—Í‚Ìİ’è  //
+//  ã‚¨ãƒ©ãƒ¼ãƒ¡ãƒƒã‚»ãƒ¼ã‚¸ã®å‡ºåŠ›ã®è¨­å®š  //
 ////////////////////////////////////
 void
 SetDebugMessageMode( bool flag )
@@ -27,7 +27,7 @@ SetDebugMessageMode( bool flag )
 }
 
 //////////////////
-//  ”Õ–Ê‚Ì•\¦  //
+//  ç›¤é¢ã®è¡¨ç¤º  //
 //////////////////
 void
 PrintBoard( const game_info_t *game )
@@ -112,9 +112,9 @@ PrintRate( const game_info_t *game )
 
 
 /////////////////////////////////
-//  ˜A‚Ìî•ñ‚Ì•\¦              //
-//    ŒÄ‹z“_‚Ì”, À•W          //
-//    ˜A‚ğ\¬‚·‚éÎ‚Ì”, À•W  //
+//  é€£ã®æƒ…å ±ã®è¡¨ç¤º              //
+//    å‘¼å¸ç‚¹ã®æ•°, åº§æ¨™          //
+//    é€£ã‚’æ§‹æˆã™ã‚‹çŸ³ã®æ•°, åº§æ¨™  //
 /////////////////////////////////
 void
 PrintString( const game_info_t *game )
@@ -171,7 +171,7 @@ PrintString( const game_info_t *game )
 
 
 //////////////////////////
-//  ŠeÀ•W‚Ì˜AID‚Ì•\¦  //
+//  å„åº§æ¨™ã®é€£IDã®è¡¨ç¤º  //
 //////////////////////////
 void
 PrintStringID( const game_info_t *game )
@@ -204,7 +204,7 @@ PrintStringID( const game_info_t *game )
 
 
 ///////////////////////////////////////
-//  ˜AƒŠƒXƒg‚ÌŒq‚ª‚è‚ğ•\¦(Debug—p)  //
+//  é€£ãƒªã‚¹ãƒˆã®ç¹‹ãŒã‚Šã‚’è¡¨ç¤º(Debugç”¨)  //
 ///////////////////////////////////////
 void
 PrintStringNext( const game_info_t *game )
@@ -241,7 +241,7 @@ PrintStringNext( const game_info_t *game )
 
 
 ///////////////////
-//  Owner‚Ì•\¦  //
+//  Ownerã®è¡¨ç¤º  //
 ///////////////////
 void
 PrintOwner( const uct_node_t *root, int color, double *own )
@@ -373,7 +373,7 @@ PrintOwnerNN(int color, double *own)
 }
 
 ///////////////////////
-//  Å‘P‰è—ñ‚Ìo—Í  //
+//  æœ€å–„å¿œæ‰‹åˆ—ã®å‡ºåŠ›  //
 ///////////////////////
 void
 PrintBestSequence( const game_info_t *game, const uct_node_t *uct_node, int root, int start_color )
@@ -460,7 +460,7 @@ PrintBestSequence( const game_info_t *game, const uct_node_t *uct_node, int root
 
 
 ///////////////////////
-//  ’Tõ‚Ìî•ñ‚Ì•\¦  //
+//  æ¢ç´¢ã®æƒ…å ±ã®è¡¨ç¤º  //
 ///////////////////////
 void
 PrintPlayoutInformation( const uct_node_t *root, const po_info_t *po_info, double finish_time, int pre_simulated )
@@ -486,7 +486,7 @@ PrintPlayoutInformation( const uct_node_t *root, const po_info_t *po_info, doubl
 
 
 //////////////////
-//  À•W‚Ìo—Í  //
+//  åº§æ¨™ã®å‡ºåŠ›  //
 //////////////////
 void
 PrintPoint( int pos )
@@ -518,7 +518,7 @@ std::string FormatMove(int pos)
 
 
 /////////////////////
-//  ƒRƒ~‚Ì’l‚Ìo—Í  //
+//  ã‚³ãƒŸã®å€¤ã®å‡ºåŠ›  //
 /////////////////////
 void
 PrintKomiValue( void )
@@ -530,7 +530,7 @@ PrintKomiValue( void )
 
 
 ////////////////////////////////////////
-//  Pondering‚ÌƒvƒŒƒCƒAƒEƒg‰ñ”‚Ìo—Í  //
+//  Ponderingã®ãƒ—ãƒ¬ã‚¤ã‚¢ã‚¦ãƒˆå›æ•°ã®å‡ºåŠ›  //
 ////////////////////////////////////////
 void
 PrintPonderingCount( int count )
@@ -542,7 +542,7 @@ PrintPonderingCount( int count )
 
 
 //////////////////////
-//  ’TõŠÔ‚Ìo—Í  //
+//  æ¢ç´¢æ™‚é–“ã®å‡ºåŠ›  //
 /////////////////////
 void
 PrintPlayoutLimits( double time_limit, int playout_limit )
@@ -554,7 +554,7 @@ PrintPlayoutLimits( double time_limit, int playout_limit )
 }
 
 ////////////////////////////////////////
-//  Pondering‚ÌƒvƒŒƒCƒAƒEƒg‰ñ”‚Ìo—Í  //
+//  Ponderingã®ãƒ—ãƒ¬ã‚¤ã‚¢ã‚¦ãƒˆå›æ•°ã®å‡ºåŠ›  //
 ////////////////////////////////////////
 void
 PrintReuseCount( int count )

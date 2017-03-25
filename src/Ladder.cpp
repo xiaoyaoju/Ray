@@ -12,7 +12,7 @@ using namespace std;
 #define DEAD  false
 
 
-// IsLadderCapturedŠÖ”—p
+// IsLadderCapturedé–¢æ•°ç”¨
 static game_info_t search_game[100];
 
 static mutex mutex_ladder;
@@ -34,14 +34,14 @@ LadderExtension( const game_info_t *game, int color, bool *ladder_pos )
 	string[i].color != color) {
       continue;
     }
-    // ƒAƒ^ƒŠ‚©‚ç“¦‚°‚é’…è‰ÓŠ
+    // ã‚¢ã‚¿ãƒªã‹ã‚‰é€ƒã’ã‚‹ç€æ‰‹ç®‡æ‰€
     ladder = string[i].lib[0];
 
     flag = false;
 
-    // ƒAƒ^ƒŠ‚ğ“¦‚°‚éè‚Å–¢’Tõ‚Ì‚à‚Ì‚ğŠm”F
+    // ã‚¢ã‚¿ãƒªã‚’é€ƒã’ã‚‹æ‰‹ã§æœªæ¢ç´¢ã®ã‚‚ã®ã‚’ç¢ºèª
     if (!checked[ladder] && string[i].libs == 1) {
-      // —×Ú‚·‚é“G˜A‚ğæ‚Á‚Ä•‚©‚é‚©‚ğŠm”F
+      // éš£æ¥ã™ã‚‹æ•µé€£ã‚’å–ã£ã¦åŠ©ã‹ã‚‹ã‹ã‚’ç¢ºèª
       neighbor = string[i].neighbor[0];
       while (neighbor != NEIGHBOR_END) {
 	if (string[neighbor].libs == 1) {
@@ -59,7 +59,7 @@ LadderExtension( const game_info_t *game, int color, bool *ladder_pos )
 	neighbor = string[i].neighbor[neighbor];
       }
 
-      // æ‚Á‚Ä•‚©‚ç‚È‚¢‚Í“¦‚°‚Ä‚İ‚é
+      // å–ã£ã¦åŠ©ã‹ã‚‰ãªã„æ™‚ã¯é€ƒã’ã¦ã¿ã‚‹
       if (!flag) {
 	if (IsLegal(game, ladder, color)) {
 	  CopyGame(shicho_game, game);
@@ -102,8 +102,8 @@ IsLadderCaptured( int depth, const game_info_t *game, int ren_xy, int turn_color
   capture_color = FLIP_COLOR(escape_color);
 
   if (turn_color == escape_color) {
-    // üˆÍ‚Ì“G˜A‚ªæ‚ê‚é‚©Šm”F‚µ,
-    // æ‚ê‚é‚È‚çæ‚Á‚Ä’Tõ‚ğ‘±‚¯‚é
+    // å‘¨å›²ã®æ•µé€£ãŒå–ã‚Œã‚‹ã‹ç¢ºèªã—,
+    // å–ã‚Œã‚‹ãªã‚‰å–ã£ã¦æ¢ç´¢ã‚’ç¶šã‘ã‚‹
     neighbor = string[str].neighbor[0];
     while (neighbor != NEIGHBOR_END) {
       if (string[neighbor].libs == 1) {
@@ -118,7 +118,7 @@ IsLadderCaptured( int depth, const game_info_t *game, int ren_xy, int turn_color
       neighbor = string[str].neighbor[neighbor];
     }
 
-    // “¦‚°‚éè‚ğ‘Å‚Á‚Ä‚İ‚Ä’Tõ‚ğ‘±‚¯‚é
+    // é€ƒã’ã‚‹æ‰‹ã‚’æ‰“ã£ã¦ã¿ã¦æ¢ç´¢ã‚’ç¶šã‘ã‚‹
     escape_xy = string[str].lib[0];
     while (escape_xy != LIBERTY_END) {
       if (IsLegal(game, escape_xy, escape_color)) {
@@ -133,7 +133,7 @@ IsLadderCaptured( int depth, const game_info_t *game, int ren_xy, int turn_color
     return DEAD;
   } else {
     if (string[str].libs == 1) return DEAD;
-    // ’Ç‚¢‚©‚¯‚é‘¤‚È‚Ì‚ÅƒAƒ^ƒŠ‚É‚·‚éè‚ğ‘Å‚Á‚Ä‚İ‚é
+    // è¿½ã„ã‹ã‘ã‚‹å´ãªã®ã§ã‚¢ã‚¿ãƒªã«ã™ã‚‹æ‰‹ã‚’æ‰“ã£ã¦ã¿ã‚‹
     capture_xy = string[str].lib[0];
     while (capture_xy != LIBERTY_END) {
       if (IsLegal(game, capture_xy, capture_color)) {
@@ -152,7 +152,7 @@ IsLadderCaptured( int depth, const game_info_t *game, int ren_xy, int turn_color
 
 
 //////////////////////////////////////////
-//  •‚©‚ç‚È‚¢ƒVƒ`ƒ‡ƒE‚ğ“¦‚°‚éè‚©”»’è  //
+//  åŠ©ã‹ã‚‰ãªã„ã‚·ãƒãƒ§ã‚¦ã‚’é€ƒã’ã‚‹æ‰‹ã‹åˆ¤å®š  //
 //////////////////////////////////////////
 bool
 CheckLadderExtension( const game_info_t *game, int color, int pos )

@@ -7,53 +7,53 @@
 #include "GoBoard.h"
 #include "ZobristHash.h"
 
-const int THREAD_MAX = 32;              // g—p‚·‚éƒXƒŒƒbƒh”‚ÌÅ‘å’l
-const int MAX_NODES = 1000000;          // UCT‚Ìƒm[ƒh‚Ì”z—ñ‚ÌƒTƒCƒY
-const double ALL_THINKING_TIME = 90.0;  // ‚¿ŠÔ(ƒfƒtƒHƒ‹ƒg)
-const int CONST_PLAYOUT = 10000;        // 1è‚ ‚½‚è‚ÌƒvƒŒƒCƒAƒEƒg‰ñ”(ƒfƒtƒHƒ‹ƒg)
-const double CONST_TIME = 10.0;         // 1è‚ ‚½‚è‚ÌvlŠÔ(ƒfƒtƒHƒ‹ƒg)
-const int PLAYOUT_SPEED = 1000;         // ‰Šú”Õ–Ê‚É‚¨‚¯‚éƒvƒŒƒCƒAƒEƒg‘¬“x
+const int THREAD_MAX = 32;              // ä½¿ç”¨ã™ã‚‹ã‚¹ãƒ¬ãƒƒãƒ‰æ•°ã®æœ€å¤§å€¤
+const int MAX_NODES = 1000000;          // UCTã®ãƒãƒ¼ãƒ‰ã®é…åˆ—ã®ã‚µã‚¤ã‚º
+const double ALL_THINKING_TIME = 90.0;  // æŒã¡æ™‚é–“(ãƒ‡ãƒ•ã‚©ãƒ«ãƒˆ)
+const int CONST_PLAYOUT = 10000;        // 1æ‰‹ã‚ãŸã‚Šã®ãƒ—ãƒ¬ã‚¤ã‚¢ã‚¦ãƒˆå›æ•°(ãƒ‡ãƒ•ã‚©ãƒ«ãƒˆ)
+const double CONST_TIME = 10.0;         // 1æ‰‹ã‚ãŸã‚Šã®æ€è€ƒæ™‚é–“(ãƒ‡ãƒ•ã‚©ãƒ«ãƒˆ)
+const int PLAYOUT_SPEED = 1000;         // åˆæœŸç›¤é¢ã«ãŠã‘ã‚‹ãƒ—ãƒ¬ã‚¤ã‚¢ã‚¦ãƒˆé€Ÿåº¦
 
 
-// vlŠÔ‚ÌŠ„‚èU‚è
+// æ€è€ƒæ™‚é–“ã®å‰²ã‚ŠæŒ¯ã‚Š
 const int TIME_RATE_9 = 20;
 const int TIME_C_13 = 30;
 const int TIME_MAXPLY_13 = 30;
 const int TIME_C_19 = 60;
 const int TIME_MAXPLY_19 = 80;
 
-// Criticality‚ÆOwner‚ğŒvZ‚·‚éŠÔŠu
+// Criticalityã¨Ownerã‚’è¨ˆç®—ã™ã‚‹é–“éš”
 const int CRITICALITY_INTERVAL = 100;
 
-// æ“ª‘Å’…‹Ù‹}“x
+// å…ˆé ­æ‰“ç€ç·Šæ€¥åº¦
 const double FPU = 5.0;
 
 // Progressive Widening
 const double PROGRESSIVE_WIDENING = 1.8;
 
-// ƒm[ƒh“WŠJ‚Ìè‡’l
+// ãƒãƒ¼ãƒ‰å±•é–‹ã®é–¾å€¤
 const int EXPAND_THRESHOLD_9  = 20;
 const int EXPAND_THRESHOLD_13 = 25;
 //const int EXPAND_THRESHOLD_19 = 40;
 const int EXPAND_THRESHOLD_19 = 10;
 
 
-// Œó•âè‚ÌÅ‘å”(”Õã‘S‘Ì + ƒpƒX)
+// å€™è£œæ‰‹ã®æœ€å¤§æ•°(ç›¤ä¸Šå…¨ä½“ + ãƒ‘ã‚¹)
 const int UCT_CHILD_MAX = PURE_BOARD_MAX + 1;
 
-// –¢“WŠJ‚Ìƒm[ƒh‚ÌƒCƒ“ƒfƒbƒNƒX
+// æœªå±•é–‹ã®ãƒãƒ¼ãƒ‰ã®ã‚¤ãƒ³ãƒ‡ãƒƒã‚¯ã‚¹
 const int NOT_EXPANDED = -1;
 
-// ƒpƒX‚ÌƒCƒ“ƒfƒbƒNƒX
+// ãƒ‘ã‚¹ã®ã‚¤ãƒ³ãƒ‡ãƒƒã‚¯ã‚¹
 const int PASS_INDEX = 0;
 
-// UCB Bonus‚ÉŠÖ‚·‚é’è”
+// UCB Bonusã«é–¢ã™ã‚‹å®šæ•°
 const double BONUS_EQUIVALENCE = 1000;
 const double BONUS_WEIGHT = 0.35;
 
-// ƒpƒX‚·‚éŸ—¦‚Ìè‡’l
+// ãƒ‘ã‚¹ã™ã‚‹å‹ç‡ã®é–¾å€¤
 const double PASS_THRESHOLD = 0.90;
-// “Š—¹‚·‚éŸ—¦‚Ìè‡’l
+// æŠ•äº†ã™ã‚‹å‹ç‡ã®é–¾å€¤
 const double RESIGN_THRESHOLD = 0.20;
 
 // Virtual Loss (Best Parameter)
@@ -63,48 +63,48 @@ const double c_puct = 1;
 const double value_scale = 0.7;
 
 enum SEARCH_MODE {
-  CONST_PLAYOUT_MODE, // 1è‚ÌƒvƒŒƒCƒAƒEƒg‰ñ”‚ğŒÅ’è‚µ‚½ƒ‚[ƒh
-  CONST_TIME_MODE,    // 1è‚ÌvlŠÔ‚ğŒÅ’è‚µ‚½ƒ‚[ƒh
-  TIME_SETTING_MODE,  // ‚¿ŠÔ‚ ‚è‚Ìƒ‚[ƒh
+  CONST_PLAYOUT_MODE, // 1æ‰‹ã®ãƒ—ãƒ¬ã‚¤ã‚¢ã‚¦ãƒˆå›æ•°ã‚’å›ºå®šã—ãŸãƒ¢ãƒ¼ãƒ‰
+  CONST_TIME_MODE,    // 1æ‰‹ã®æ€è€ƒæ™‚é–“ã‚’å›ºå®šã—ãŸãƒ¢ãƒ¼ãƒ‰
+  TIME_SETTING_MODE,  // æŒã¡æ™‚é–“ã‚ã‚Šã®ãƒ¢ãƒ¼ãƒ‰
 };
 
 
 typedef struct {
-  game_info_t *game; // ’Tõ‘ÎÛ‚Ì‹Ç–Ê
-  int thread_id;   // ƒXƒŒƒbƒh¯•Ê”Ô†
-  int color;       // ’Tõ‚·‚éè”Ô
+  game_info_t *game; // æ¢ç´¢å¯¾è±¡ã®å±€é¢
+  int thread_id;   // ã‚¹ãƒ¬ãƒƒãƒ‰è­˜åˆ¥ç•ªå·
+  int color;       // æ¢ç´¢ã™ã‚‹æ‰‹ç•ª
 }thread_arg_t;
 
 typedef struct{
-  std::atomic<int> colors[3];  // ‚»‚Ì‰ÓŠ‚ğ—Ì’n‚É‚µ‚½‰ñ”
+  std::atomic<int> colors[3];  // ãã®ç®‡æ‰€ã‚’é ˜åœ°ã«ã—ãŸå›æ•°
 } statistic_t;
 
 typedef struct {
-  int pos;  // ’…è‚·‚éÀ•W
-  std::atomic<int> move_count;  // ’Tõ‰ñ”
-  std::atomic<int> win;         // Ÿ‚Á‚½‰ñ”
+  int pos;  // ç€æ‰‹ã™ã‚‹åº§æ¨™
+  std::atomic<int> move_count;  // æ¢ç´¢å›æ•°
+  std::atomic<int> win;         // å‹ã£ãŸå›æ•°
   std::atomic<bool> eval_value;
-  int index;   // ƒCƒ“ƒfƒbƒNƒX
-  double rate; // ’…è‚ÌƒŒ[ƒg
-  double nnrate; // ƒjƒ…[ƒ‰ƒ‹ƒlƒbƒgƒ[ƒN‚Å‚ÌƒŒ[ƒg
+  int index;   // ã‚¤ãƒ³ãƒ‡ãƒƒã‚¯ã‚¹
+  double rate; // ç€æ‰‹ã®ãƒ¬ãƒ¼ãƒˆ
+  double nnrate; // ãƒ‹ãƒ¥ãƒ¼ãƒ©ãƒ«ãƒãƒƒãƒˆãƒ¯ãƒ¼ã‚¯ã§ã®ãƒ¬ãƒ¼ãƒˆ
   std::atomic<double> value;
-  bool flag;   // Progressive Widening‚Ìƒtƒ‰ƒO
-  bool open;   // í‚É’TõŒó•â‚É“ü‚ê‚é‚©‚Ç‚¤‚©‚Ìƒtƒ‰ƒO
-  bool ladder; // ƒVƒ`ƒ‡ƒE‚Ìƒtƒ‰ƒO
+  bool flag;   // Progressive Wideningã®ãƒ•ãƒ©ã‚°
+  bool open;   // å¸¸ã«æ¢ç´¢å€™è£œã«å…¥ã‚Œã‚‹ã‹ã©ã†ã‹ã®ãƒ•ãƒ©ã‚°
+  bool ladder; // ã‚·ãƒãƒ§ã‚¦ã®ãƒ•ãƒ©ã‚°
 } child_node_t;
 
 //  9x9  : 1828bytes
 // 13x13 : 3764bytes
 // 19x19 : 7988bytes
 struct uct_node_t {
-  int previous_move1;                 // 1è‘O‚Ì’…è
-  int previous_move2;                 // 2è‘O‚Ì’…è
+  int previous_move1;                 // 1æ‰‹å‰ã®ç€æ‰‹
+  int previous_move2;                 // 2æ‰‹å‰ã®ç€æ‰‹
   std::atomic<int> move_count;
   std::atomic<int> win;
-  int width;                          // ’Tõ•
-  int child_num;                      // qƒm[ƒh‚Ì”
-  child_node_t child[UCT_CHILD_MAX];  // qƒm[ƒh‚Ìî•ñ
-  statistic_t statistic[BOARD_MAX];   // “Œvî•ñ 
+  int width;                          // æ¢ç´¢å¹…
+  int child_num;                      // å­ãƒãƒ¼ãƒ‰ã®æ•°
+  child_node_t child[UCT_CHILD_MAX];  // å­ãƒãƒ¼ãƒ‰ã®æƒ…å ±
+  statistic_t statistic[BOARD_MAX];   // çµ±è¨ˆæƒ…å ± 
   bool seki[BOARD_MAX];
   bool evaled;
   //std::atomic<double> value;
@@ -113,148 +113,148 @@ struct uct_node_t {
 };
 
 typedef struct {
-  int num;   // Ÿ‚Ìè‚Ì’Tõ‰ñ”
-  int halt;  // ’Tõ‚ğ‘Å‚¿Ø‚é‰ñ”
-  std::atomic<int> count;       // Œ»İ‚Ì’Tõ‰ñ”
+  int num;   // æ¬¡ã®æ‰‹ã®æ¢ç´¢å›æ•°
+  int halt;  // æ¢ç´¢ã‚’æ‰“ã¡åˆ‡ã‚‹å›æ•°
+  std::atomic<int> count;       // ç¾åœ¨ã®æ¢ç´¢å›æ•°
 } po_info_t;
 
 typedef struct {
-  int index;    // ƒm[ƒh‚ÌƒCƒ“ƒfƒbƒNƒX
-  double rate;  // ‚»‚Ìè‚ÌƒŒ[ƒg
+  int index;    // ãƒãƒ¼ãƒ‰ã®ã‚¤ãƒ³ãƒ‡ãƒƒã‚¯ã‚¹
+  double rate;  // ãã®æ‰‹ã®ãƒ¬ãƒ¼ãƒˆ
 } rate_order_t;
 
 
-// c‚èŠÔ
+// æ®‹ã‚Šæ™‚é–“
 extern double remaining_time[S_MAX];
-// UCT‚Ìƒm[ƒh
+// UCTã®ãƒãƒ¼ãƒ‰
 extern uct_node_t *uct_node;
 
-// Œ»İ‚Ìƒ‹[ƒg‚ÌƒCƒ“ƒfƒbƒNƒX
+// ç¾åœ¨ã®ãƒ«ãƒ¼ãƒˆã®ã‚¤ãƒ³ãƒ‡ãƒƒã‚¯ã‚¹
 extern int current_root;
 
-// ŠeÀ•W‚ÌCriticality
+// å„åº§æ¨™ã®Criticality
 extern double criticality[BOARD_MAX]; 
 
 
-// —\‘ª“Ç‚İ‚Ì—L–³‚ğŠm”F
+// äºˆæ¸¬èª­ã¿ã®æœ‰ç„¡ã‚’ç¢ºèª
 bool IsPondered( void );
 
-// —\‘ª“Ç‚İ‚ğ~‚ß‚é
+// äºˆæ¸¬èª­ã¿ã‚’æ­¢ã‚ã‚‹
 void StopPondering( void );
 
-// —\‘ª“Ç‚İ‚Ìƒ‚[ƒh‚Ìİ’è
+// äºˆæ¸¬èª­ã¿ã®ãƒ¢ãƒ¼ãƒ‰ã®è¨­å®š
 void SetPonderingMode( bool flag );
 
-// ’Tõ‚Ìƒ‚[ƒh‚Ìw’è
+// æ¢ç´¢ã®ãƒ¢ãƒ¼ãƒ‰ã®æŒ‡å®š
 void SetMode( enum SEARCH_MODE mode );
 
-// 1è‚ ‚½‚è‚ÌƒvƒŒƒCƒAƒEƒg‰ñ”‚Ìw’è
+// 1æ‰‹ã‚ãŸã‚Šã®ãƒ—ãƒ¬ã‚¤ã‚¢ã‚¦ãƒˆå›æ•°ã®æŒ‡å®š
 void SetPlayout( int po );
 
-// 1è‚ ‚½‚è‚ÌvlŠÔ‚Ìw’è
+// 1æ‰‹ã‚ãŸã‚Šã®æ€è€ƒæ™‚é–“ã®æŒ‡å®š
 void SetConstTime( double time );
 
-// g—p‚·‚éƒXƒŒƒbƒh”‚Ìw’è
+// ä½¿ç”¨ã™ã‚‹ã‚¹ãƒ¬ãƒƒãƒ‰æ•°ã®æŒ‡å®š
 void SetThread( int new_thread );
 
-// ‚¿ŠÔ‚Ìw’è
+// æŒã¡æ™‚é–“ã®æŒ‡å®š
 void SetTime( double time );
 
-// ‘Šè‚ªƒpƒX‚µ‚½‚çƒpƒX‚·‚é
+// ç›¸æ‰‹ãŒãƒ‘ã‚¹ã—ãŸã‚‰ãƒ‘ã‚¹ã™ã‚‹
 void SetEarlyPass( bool pass );
 
-// ƒm[ƒh“WŠJ‚Ì—L–³w’è
+// ãƒãƒ¼ãƒ‰å±•é–‹ã®æœ‰ç„¡æŒ‡å®š
 void SetNoExpand(bool flag);
 
-// ƒpƒ‰ƒ[ƒ^‚Ìİ’è
+// ãƒ‘ãƒ©ãƒ¡ãƒ¼ã‚¿ã®è¨­å®š
 void SetParameter( void );
 
-// UCT’Tõ‚Ì‰Šúİ’è
+// UCTæ¢ç´¢ã®åˆæœŸè¨­å®š
 void InitializeUctSearch( void ); 
 
-// ’Tõİ’è‚Ì‰Šú‰»
+// æ¢ç´¢è¨­å®šã®åˆæœŸåŒ–
 void InitializeSearchSetting( void );
 
-// UCT’Tõ‚ÌI—¹ˆ—
+// UCTæ¢ç´¢ã®çµ‚äº†å‡¦ç†
 void FinalizeUctSearch( void );
 
-// UCT’Tõ‚É‚æ‚é’…è¶¬
+// UCTæ¢ç´¢ã«ã‚ˆã‚‹ç€æ‰‹ç”Ÿæˆ
 int UctSearchGenmove( game_info_t *game, int color );
 
-// —\‘ª‚æ‚İ
+// äºˆæ¸¬ã‚ˆã¿
 void UctSearchPondering( game_info_t *game, int color );
 
 void UctSearchStat(game_info_t *game, int color, int num);
 
-// ƒ‹[ƒg‚Ì“WŠJ
+// ãƒ«ãƒ¼ãƒˆã®å±•é–‹
 int ExpandRoot( game_info_t *game, int color );
 
-// ƒm[ƒh‚Ì“WŠJ
+// ãƒãƒ¼ãƒ‰ã®å±•é–‹
 int ExpandNode( game_info_t *game, int color, int current );
 
-// ƒm[ƒh‚ÌƒŒ[ƒeƒBƒ“ƒO
+// ãƒãƒ¼ãƒ‰ã®ãƒ¬ãƒ¼ãƒ†ã‚£ãƒ³ã‚°
 void RatingNode( game_info_t *game, int color, int index, int depth );
 
-// UCT’Tõ
+// UCTæ¢ç´¢
 void ParallelUctSearch( thread_arg_t *arg );
 
-// UCT’Tõ(—\‘ª“Ç‚İ)
+// UCTæ¢ç´¢(äºˆæ¸¬èª­ã¿)
 void ParallelUctSearchPondering( thread_arg_t *arg );
 
-// UCT’Tõ(1‰ñ‚ÌŒÄ‚Ño‚µ‚É‚Â‚«, 1‰ñ‚Ì’Tõ)
+// UCTæ¢ç´¢(1å›ã®å‘¼ã³å‡ºã—ã«ã¤ã, 1å›ã®æ¢ç´¢)
 int UctSearch( game_info_t *game, int color, std::mt19937_64 *mt, int current, int *winner, std::vector<int>& path );
 
-// UCB’l‚ªÅ‘å‚Ìqƒm[ƒh‚ğ•Ô‚·
+// UCBå€¤ãŒæœ€å¤§ã®å­ãƒãƒ¼ãƒ‰ã‚’è¿”ã™
 int SelectMaxUcbChild( const game_info_t *game, int current, int color );
 
-// Šeƒm[ƒh‚Ì“Œvî•ñ‚ÌXV
+// å„ãƒãƒ¼ãƒ‰ã®çµ±è¨ˆæƒ…å ±ã®æ›´æ–°
 void UpdateNodeStatistic( game_info_t *game, int winner, statistic_t *node_statistic );
 
-// ŠeÀ•W‚Ì“Œvˆ—
+// å„åº§æ¨™ã®çµ±è¨ˆå‡¦ç†
 void Statistic( game_info_t *game, int winner );
 
-// Virtual Loss‚ğ‰ÁZ
+// Virtual Lossã‚’åŠ ç®—
 void AddVirtualLoss( child_node_t *child, int current );
 
-// Œ‹‰Ê‚ÌXV
+// çµæœã®æ›´æ–°
 void UpdateResult( child_node_t *child, int result, int current );
 
-// ’Tõ‘Å‚¿Ø‚è‚ÌŠm”F
+// æ¢ç´¢æ‰“ã¡åˆ‡ã‚Šã®ç¢ºèª
 bool InterruptionCheck( void );
 
-// vlŠÔ‚ğ‰„’·‚·‚éˆ—
+// æ€è€ƒæ™‚é–“ã‚’å»¶é•·ã™ã‚‹å‡¦ç†
 bool ExtendTime( void );
 
-// Criticaliity‚ÌŒvZ
+// Criticaliityã®è¨ˆç®—
 void CalculateCriticality( int color );
 
 // Criticality
 void CalculateCriticalityIndex( uct_node_t *node, statistic_t *node_statistic, int color, int *index );
 
-// Ownership‚ÌŒvZ
+// Ownershipã®è¨ˆç®—
 void CalculateOwner( int color, int count );
 
 // Ownership
 void CalculateOwnerIndex( uct_node_t *node, statistic_t *node_statistc, int color, int *index );
 
-// Ÿ‚ÌƒvƒŒƒCƒAƒEƒg‰ñ”‚Ìİ’è
+// æ¬¡ã®ãƒ—ãƒ¬ã‚¤ã‚¢ã‚¦ãƒˆå›æ•°ã®è¨­å®š
 void CalculateNextPlayouts( game_info_t *game, int color, double best_wp, double finish_time );
 
-// UCT’Tõ‚É‚æ‚é’…è¶¬
+// UCTæ¢ç´¢ã«ã‚ˆã‚‹ç€æ‰‹ç”Ÿæˆ
 int UctAnalyze( game_info_t *game, int color );
 
-// —Ì’n‚É‚È‚éŠm—¦‚ğdest‚ÉƒRƒs[‚·‚é
+// é ˜åœ°ã«ãªã‚‹ç¢ºç‡ã‚’destã«ã‚³ãƒ”ãƒ¼ã™ã‚‹
 void OwnerCopy( int *dest );
 
-// Criticalty‚ğdest‚É
+// Criticaltyã‚’destã«
 void CopyCriticality( double *dest );
 
 void CopyStatistic( statistic_t *dest );
 
-// UCT’Tõ‚É‚æ‚é’…è¶¬(Clean Upƒ‚[ƒh)
+// UCTæ¢ç´¢ã«ã‚ˆã‚‹ç€æ‰‹ç”Ÿæˆ(Clean Upãƒ¢ãƒ¼ãƒ‰)
 int UctSearchGenmoveCleanUp( game_info_t *game, int color );
 
-// ’Tõ‚ÌÄ—˜—p‚Ìİ’è
+// æ¢ç´¢ã®å†åˆ©ç”¨ã®è¨­å®š
 void SetReuseSubtree( bool flag );
 
 int RateComp( const void *a, const void *b );

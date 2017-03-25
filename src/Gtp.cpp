@@ -106,7 +106,7 @@ GTP_main( void )
 
 
 ///////////////////////
-//  GTP‚Ìo—Í‚ÌÝ’è  //
+//  GTPã®å‡ºåŠ›ã®è¨­å®š  //
 ///////////////////////
 void
 GTP_message( void )
@@ -207,7 +207,7 @@ GTP_response( const char *res, bool success )
 
 
 /////////////////////////////
-//@ void GTP_boardsize()  //
+//ã€€ void GTP_boardsize()  //
 /////////////////////////////
 void
 GTP_boardsize( void )
@@ -1140,7 +1140,7 @@ GTP_stat(void)
 
 
 ////////////////////////////////
-//  ƒVƒ~ƒ…ƒŒ[ƒVƒ‡ƒ“‚ÌŒŸØ        //
+//  ã‚·ãƒŸãƒ¥ãƒ¬ãƒ¼ã‚·ãƒ§ãƒ³ã®æ¤œè¨¼        //
 ////////////////////////////////
 void
 GTP_stat_po(void)
@@ -1182,7 +1182,7 @@ GTP_stat_po(void)
   int length;
   int pass_count;
 
-  // ƒŒ[ƒg‚Ì‰Šú‰»  
+  // ãƒ¬ãƒ¼ãƒˆã®åˆæœŸåŒ–  
   game_prev->sum_rate[0] = game_prev->sum_rate[1] = 0;
   memset(game_prev->sum_rate_row, 0, sizeof(long long) * 2 * BOARD_SIZE);
   memset(game_prev->rate, 0, sizeof(long long) * 2 * BOARD_MAX);
@@ -1192,9 +1192,9 @@ GTP_stat_po(void)
 
   auto begin_time = ray_clock::now();
   for (int i = 0; i < 1000; i++) {
-    // •”Ô‚ÌƒŒ[ƒg‚ÌŒvŽZ
+    // é»’ç•ªã®ãƒ¬ãƒ¼ãƒˆã®è¨ˆç®—
     Rating(game_prev, S_BLACK, &game_prev->sum_rate[0], game_prev->sum_rate_row[0], game_prev->rate[0]);
-    // ”’”Ô‚ÌƒŒ[ƒg‚ÌŒvŽZ
+    // ç™½ç•ªã®ãƒ¬ãƒ¼ãƒˆã®è¨ˆç®—
     Rating(game_prev, S_WHITE, &game_prev->sum_rate[1], game_prev->sum_rate_row[1], game_prev->rate[1]);
   }
   auto finish_time = GetSpendTime(begin_time) * 1000;
@@ -1221,15 +1221,15 @@ GTP_stat_po(void)
     cerr << "####### PO MISS " << finish_time << endl;
   }
 #if 0
-  // I‹Ç‚Ü‚Å‘Î‹Ç‚ðƒVƒ~ƒ…ƒŒ[ƒg
+  // çµ‚å±€ã¾ã§å¯¾å±€ã‚’ã‚·ãƒŸãƒ¥ãƒ¬ãƒ¼ãƒˆ
   while (length-- && pass_count < 2) {
-    // ’…Žè‚ð¶¬‚·‚é
+    // ç€æ‰‹ã‚’ç”Ÿæˆã™ã‚‹
     pos = RatingMove(game, color, mt);
-    // Î‚ð’u‚­
+    // çŸ³ã‚’ç½®ã
     PoPutStone(game, pos, color);
-    // ƒpƒX‚ÌŠm”F
+    // ãƒ‘ã‚¹ã®ç¢ºèª
     pass_count = (pos == PASS) ? (pass_count + 1) : 0;
-    // Žè”Ô‚Ì“ü‚ê‘Ö‚¦
+    // æ‰‹ç•ªã®å…¥ã‚Œæ›¿ãˆ
     color = FLIP_COLOR(color);
   }
 #endif

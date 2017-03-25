@@ -9,7 +9,7 @@ using namespace std;
 
 
 ////////////////////////////
-//  ƒeƒLƒXƒg“ü—Í (float)  //
+//  ãƒ†ã‚­ã‚¹ãƒˆå…¥åŠ› (float)  //
 ////////////////////////////
 void
 InputTxtFLT( const char *filename, float *ap, int array_size )
@@ -46,7 +46,7 @@ InputTxtFLT( const char *filename, float *ap, int array_size )
 
 
 /////////////////////////////
-//  ƒeƒLƒXƒg“ü—Í (double)  //
+//  ãƒ†ã‚­ã‚¹ãƒˆå…¥åŠ› (double)  //
 /////////////////////////////
 void
 InputTxtDBL( const char *filename, double *ap, int array_size )
