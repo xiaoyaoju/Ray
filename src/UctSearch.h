@@ -60,7 +60,7 @@ const double RESIGN_THRESHOLD = 0.20;
 const int VIRTUAL_LOSS = 1;
 
 const double c_puct = 1;
-const double value_scale = 0.5;
+const double value_scale = 0.7;
 
 enum SEARCH_MODE {
   CONST_PLAYOUT_MODE, // 1手のプレイアウト回数を固定したモード
