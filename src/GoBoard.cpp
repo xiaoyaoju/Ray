@@ -1904,11 +1904,8 @@ WritePlanes(
 
   data.reserve(19 * 19 * 52);
   {
-    //cout << "a\n";
     *moveT = RevTransformMove(move, tran);
     const int koT = RevTransformMove(game->ko_pos, tran);
-    //OUTPUT_LABEL(chosenMoveT);
-    //boost::dynamic_bitset<uint8_t> data;
 
 #define OUTPUT(block) \
 		for (int y = board_start; y <= board_end; y++) { \
@@ -1918,18 +1915,12 @@ WritePlanes(
 				block \
 			}\
 		}
-#if 1
+
     OUTPUT({ OUTPUT_FEATURE(c == color); });
     OUTPUT({ OUTPUT_FEATURE(c == opp); });
     OUTPUT({ OUTPUT_FEATURE(c == S_EMPTY); });
     OUTPUT({ OUTPUT_FEATURE(color == S_BLACK); });
     OUTPUT({ OUTPUT_FEATURE(true); });
-#else
-    OUTPUT({ OUTPUT_FEATURE(c == color); });
-    OUTPUT({ OUTPUT_FEATURE(c == opp); });
-    OUTPUT({ OUTPUT_FEATURE(c == S_EMPTY); });
-    OUTPUT({ OUTPUT_FEATURE(true); });
-#endif
 
     auto start = data.size();
     OUTPUT({ data.push_back(0.0); });
@@ -1954,10 +1945,6 @@ WritePlanes(
 
     OUTPUT({ OUTPUT_FEATURE(ladder[0][p]); });
     OUTPUT({ OUTPUT_FEATURE(ladder[1][p]); });
-
-    // static int64_t count = 0;
-    // static int64_t count1[F_MAX1] = { 0 };
-    // static int64_t count2[F_MAX2] = { 0 };
 
     for (int i = 0; i < F_MAX1; i++) {
       OUTPUT({
