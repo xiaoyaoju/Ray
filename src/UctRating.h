@@ -191,15 +191,15 @@ const std::string uct_features_name[UCT_TACTICAL_FEATURE_MAX] = {
 };
 
 
-typedef struct {
+struct uct_features_t {
   unsigned long long tactical_features1[BOARD_MAX];
-} uct_features_t;
+};
 
 
-typedef struct {
+struct latent_factor_t {
   double w;
   double v[LFR_DIMENSION];
-} latent_factor_t;
+};
 
 
 
@@ -219,10 +219,9 @@ extern const unsigned long long uct_mask[UCT_MASK_MAX];
 
 //  初期化
 void InitializeUctRating( void );
-void InitializePhysicalFeaturesSet( void );
 
 //  戦術的特徴のレートの計算
-double CalculateLFRScore( game_info_t *game, int pos, int pat_index[], uct_features_t *uct_features );
+double CalculateLFRScore( game_info_t *game, int pos, int pat_index[3], uct_features_t *uct_features );
 
 //  特徴の判定
 void UctCheckFeatures( game_info_t *game, int color, uct_features_t *uct_features );
@@ -253,9 +252,6 @@ void UctCheckKeimaTsukekoshi( game_info_t *game, int color, int pos, uct_feature
 
 //  両ケイマの判定
 void UctCheckDoubleKeima( game_info_t *game, int color, int pos, uct_features_t *uct_features );
-
-//  ウッテガエシの判定
-int UctCheckUtteGaeshi( game_info_t *game, int color, int pos, uct_features_t *uct_features );
 
 //  劫の解消
 void UctCheckKoConnection( game_info_t *game, uct_features_t *uct_features );
