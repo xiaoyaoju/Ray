@@ -25,7 +25,7 @@ typedef struct _index_hash {
 ////////////
 
 //  パターンのハッシュ関数
-void PatternHash( struct pattern *pat, pattern_hash_t *hash_pat );
+void PatternHash( const struct pattern *pat, pattern_hash_t *hash_pat );
 
 //  パターンのハッシュ関数
 unsigned long long MD2Hash( unsigned int md2 );

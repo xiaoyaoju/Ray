@@ -123,9 +123,9 @@ InitializeUctRating()
 //  呼吸点が1つの連に対する特徴の判定  //
 /////////////////////////////////////////
 void
-UctCheckFeaturesLib1( game_info_t *game, int color, int id, bool ladder, uct_features_t *uct_features )
+UctCheckFeaturesLib1( const game_info_t *game, int color, int id, bool ladder, uct_features_t *uct_features )
 {
-  string_t *string = game->string;
+  const string_t *string = game->string;
   int lib, neighbor;
   unsigned long long *tactical_features1 = uct_features->tactical_features1;
 
@@ -194,9 +194,9 @@ UctCheckFeaturesLib1( game_info_t *game, int color, int id, bool ladder, uct_fea
 //  呼吸点が2つの連に対する特徴の判定  //
 /////////////////////////////////////////
 void
-UctCheckFeaturesLib2( game_info_t *game, int color, int id, uct_features_t *uct_features )
+UctCheckFeaturesLib2( const game_info_t *game, int color, int id, uct_features_t *uct_features )
 {
-  string_t *string = game->string;
+  const string_t *string = game->string;
   int lib1, lib2, neighbor;
   unsigned long long *tactical_features1 = uct_features->tactical_features1;
   int lib1_state, lib2_state;
@@ -325,9 +325,9 @@ UctCheckFeaturesLib2( game_info_t *game, int color, int id, uct_features_t *uct_
 //  呼吸点が3つの連に対する特徴の判定  //
 /////////////////////////////////////////
 void
-UctCheckFeaturesLib3( game_info_t *game, int color, int id, uct_features_t *uct_features )
+UctCheckFeaturesLib3( const game_info_t *game, int color, int id, uct_features_t *uct_features )
 {
-  string_t *string = game->string;
+  const string_t *string = game->string;
   int lib1, lib2, lib3, neighbor;
   unsigned long long *tactical_features1 = uct_features->tactical_features1;
   int lib1_state, lib2_state, lib3_state;
@@ -501,11 +501,11 @@ UctCheckFeaturesLib3( game_info_t *game, int color, int id, uct_features_t *uct_
 //  特徴の判定  //
 //////////////////
 void
-UctCheckFeatures( game_info_t *game, int color, uct_features_t *uct_features )
+UctCheckFeatures( const game_info_t *game, int color, uct_features_t *uct_features )
 {
-  string_t *string = game->string;
-  char *board = game->board;
-  int *string_id = game->string_id;
+  const string_t *string = game->string;
+  const char *board = game->board;
+  const int *string_id = game->string_id;
   int previous_move = PASS;
   int id;
   int check[4] = { 0 };
@@ -550,11 +550,11 @@ UctCheckFeatures( game_info_t *game, int color, uct_features_t *uct_features )
 //  劫を解消するトリ  //
 ////////////////////////
 void
-UctCheckCaptureAfterKo( game_info_t *game, int color, uct_features_t *uct_features )
+UctCheckCaptureAfterKo( const game_info_t *game, int color, uct_features_t *uct_features )
 {
-  string_t *string = game->string;
-  char *board = game->board;
-  int *string_id = game->string_id;
+  const string_t *string = game->string;
+  const char *board = game->board;
+  const int *string_id = game->string_id;
   int other = FLIP_COLOR(color);
   int previous_move_2 = game->record[game->moves - 2].pos;
   int id, lib, i;
@@ -579,12 +579,12 @@ UctCheckCaptureAfterKo( game_info_t *game, int color, uct_features_t *uct_featur
 //  自己アタリ  //
 //////////////////
 bool
-UctCheckSelfAtari( game_info_t *game, int color, int pos, uct_features_t *uct_features )
+UctCheckSelfAtari( const game_info_t *game, int color, int pos, uct_features_t *uct_features )
 {
   bool flag;
-  char *board = game->board;
-  string_t *string = game->string;
-  int *string_id = game->string_id;
+  const char *board = game->board;
+  const string_t *string = game->string;
+  const int *string_id = game->string_id;
   int other = FLIP_COLOR(color);
   int size = 0;
   int already[4] = { 0 };
@@ -677,11 +677,11 @@ UctCheckSelfAtari( game_info_t *game, int color, int pos, uct_features_t *uct_fe
 //  トリの判定  //
 //////////////////
 void
-UctCheckCapture( game_info_t *game, int color, int pos, uct_features_t *uct_features )
+UctCheckCapture( const game_info_t *game, int color, int pos, uct_features_t *uct_features )
 {
-  char *board = game->board;
-  string_t *string = game->string;
-  int *string_id = game->string_id;
+  const char *board = game->board;
+  const string_t *string = game->string;
+  const int *string_id = game->string_id;
   int other = FLIP_COLOR(color);
   bool check;
   int neighbor;
@@ -721,12 +721,12 @@ UctCheckCapture( game_info_t *game, int color, int pos, uct_features_t *uct_feat
 //  アタリの判定  //
 ////////////////////
 void
-UctCheckAtari( game_info_t *game, int color, int pos, uct_features_t *uct_features )
+UctCheckAtari( const game_info_t *game, int color, int pos, uct_features_t *uct_features )
 {
-  char *board = game->board;
-  string_t *string = game->string;
+  const char *board = game->board;
+  const string_t *string = game->string;
   int other = FLIP_COLOR(color);
-  int *string_id = game->string_id;
+  const int *string_id = game->string_id;
   int id;
   int size;
   unsigned long long *tactical_features1 = uct_features->tactical_features1;
@@ -757,7 +757,7 @@ UctCheckAtari( game_info_t *game, int color, int pos, uct_features_t *uct_featur
 //  劫の解消  //
 ////////////////
 void
-UctCheckKoConnection( game_info_t *game, uct_features_t *uct_features )
+UctCheckKoConnection( const game_info_t *game, uct_features_t *uct_features )
 {
   int ko_pos = game->ko_pos;
 
@@ -771,7 +771,7 @@ UctCheckKoConnection( game_info_t *game, uct_features_t *uct_features )
 // 2目取られた後のホウリコミ  //
 ////////////////////////////////
 void
-UctCheckRemove2Stones( game_info_t *game, int color, uct_features_t *uct_features )
+UctCheckRemove2Stones( const game_info_t *game, int color, uct_features_t *uct_features )
 {
   int i, rm1, rm2, connect;
   int other = FLIP_COLOR(color);
@@ -824,7 +824,7 @@ UctCheckRemove2Stones( game_info_t *game, int color, uct_features_t *uct_feature
 //  3目抜かれた後のナカデ  //
 /////////////////////////////
 void
-UctCheckRemove3Stones( game_info_t *game, int color, uct_features_t *uct_features )
+UctCheckRemove3Stones( const game_info_t *game, int color, uct_features_t *uct_features )
 {
   int rm1, rm2, rm3;
   int other = FLIP_COLOR(color);
@@ -852,9 +852,9 @@ UctCheckRemove3Stones( game_info_t *game, int color, uct_features_t *uct_feature
 //  ケイマのツケコシの判定  //
 //////////////////////////////
 void
-UctCheckKeimaTsukekoshi(game_info_t *game, int color, int pos, uct_features_t *uct_features)
+UctCheckKeimaTsukekoshi( const game_info_t *game, int color, int pos, uct_features_t *uct_features )
 {
-  char *board = game->board;
+  const char *board = game->board;
   int other = FLIP_COLOR(color);
   unsigned long long *tactical_features1 = uct_features->tactical_features1;
   int keima_pos[8], opponent_pos[8];
@@ -996,7 +996,7 @@ UctCheckKeimaTsukekoshi(game_info_t *game, int color, int pos, uct_features_t *u
 //  両ケイマの判定  //
 //////////////////////
 void
-UctCheckDoubleKeima( game_info_t *game, int color, int pos, uct_features_t *uct_features )
+UctCheckDoubleKeima( const game_info_t *game, int color, int pos, uct_features_t *uct_features )
 {
   // ++O+O++
   // +O+++O+
@@ -1004,7 +1004,7 @@ UctCheckDoubleKeima( game_info_t *game, int color, int pos, uct_features_t *uct_
   // +O+++O+
   // ++O+O++
   // Oのうち自分と相手の石が1個ずつ以上ある時の特徴
-  char *board = game->board;
+  const char *board = game->board;
   int other = FLIP_COLOR(color);
   int keima_pos[8];
   int i, p = 0, o = 0;
@@ -1039,7 +1039,7 @@ UctCheckDoubleKeima( game_info_t *game, int color, int pos, uct_features_t *uct_
 //  ウッテガエシ  //
 ////////////////////
 void
-UctCheckSnapBack( game_info_t *game, int color, int pos, uct_features_t *uct_features )
+UctCheckSnapBack( const game_info_t *game, int color, int pos, uct_features_t *uct_features )
 {
   const string_t *string = game->string;
   const int *string_id = game->string_id;
@@ -1055,7 +1055,7 @@ UctCheckSnapBack( game_info_t *game, int color, int pos, uct_features_t *uct_fea
     if (board[neighbor4[i]] == other) {
       int id = string_id[neighbor4[i]];
 
-      game_info_t *check_game;
+      const game_info_t *check_game;
       if (string[id].libs == 1) {
         check_game = game;
       } else if (string[id].libs == 2) {
@@ -1078,9 +1078,9 @@ UctCheckSnapBack( game_info_t *game, int color, int pos, uct_features_t *uct_fea
 
 
 double
-CalculateLFRScore( game_info_t *game, int pos, int index[3], uct_features_t *uct_features )
+CalculateLFRScore( const game_info_t *game, int pos, int index[3], uct_features_t *uct_features )
 {
-  struct pattern *pat = game->pat;
+  const struct pattern *pat = game->pat;
   int pm1 = PASS, pm2 = PASS;
   int moves = game->moves;
   int i, j, f, dis1 = -1, dis2 = -1;
@@ -1174,7 +1174,7 @@ CalculateLFRScore( game_info_t *game, int pos, int index[3], uct_features_t *uct
 //  着手予想の精度を確認するための関数  //
 //////////////////////////////////////////
 void
-AnalyzeUctRating( game_info_t *game, int color, double rate[] )
+AnalyzeUctRating( const game_info_t *game, int color, double rate[] )
 {
   int i;
   int pos;

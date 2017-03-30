@@ -423,12 +423,12 @@ IsNakadeSelfAtari( game_info_t *game, int pos, int color )
 //  自己アタリがナカデの形になっているかを確認  //
 //////////////////////////////////////////////////
 bool
-IsUctNakadeSelfAtari( game_info_t *game, int pos, int color )
+IsUctNakadeSelfAtari( const game_info_t *game, int pos, int color )
 {
-  char *board = game->board;
-  string_t *string = game->string;
-  int *string_id = game->string_id;
-  int *string_next = game->string_next;
+  const char *board = game->board;
+  const string_t *string = game->string;
+  const int *string_id = game->string_id;
+  const int *string_next = game->string_next;
   int stones[10];
   int my_stone;
   int i, n = 0, reviser;

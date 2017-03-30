@@ -28,7 +28,7 @@ void InitializeNakadeHash( void );
 bool IsNakadeSelfAtari( game_info_t *game, int pos, int color );
 
 // 自己アタリがナカデの形になっているか(UCT用)
-bool IsUctNakadeSelfAtari( game_info_t *game, int pos, int color );
+bool IsUctNakadeSelfAtari( const game_info_t *game, int pos, int color );
 
 // 直前の手で囲ったエリアにナカデの急所があるかを確認
 // ナカデの急所があれば, その座標を
