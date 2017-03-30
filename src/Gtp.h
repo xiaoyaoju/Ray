@@ -20,12 +20,12 @@ const int BUF_SIZE = 256;
 #define STRTOK(src, token, next) strtok((src), (token))
 #endif
 
-typedef struct {
+struct GTP_command_t {
   void (*function)();
   char *type;
   char *label;
   char *command;
-} GTP_command_t;
+};
 
 #define CHOMP(command) if(command[strlen(command)-1] == '\n') command[strlen(command)-1] = '\0'
 

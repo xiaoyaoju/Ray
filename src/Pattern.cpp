@@ -120,11 +120,11 @@ static unsigned long long large_mask[][3] = {
 //  初期設定  //
 ////////////////
 void
-ClearPattern( struct pattern *pat )
+ClearPattern( pattern *pat )
 {
   int y;
 
-  memset(pat, 0, sizeof(struct pattern) * board_max); 
+  memset(pat, 0, sizeof(pattern) * board_max); 
 
   for (y = board_start; y <= board_end; y++){
     // 1線
@@ -222,7 +222,7 @@ ClearPattern( struct pattern *pat )
 
 //  3x3
 void
-UpdatePat3Empty( struct pattern *pat, int pos )
+UpdatePat3Empty( pattern *pat, int pos )
 {
   pat[pos + NW].list[MD_2] &= 0xFF3FFF;
   pat[pos + N].list[MD_2] &= 0xFFCFFF;
@@ -235,7 +235,7 @@ UpdatePat3Empty( struct pattern *pat, int pos )
 }
 
 void
-UpdatePat3Stone( struct pattern *pat, int color, int pos )
+UpdatePat3Stone( pattern *pat, int color, int pos )
 {
   pat[pos + NW].list[MD_2] |= update_mask[0][color];
   pat[pos + N].list[MD_2] |= update_mask[1][color];
@@ -249,7 +249,7 @@ UpdatePat3Stone( struct pattern *pat, int color, int pos )
 
 //  md2
 void
-UpdateMD2Empty( struct pattern *pat, int pos )
+UpdateMD2Empty( pattern *pat, int pos )
 {
   pat[pos + NW].list[MD_2] &= 0xFF3FFF;
   pat[pos + N].list[MD_2] &= 0xFFCFFF;
@@ -266,7 +266,7 @@ UpdateMD2Empty( struct pattern *pat, int pos )
 }
 
 void
-UpdateMD2Stone( struct pattern *pat, int color, int pos )
+UpdateMD2Stone( pattern *pat, int color, int pos )
 {
   pat[pos + NW].list[MD_2] |= update_mask[0][color];
   pat[pos + N].list[MD_2] |= update_mask[1][color];
@@ -284,7 +284,7 @@ UpdateMD2Stone( struct pattern *pat, int color, int pos )
 
 //  全部
 void
-UpdatePatternEmpty( struct pattern *pat, int pos )
+UpdatePatternEmpty( pattern *pat, int pos )
 {
   //  3x3 
   pat[pos + NW].list[MD_2] &= 0xFF3FFF;
@@ -358,7 +358,7 @@ UpdatePatternEmpty( struct pattern *pat, int pos )
 }
 
 void
-UpdatePatternStone( struct pattern *pat, int color, int pos )
+UpdatePatternStone( pattern *pat, int color, int pos )
 {
   //  3x3 
   pat[pos + NW].list[MD_2] |= update_mask[0][color];
@@ -847,21 +847,21 @@ MD5Rotate90( unsigned long long md5 )
 
 //  3x3 
 unsigned int
-Pat3( const struct pattern *pat, int pos )
+Pat3( const pattern *pat, int pos )
 {
   return (pat[pos].list[MD_2] & 0xFFFF);
 }
 
 //  md2
 unsigned int
-MD2( const struct pattern *pat, int pos )
+MD2( const pattern *pat, int pos )
 {
   return (pat[pos].list[MD_2]);
 }
 
 //  md3
 unsigned int
-MD3( const struct pattern *pat, int pos )
+MD3( const pattern *pat, int pos )
 {
   return (pat[pos].list[MD_3]);
 }
@@ -869,14 +869,14 @@ MD3( const struct pattern *pat, int pos )
 
 //  md4
 unsigned int
-MD4( const struct pattern *pat, int pos )
+MD4( const pattern *pat, int pos )
 {
   return (pat[pos].list[MD_4]);
 }
 
 //  md5
 unsigned long long
-MD5( const struct pattern *pat, int pos )
+MD5( const pattern *pat, int pos )
 {
   return (pat[pos].large_list[MD_5]);
 }
@@ -968,7 +968,7 @@ DisplayInputMD5( unsigned long long md5 )
 
 //  Pattern
 void
-DisplayInputPattern( struct pattern *pattern, int size )
+DisplayInputPattern( const pattern *pattern, int size )
 {
   static char stone[] = { '+', '@', 'O', '#' };
   unsigned int md2, md3, md4;

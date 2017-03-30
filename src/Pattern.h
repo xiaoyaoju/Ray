@@ -35,15 +35,15 @@ struct pattern {
 ////////////
 
 //  初期設定
-void ClearPattern( struct pattern *pat );
+void ClearPattern( pattern *pat );
 
 //  更新
-void UpdatePat3Empty( struct pattern *pat, int pos );
-void UpdatePat3Stone( struct pattern *pat, int color, int pos );
-void UpdateMD2Empty( struct pattern *pat, int pos );
-void UpdateMD2Stone( struct pattern *pat, int color, int pos );
-void UpdatePatternEmpty( struct pattern *pat, int pos );
-void UpdatePatternStone( struct pattern *pat, int color, int pos );
+void UpdatePat3Empty( pattern *pat, int pos );
+void UpdatePat3Stone( pattern *pat, int color, int pos );
+void UpdateMD2Empty( pattern *pat, int pos );
+void UpdateMD2Stone( pattern *pat, int color, int pos );
+void UpdatePatternEmpty( pattern *pat, int pos );
+void UpdatePatternStone( pattern *pat, int color, int pos );
 
 //  同一パターン
 void Pat3Transpose8( unsigned int pat3, unsigned int *transp );
@@ -86,11 +86,11 @@ unsigned int MD4Rotate90( unsigned int md4 );
 unsigned long long MD5Rotate90( unsigned long long md5 );
 
 //  パターンを返す
-unsigned int Pat3( const struct pattern *pat, int pos );
-unsigned int MD2( const struct pattern *pat, int pos );
-unsigned int MD3( const struct pattern *pat, int pos );
-unsigned int MD4( const struct pattern *pat, int pos );
-unsigned long long MD5( const struct pattern *pat, int pos );
+unsigned int Pat3( const pattern *pat, int pos );
+unsigned int MD2( const pattern *pat, int pos );
+unsigned int MD3( const pattern *pat, int pos );
+unsigned int MD4( const pattern *pat, int pos );
+unsigned long long MD5( const pattern *pat, int pos );
 
 //  表示
 void DisplayInputPat3( unsigned int pat3 );
@@ -98,6 +98,6 @@ void DisplayInputMD2( unsigned int md2 );
 void DisplayInputMD3( unsigned int md3 );
 void DisplayInputMD4( unsigned int md4 );
 void DisplayInputMD5( unsigned long long md5 );
-void DisplayInputPattern( struct pattern *pattern, int size );
+void DisplayInputPattern( const pattern *pattern, int size );
 
 #endif	//  _PATTERN_H_
