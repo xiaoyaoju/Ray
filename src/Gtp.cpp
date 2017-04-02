@@ -941,6 +941,13 @@ void GTP_features_planes_file(void)
     GTP_response(err_genmove, true);
     return;
   }
+#if 1
+  if (game->moves < 200 || game->moves > 400) {
+    cerr << "####### SKIP " << c << " " << game->moves << endl;
+    GTP_response(brank, true);
+    return;
+  }
+#endif
 
   if (move == RESIGN || move == PASS) {
     GTP_response(brank, true);
