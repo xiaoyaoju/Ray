@@ -459,6 +459,100 @@ PrintBestSequence( const game_info_t *game, const uct_node_t *uct_node, int root
 }
 
 
+void
+PrintLiveBestSequence(const game_info_t *game, const uct_node_t *uct_node, int current_root, int start_color)
+{
+  int current = current_root;
+  int color = start_color;
+  //cerr << "gogui-gfx: CLEAR" << endl;
+  cerr << "gogui-gfx:" << endl;
+
+  auto root = &uct_node[current_root];
+  auto statistic = root->statistic;
+  auto uct_child = uct_node[current].child;
+  int child_num = uct_node[current].child_num;
+
+  if (root->move_count == 0)
+    return;
+
+  double own[BOARD_MAX];
+  for (int i = 1, y = board_start; y <= board_end; y++, i++) {
+    for (int x = board_start; x <= board_end; x++) {
+      int pos = POS(x, y);
+      own[pos] = (double)statistic[pos].colors[color] / root->move_count;
+    }
+  }
+
+#if 1
+  int index = -1;
+  int max = 0;
+  for (int i = 0; i < child_num; i++) {
+    if (uct_child[i].move_count > max) {
+      max = uct_child[i].move_count;
+      index = i;
+    }
+  }
+  //cerr << "gogui-gfx: VAR ";
+  cerr << "VAR ";
+  if (node_hash[current].color == S_BLACK) cerr << "b ";
+  else if (node_hash[current].color == S_WHITE) cerr << "w ";
+  cerr << FormatMove(uct_child[index].pos) << " ";
+  own[uct_child[index].pos] = 0.5;
+
+  color = FLIP_COLOR(color);
+
+  current = uct_child[index].index;
+
+  while (current != NOT_EXPANDED) {
+    uct_child = uct_node[current].child;
+    child_num = uct_node[current].child_num;
+
+    max = 50;
+    index = -1;
+
+    for (int i = 0; i < child_num; i++) {
+      if (uct_child[i].move_count > max) {
+        max = uct_child[i].move_count;
+        index = i;
+      }
+    }
+
+    if (index == -1) break;
+
+    if (node_hash[current].color == S_BLACK) cerr << "b ";
+    else if (node_hash[current].color == S_WHITE) cerr << "w ";
+    cerr << FormatMove(uct_child[index].pos) << " ";
+    own[uct_child[index].pos] = 0.5;
+
+    color = FLIP_COLOR(color);
+
+    current = uct_child[index].index;
+  }
+  cerr << endl;
+#endif
+#if 1
+  //cerr << "gogui-gfx: INFLUENCE ";
+  cerr << "INFLUENCE ";
+  for (int i = 1, y = board_start; y <= board_end; y++, i++) {
+    for (int x = board_start; x <= board_end; x++) {
+      int pos = POS(x, y);
+      double owner = own[pos];
+      if (owner > 0.4 && owner < 0.6) {
+        continue;
+      }
+      double inf = (owner - 0.5) * 2;
+      if (start_color == S_WHITE)
+        inf *= -1;
+      cerr << FormatMove(pos) << " " << inf << " ";
+    }
+  }
+  cerr << endl;
+#endif
+
+  cerr << endl;
+}
+
+
 ///////////////////////
 //  探索の情報の表示  //
 ///////////////////////
