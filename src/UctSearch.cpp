@@ -1708,6 +1708,12 @@ SelectMaxUcbChild( const game_info_t *game, int current, int color )
   double ucb_bonus_weight = bonus_weight * sqrt(bonus_equivalence / (sum + bonus_equivalence));
   const bool debug = current == current_root && sum % 10000 == 0 && GetDebugMessageMode();
 
+  if (current == current_root && sum % 1000 == 0) {
+    PrintLiveBestSequence(game, uct_node, current_root, color);
+  }
+  //if (evaled) {
+    //cerr << "use nn" << endl;
+//  } else 
   {
     // 128回ごとにOwnerとCriticalityでソートし直す  
     if ((sum & 0x7f) == 0 && sum != 0) {
