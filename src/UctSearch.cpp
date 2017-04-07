@@ -167,7 +167,7 @@ ray_clock::time_point begin_time;
 static bool early_pass = true;
 
 static bool use_nn = true;
-static bool use_gpu = true;
+static int device_id = 0;
 static std::queue<std::shared_ptr<policy_eval_req>> eval_policy_queue;
 static std::queue<std::shared_ptr<value_eval_req>> eval_value_queue;
 static int eval_count_policy, eval_count_value;
@@ -294,9 +294,9 @@ SetUseNN(bool flag)
 }
 
 void
-SetUseGPU(bool flag)
+SetDeviceId(int id)
 {
-  use_gpu = flag;
+  device_id = id;
 }
 
 void
@@ -2175,8 +2175,10 @@ ReadWeights()
   std::string networkConfiguration;
   // with the ones specified.
   //networkConfiguration += "outputNodeNames=\"h1.z:ol.z\"\n";
-  if (!use_gpu)
-    networkConfiguration += "deviceId=-1\n";
+  networkConfiguration += "deviceId=";
+  networkConfiguration += to_string(device_id);
+  networkConfiguration += "\n";
+  networkConfiguration += "lockGPU=false\n";
   networkConfiguration += "modelPath=\"";
   networkConfiguration += uct_params_path;
   networkConfiguration += "/model.bin\"";

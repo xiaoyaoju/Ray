@@ -261,6 +261,6 @@ int RateComp( const void *a, const void *b );
 
 void SetUseNN(bool flag);
 
-void SetUseGPU(bool flag);
+void SetDeviceId(int id);
 
 #endif

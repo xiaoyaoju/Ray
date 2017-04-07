@@ -30,6 +30,7 @@ const string command[COMMAND_MAX] = {
   "--no-nn",
   "--no-gpu",
   "--no-expand",
+  "--device-id",
 };
 
 const string errmessage[COMMAND_MAX] = {
@@ -49,6 +50,7 @@ const string errmessage[COMMAND_MAX] = {
   "Don't use NN",
   "Don't use GPU",
   "No MCTS",
+  "Set GPU to use",
 };
 
 
@@ -123,10 +125,13 @@ AnalyzeCommand( int argc, char **argv )
 	SetUseNN(false);
 	break;
       case COMMAND_NO_GPU:
-	SetUseGPU(false);
+	SetDeviceId(-1);
 	break;
       case COMMAND_NO_EXPAND:
         SetNoExpand(true);
+        break;
+      case COMMAND_DEVICE_ID:
+        SetDeviceId(atoi(argv[++i]));
         break;
       default:
 	for (j = 0; j < COMMAND_MAX; j++){
