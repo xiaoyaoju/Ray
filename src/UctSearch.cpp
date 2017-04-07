@@ -2177,6 +2177,9 @@ ReadWeights()
   //networkConfiguration += "outputNodeNames=\"h1.z:ol.z\"\n";
   if (!use_gpu)
     networkConfiguration += "deviceId=-1\n";
+  else
+    networkConfiguration += "deviceId=0\n";
+  networkConfiguration += "lockGPU=false\n";
   networkConfiguration += "modelPath=\"";
   networkConfiguration += uct_params_path;
   networkConfiguration += "/model.bin\"";
