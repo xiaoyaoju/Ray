@@ -19,6 +19,7 @@
 #include "Point.h"
 #include "Rating.h"
 #include "Simulation.h"
+#include "UctSearch.h"
 #include "Utility.h"
 #include "ZobristHash.h"
 
@@ -952,16 +953,38 @@ void GTP_features_planes_file(void)
   GTP_response(brank, true);
 }
 
+static void DumpSparse(std::ostream& stream, const std::vector<float> data)
+{
+  for (auto i = 0; i < data.size(); i++) {
+    float f = data[i];
+    if (i == 0 || f != 0) {
+      stream << i << ':' << f << ' ';
+    }
+  }
+}
+
+static void DumpDense(std::ostream& stream, const std::vector<float> data)
+{
+  for (auto i = 0; i < data.size(); i++) {
+    stream << data[i] << ' ';
+  }
+}
+
 void DumpFeature(const uct_node_t& node, int color, int move, int win)
 {
   double rate[PURE_BOARD_MAX];
   AnalyzePoRating(game_prev, color, rate);
 
-  std::vector<float> data, data2;
-  int moveT;
+  std::vector<float> data_basic;
+  std::vector<float> data_features;
+  std::vector<float> data_history;
+  std::vector<float> data_owner;
+
   int t = rand() / 11 % 8;
   //static int t = 0; t++;
-  WritePlanes(data, &data2, game_prev, &node, move, &moveT, color, t);
+  int moveT = RevTransformMove(move, t);
+  WritePlanes(data_basic, data_features, data_history, &data_owner,
+    game_prev, &node, color, t);
 
   int x = CORRECT_X(moveT) - 1;
   int y = CORRECT_Y(moveT) - 1;
@@ -970,7 +993,7 @@ void DumpFeature(const uct_node_t& node, int color, int move, int win)
     cerr << "bad label " << x << " " << y << endl;
     abort();
   }
-  if (isnan(data2[0])) {
+  if (isnan(data_owner[0])) {
     cerr << "bad stat" << endl;
     return;
   }
@@ -982,26 +1005,17 @@ void DumpFeature(const uct_node_t& node, int color, int move, int win)
 
   stream << "|win " << win;
   stream << "|move " << label << ":1";
+  stream << "|color " << color - 1;
+  stream << "|komi " << komi[0];
+  stream << "|basic ";
+  DumpSparse(stream, data_basic);
   stream << "|features ";
-  //stream << '\n';
-  for (auto i = 0; i < data.size(); i++) {
-    //if (i % 19 == 0) stream << '\n';
-    float f = data[i];
-    if (f != 0) {
-      stream << i << ':' << f << ' ';
-    }
-  }
+  DumpSparse(stream, data_features);
+  stream << "|history ";
+  DumpSparse(stream, data_history);
 #if 1
   stream << "|statistic ";
-  for (auto i = 0; i < data2.size(); i++) {
-    stream << data2[i] << ' ';
-    /*
-    float f = data2[i];
-    if (f != 0) {
-      stream << i << ':' << f << ' ';
-    }
-    */
-  }
+  DumpDense(stream, data_owner);
 #endif
   stream << endl;
 }
@@ -1075,10 +1089,14 @@ GTP_stat(void)
   double value_sum = 0;
   for (int i = 0; i < 8; i++) {
     std::vector<float> data, data2;
-    int moveT;
     int t = i;// rand() / 11 % 8;
-	      //static int t = 0; t++;
-    WritePlanes(data, &data2, game, &store_node, POS(10, 11), &moveT, player_color, t);
+    std::vector<float> data_basic;
+    std::vector<float> data_features;
+    std::vector<float> data_history;
+    std::vector<float> data_owner;
+
+    WritePlanes(data_basic, data_features, data_history, &data_owner,
+      game, &store_node, player_color, t);
 
     std::vector<int> eval_node_index;
     std::vector<int> eval_node_color;
@@ -1128,7 +1146,6 @@ GTP_stat(void)
     << '\t' << root->value_move_count
     << '\t' << se_valuet
     << endl;
-
 
   IntegerToString(point, pos);
 

@@ -1884,16 +1884,16 @@ GetLibs(
 
 void
 WritePlanes(
-  std::vector<float>& data,
-  std::vector<float>* data2,
+  std::vector<float>& data_basic,
+  std::vector<float>& data_features,
+  std::vector<float>& data_move,
+  std::vector<float>* data_owner,
   const game_info_t *game,
   const uct_node_t *root,
-  int move,
-  int *moveT,
   int color,
   int tran)
 {
-#define OUTPUT_FEATURE(x)	data.push_back((x) ? 1.0f : 0.0f)
+#define OUTPUT_FEATURE(data, x)	data.push_back((x) ? 1.0f : 0.0f)
   const int opp = FLIP_COLOR(color);
 
   bool ladder[2][BOARD_MAX] = { false };
@@ -1902,9 +1902,7 @@ WritePlanes(
   LadderExtension(game, color, ladder[0]);
   LadderExtension(game, opp, ladder[1]);
 
-  data.reserve(19 * 19 * 52);
   {
-    *moveT = RevTransformMove(move, tran);
     const int koT = RevTransformMove(game->ko_pos, tran);
 
 #define OUTPUT(block) \
@@ -1916,81 +1914,88 @@ WritePlanes(
 			}\
 		}
 
-    OUTPUT({ OUTPUT_FEATURE(c == color); });
-    OUTPUT({ OUTPUT_FEATURE(c == opp); });
-    OUTPUT({ OUTPUT_FEATURE(c == S_EMPTY); });
-    OUTPUT({ OUTPUT_FEATURE(color == S_BLACK); });
-    OUTPUT({ OUTPUT_FEATURE(true); });
+    data_basic.reserve(19 * 19 * 10);
 
-    auto start = data.size();
-    OUTPUT({ data.push_back(0.0); });
-    for (int i = 0; i < game->moves; i++) {
-      int p = RevTransformMove(game->record[game->moves - i - 1].pos, tran);
-      if (p == PASS || p == RESIGN)
-	continue;
-      int x = X(p) - OB_SIZE;
-      int y = Y(p) - OB_SIZE;
-      int n = x + y * pure_board_size;
-      if (n < 0 || n >= 19 * 19) {
-	cerr << "bad pos " << n << endl;
-      }
-      //if (i == 0 && pos == move) cerr << "bad pos2 " << n << endl;
-      if (data[start + n] == 0.0f)
-	data[start + n] = pow(2.0f, -i / 10.0f);
-    }
-    OUTPUT({ OUTPUT_FEATURE(p == koT); });
+    OUTPUT({ OUTPUT_FEATURE(data_basic, c == color); });
+    OUTPUT({ OUTPUT_FEATURE(data_basic, c == opp); });
+    OUTPUT({ OUTPUT_FEATURE(data_basic, c == S_EMPTY); });
+    OUTPUT({ OUTPUT_FEATURE(data_basic, color == S_BLACK); });
+    OUTPUT({ OUTPUT_FEATURE(data_basic, true); });
 
-    OUTPUT({ int l = GetLibs(game, p); data.push_back((c == color) ? (std::min(l, 10) / 10.0f) : 0.0f); });
-    OUTPUT({ int l = GetLibs(game, p); data.push_back((c == opp) ? (std::min(l, 10) / 10.0f) : 0.0f); });
+    OUTPUT({ OUTPUT_FEATURE(data_basic, p == koT); });
 
-    OUTPUT({ OUTPUT_FEATURE(ladder[0][p]); });
-    OUTPUT({ OUTPUT_FEATURE(ladder[1][p]); });
+    OUTPUT({ int l = GetLibs(game, p); data_basic.push_back((c == color) ? (std::min(l, 10) / 10.0f) : 0.0f); });
+    OUTPUT({ int l = GetLibs(game, p); data_basic.push_back((c == opp) ? (std::min(l, 10) / 10.0f) : 0.0f); });
 
+    OUTPUT({ OUTPUT_FEATURE(data_basic, ladder[0][p]); });
+    OUTPUT({ OUTPUT_FEATURE(data_basic, ladder[1][p]); });
+
+    data_features.reserve(19 * 19 * (F_MAX1 + F_MAX2));
     for (int i = 0; i < F_MAX1; i++) {
       OUTPUT({
         bool flg = (game->tactical_features1[p] & po_tactical_features_mask[i]) != 0;
-        //if (flg) count1[i]++;
-        OUTPUT_FEATURE(flg);
+      //if (flg) count1[i]++;
+      OUTPUT_FEATURE(data_features, flg);
       });
     }
     for (int i = 0; i < F_MAX2; i++) {
       OUTPUT({
         bool flg = (game->tactical_features2[p] & po_tactical_features_mask[i]) != 0;
-        //if (flg) count2[i]++;
-        OUTPUT_FEATURE(flg);
+      //if (flg) count2[i]++;
+      OUTPUT_FEATURE(data_features, flg);
       });
     }
+
     /*count++;
     if (count % 10000 == 0) {
       cerr << "# FEATURE STAT" << endl;
       for (int i = 0; i < F_MAX1; i++) {
-	cerr << "F1_" << i << ":" << (10000.0 * count1[i] / count / 361) << '\t' << count1[i]<< endl;
+        cerr << "F1_" << i << ":" << (10000.0 * count1[i] / count / 361) << '\t' << count1[i]<< endl;
       }
       for (int i = 0; i < F_MAX2; i++) {
-	cerr << "F2_" << i << ":" << (10000.0 * count2[i] / count / 361) << '\t' << count2[i] << endl;
+        cerr << "F2_" << i << ":" << (10000.0 * count2[i] / count / 361) << '\t' << count2[i] << endl;
       }
     }*/
 
-    if (!data2)
-      return;
-    const statistic_t *statistic = root->statistic;
-    for (int i = 1, y = board_start; y <= board_end; y++, i++) {
-      // cerr << setw(2) << (pure_board_size + 1 - i) << ":|";
-      for (int x = board_start; x <= board_end; x++) {
-	int pos = TransformMove(POS(x, y), tran);
-	// int pos = POS(x, y);
-	double owner = (double)statistic[pos].colors[color] / root->move_count;
-	/*
-	if (owner > 0.5) {
-	player++;
-	}
-	else {
-	opponent++;
-	}
-	*/
-	//own[pos] = owner * 100.0;
-	//cerr << setw(3) << (int)(owner * 100) << " ";
-	data2->push_back((float)owner);
+    data_move.reserve(19 * 19 * 1);
+    OUTPUT({ data_move.push_back(0.0); });
+    for (int i = 0; i < game->moves; i++) {
+      int p = RevTransformMove(game->record[game->moves - i - 1].pos, tran);
+      if (p == PASS || p == RESIGN)
+        continue;
+      int x = X(p) - OB_SIZE;
+      int y = Y(p) - OB_SIZE;
+      int n = x + y * pure_board_size;
+      if (n < 0 || n >= 19 * 19) {
+        cerr << "bad pos " << n << endl;
+      }
+      //if (i == 0 && pos == move) cerr << "bad pos2 " << n << endl;
+      if (data_move[n] == 0.0f)
+        data_move[n] = pow(2.0f, -i / 10.0f);
+    }
+
+    if (data_owner) {
+      data_owner->reserve(19 * 19 * 1);
+      const statistic_t *statistic = root->statistic;
+      for (int i = 1, y = board_start; y <= board_end; y++, i++) {
+        // cerr << setw(2) << (pure_board_size + 1 - i) << ":|";
+        for (int x = board_start; x <= board_end; x++) {
+          int pos = TransformMove(POS(x, y), tran);
+          // int pos = POS(x, y);
+          double owner = (double)statistic[pos].colors[color] / root->move_count;
+          float o = round(owner * 100) / 100;
+          /*
+          if (owner > 0.5) {
+          player++;
+          }
+          else {
+          opponent++;
+          }
+          */
+          //own[pos] = owner * 100.0;
+          //cerr << setw(3) << (int)(owner * 100) << " ";
+          data_owner->push_back(o);
+        }
       }
     }
   }

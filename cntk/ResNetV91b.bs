@@ -1,0 +1,104 @@
+include "$configDir$/Macros.bs"
+
+labelDim = 361
+
+bnTimeConst = 4096
+
+m0 = BS.Network.Load ("Output/ResNetV90a/Conv.279")
+
+# model = Sequential(
+# 	ConvBNReLULayer {192, (5:5), (1:1), bnTimeConst} :
+# 	NLayerStack {8, i => ConvBNReLULayer {192, (3:3), (1:1), bnTimeConst}}
+# )
+model = BS.Network.CloneFunction (
+	m0.in,
+	m0.value_in,
+	parameters="learnable")
+
+model_move  = Sequential(
+	ConvBNReLULayer {64, (1:1), (1:1), bnTimeConst} :
+	#NLayerStack {20, i => ConvBNReLULayer {64, (3:3), (1:1), bnTimeConst}} :
+	ResNetBasic3Stack {10, 64, bnTimeConst} :
+	ConvolutionalLayer {1, (3:3), pad = true}
+)
+
+model_share = Sequential(
+	ConvBNReLULayer {64, (1:1), (1:1), bnTimeConst} :
+	#NLayerStack {20, i => ConvBNReLULayer {64, (3:3), (1:1), bnTimeConst}}
+	ResNetBasic3Stack {10, 64, bnTimeConst}
+)
+
+model_owner = ConvolutionalLayer {1, (1:1)}
+model_value = Sequential(
+	NLayerStack {4, i => ConvBNReLULayer {64, (3:3), (1:1), bnTimeConst}} :
+	ConvolutionalLayer {1, (1:1)} :
+	Tanh
+)
+
+# inputs
+win			= Input {1, tag='label'}
+move		= Input {361, tag='label'}
+color		= Input {1, tag='feature'}
+komi		= Input {1, tag='feature'}
+basic		= Input {19:19:10, tag='feature'}
+features	= Input {19:19:41, tag='feature'}
+history		= Input {19:19:1, tag='feature'}
+statistic	= Input {19:19:1, tag='label'}
+
+# apply model to features
+
+# features_a = Slice(0, 5, features, axis = 3)
+# features_b = Slice(6, 52, features, axis = 3)
+# features1 = Splice ((features_a : features_b), axis = 3)	
+# core = model(features1)
+# core2 = Splice ((core : features), axis = 3)
+# core3 = Splice ((core : features1), axis = 3)
+
+in = Splice ((basic : features : history), axis = 3)
+core = model(in)
+
+## move
+#move_in = Splice ((core : history), axis = 3)
+sqm = model_move (core)
+ol = FlattenDimensions (sqm, 1, 2)
+op = Softmax(ol)
+ce_move   = CrossEntropyWithSoftmax     (move, ol)
+errs_move = ClassificationError         (move, ol)
+top5Errs  = ClassificationError         (move, ol, topN=5)  # only used in Eval action
+
+## value
+value_in = core
+share = model_share(value_in)
+
+sq_owner = model_owner (share)
+owner = Sigmoid(sq_owner)
+err_owner = SquareError(owner, statistic)
+#err_owner_sum = SquareError(owner_sum, stat_sum)
+ce_owner = err_owner
+#ce_owner_sum = err_owner_sum
+
+point_value = model_value (share)
+komi_scale = ParameterTensor {(1:1), learningRateMultiplier=0.05, initValue=1.0}
+komilike = ElementTimes(komi, komi_scale)
+sum = ReduceSum(point_value) + (color * 2 - 1) * komilike
+sum_scale = ParameterTensor {(1:1), learningRateMultiplier=0.05, initValue=1.0}
+p = Tanh(sum * 0.01 * sum_scale)
+err_value = SquareError(win, p)
+ce_value  = err_value
+
+# connect to system
+#ce = Plus(ce_move, ce_owner)
+#ce_1 = ce_owner + ce_owner_sum + ce_move + ce_value
+ce_0 = ce_move + (ce_owner + ce_value) * 0.01
+ce_1 = ce_owner + ce_move + ce_value
+ce_2 = ce_move + ce_value
+##ce_3 = ce_move + ce_owner_sum
+#ce_4 = ce_m + ce_owner + ce_value
+#ce_5 = ce_1 + ce_m
+errs     = ClassificationError         (move, ol)
+
+featureNodes    = (color : komi : basic : features : history)
+labelNodes      = (move)
+criterionNodes  = (ce_0)
+evaluationNodes = (errs : err_value : err_owner)  # top5Errs only used in Eval
+outputNodes     = (p : ol : op : point_value : owner)

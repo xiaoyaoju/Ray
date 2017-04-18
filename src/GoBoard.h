@@ -264,9 +264,9 @@ void GetNeighbor4( int neighbor4[4], int pos );
 
 struct uct_node_t;
 
-void
-WritePlanes(std::vector<float>& data, std::vector<float>* data2, const game_info_t *game, const uct_node_t *root,
-  int move, int *moveT,
+void WritePlanes(std::vector<float>& data_basic, std::vector<float>& data_features,
+  std::vector<float>& data_move, std::vector<float>* data_owner,
+  const game_info_t *game, const uct_node_t *root,
   int color, int tran);
 
 int TransformMove(int p, int i);

@@ -7,7 +7,7 @@ const int BUF_SIZE = 256;
 
 #define DELIM  " "
 #define PROGRAM_NAME  "Rayon"
-#define PROGRAM_VERSION  "8.0.1"
+#define PROGRAM_VERSION  "8.0.1+3.0"
 #define PROTOCOL_VERSION  "2"
 
 #if defined (_WIN32)

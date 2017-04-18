@@ -56,7 +56,9 @@ struct value_eval_req {
   int color;
   int trans;
   std::vector<int> path;
-  std::vector<float> data;
+  std::vector<float> data_basic;
+  std::vector<float> data_features;
+  std::vector<float> data_history;
 };
 
 struct policy_eval_req {
@@ -64,7 +66,9 @@ struct policy_eval_req {
   int depth;
   int color;
   int trans;
-  std::vector<float> data;
+  std::vector<float> data_basic;
+  std::vector<float> data_features;
+  std::vector<float> data_history;
 };
 
 void ReadWeights();
@@ -1108,23 +1112,20 @@ RatingNode(game_info_t *game, int color, int index, int depth)
 
   if (use_nn) {
     //int color = game->record[game->moves - 1].color;
-    int move = PASS;
 
-#if 0
-    UctSearchStat(game_prev, color, 100);
-#endif
     uct_node_t *root = &uct_node[current_root];
 
     double rate[PURE_BOARD_MAX];
     AnalyzePoRating(game, color, rate);
+
     auto req = make_shared<policy_eval_req>();
     req->color = color;
     req->depth = depth;
     req->index = index;
     req->trans = rand() / (RAND_MAX / 8 + 1);
     //req.path.swap(path);
-    int moveT;
-    WritePlanes(req->data, nullptr, game, root, move, &moveT, color, req->trans);
+    WritePlanes(req->data_basic, req->data_features, req->data_history, nullptr,
+      game, root, color, req->trans);
 #if 1
     eval_policy_queue.push(req);
     //push_back(u);
@@ -1465,7 +1466,6 @@ UctSearch(game_info_t *game, int color, mt19937_64 *mt, int current, int *winner
     bool expected = false;
     if (use_nn
       && atomic_compare_exchange_strong(&uct_child[next_index].eval_value, &expected, true)) {
-      int move = PASS;
 
       uct_node_t *root = &uct_node[current_root];
 
@@ -1477,8 +1477,8 @@ UctSearch(game_info_t *game, int color, mt19937_64 *mt, int current, int *winner
       //req->index = index;
       req->trans = rand() / (RAND_MAX / 8 + 1);
       req->path.swap(path);
-      int moveT;
-      WritePlanes(req->data, nullptr, game, root, move, &moveT, color, req->trans);
+      WritePlanes(req->data_basic, req->data_features, req->data_history, nullptr,
+        game, root, color, req->trans);
       LOCK_EXPAND;
       eval_value_queue.push(req);
       UNLOCK_EXPAND;
@@ -2181,17 +2181,39 @@ ReadWeights()
   networkConfiguration += "lockGPU=false\n";
   networkConfiguration += "modelPath=\"";
   networkConfiguration += uct_params_path;
-  networkConfiguration += "/model.bin\"";
+  networkConfiguration += "/model2.bin\"";
   nn_model->CreateNetwork(networkConfiguration);
+
+#if 0
+  std::map<std::wstring, size_t> inDims;
+  std::map<std::wstring, size_t> outDims;
+
+  nn_model->GetNodeDimensions(inDims, Microsoft::MSR::CNTK::NodeGroup::nodeInput);
+  nn_model->GetNodeDimensions(outDims, Microsoft::MSR::CNTK::NodeGroup::nodeOutput);
+  cerr << "Input" << endl;
+  for (auto p : inDims) {
+    wcerr << p.first << ":" << p.second << endl;
+  }
+  cerr << "Output" << endl;
+  for (auto p : outDims) {
+    wcerr << p.first << ":" << p.second << endl;
+  }
+#endif
 
   cerr << "ok" << endl;
 }
 
 void
-EvalPolicy(const std::vector<std::shared_ptr<policy_eval_req>>& requests, std::vector<float>& data)
+EvalPolicy(const std::vector<std::shared_ptr<policy_eval_req>>& requests,
+  std::vector<float>& data_basic, std::vector<float>& data_features, std::vector<float>& data_history,
+  std::vector<float>& data_color, std::vector<float>& data_komi)
 {
   Layer inputLayer;
-  inputLayer.insert(MapEntry(L"features", &data));
+  inputLayer.insert(MapEntry(L"basic", &data_basic));
+  inputLayer.insert(MapEntry(L"features", &data_features));
+  inputLayer.insert(MapEntry(L"history", &data_history));
+  inputLayer.insert(MapEntry(L"color", &data_color));
+  inputLayer.insert(MapEntry(L"komi", &data_komi));
   Layer outputLayer;
   //std::vector<float> ownern;
   std::vector<float> moves;
@@ -2290,16 +2312,30 @@ EvalPolicy(const std::vector<std::shared_ptr<policy_eval_req>>& requests, std::v
 
 
 void
-EvalValue(const std::vector<std::shared_ptr<value_eval_req>>& requests, std::vector<float>& data)
+EvalValue(const std::vector<std::shared_ptr<value_eval_req>>& requests,
+  std::vector<float>& data_basic, std::vector<float>& data_features, std::vector<float>& data_history,
+  std::vector<float>& data_color, std::vector<float>& data_komi)
 {
   Layer inputLayer;
-  inputLayer.insert(MapEntry(L"features", &data));
+  inputLayer.insert(MapEntry(L"basic", &data_basic));
+  inputLayer.insert(MapEntry(L"features", &data_features));
+  inputLayer.insert(MapEntry(L"history", &data_history));
+  inputLayer.insert(MapEntry(L"color", &data_color));
+  inputLayer.insert(MapEntry(L"komi", &data_komi));
   Layer outputLayer;
   std::vector<float> win;
   win.reserve(requests.size());
   outputLayer.insert(MapEntry(L"p", &win));
 
-  nn_model->Evaluate(inputLayer, outputLayer);
+  try {
+    nn_model->Evaluate(inputLayer, outputLayer);
+  } catch (const std::exception& err) {
+    fprintf(stderr, "Evaluation failed. EXCEPTION occurred: %s\n", err.what());
+    abort();
+  } catch (...) {
+    fprintf(stderr, "Evaluation failed. Unknown ERROR occurred.\n");
+    abort();
+  }
 
   if (win.size() != requests.size()) {
     cerr << "Eval win error " << win.size() << endl;
@@ -2332,7 +2368,11 @@ EvalValue(const std::vector<std::shared_ptr<value_eval_req>>& requests, std::vec
   eval_count_value += requests.size();
 }
 
-static std::vector<float> eval_input_data;
+static std::vector<float> eval_input_data_basic;
+static std::vector<float> eval_input_data_features;
+static std::vector<float> eval_input_data_history;
+static std::vector<float> eval_input_data_color;
+static std::vector<float> eval_input_data_komi;
 
 void EvalNode() {
 #if 1
@@ -2363,11 +2403,19 @@ void EvalNode() {
       }
       UNLOCK_EXPAND;
 
-      eval_input_data.resize(0);
+      eval_input_data_basic.resize(0);
+      eval_input_data_features.resize(0);
+      eval_input_data_history.resize(0);
+      eval_input_data_color.resize(0);
+      eval_input_data_komi.resize(0);
       for (auto& req : requests) {
-	std::copy(req->data.begin(), req->data.end(), std::back_inserter(eval_input_data));
+        std::copy(req->data_basic.begin(), req->data_basic.end(), std::back_inserter(eval_input_data_basic));
+        std::copy(req->data_features.begin(), req->data_features.end(), std::back_inserter(eval_input_data_features));
+        std::copy(req->data_history.begin(), req->data_history.end(), std::back_inserter(eval_input_data_history));
+        eval_input_data_color.push_back(req->color - 1);
+        eval_input_data_komi.push_back(komi[0]);
       }
-      EvalPolicy(requests, eval_input_data);
+      EvalPolicy(requests, eval_input_data_basic, eval_input_data_features, eval_input_data_history, eval_input_data_color, eval_input_data_komi);
       LOCK_EXPAND;
     }
 
@@ -2383,11 +2431,19 @@ void EvalNode() {
       }
       UNLOCK_EXPAND;
 
-      eval_input_data.resize(0);
+      eval_input_data_basic.resize(0);
+      eval_input_data_features.resize(0);
+      eval_input_data_history.resize(0);
+      eval_input_data_color.resize(0);
+      eval_input_data_komi.resize(0);
       for (auto& req : requests) {
-	std::copy(req->data.begin(), req->data.end(), std::back_inserter(eval_input_data));
+        std::copy(req->data_basic.begin(), req->data_basic.end(), std::back_inserter(eval_input_data_basic));
+        std::copy(req->data_features.begin(), req->data_features.end(), std::back_inserter(eval_input_data_features));
+        std::copy(req->data_history.begin(), req->data_history.end(), std::back_inserter(eval_input_data_history));
+        eval_input_data_color.push_back(req->color - 1);
+        eval_input_data_komi.push_back(komi[0]);
       }
-      EvalValue(requests, eval_input_data);
+      EvalValue(requests, eval_input_data_basic, eval_input_data_features, eval_input_data_history, eval_input_data_color, eval_input_data_komi);
     }
   }
 #endif

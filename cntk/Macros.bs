@@ -1,0 +1,204 @@
+# assembly components
+## Convolution + Batch Normalization
+ConvBNLayer {outChannels, kernel, stride, bnTimeConst} = Sequential(
+    ConvolutionalLayer {outChannels, kernel, init = "heNormal", stride = stride, pad = true, bias = false} :
+    BatchNormalizationLayer {spatialRank = 2, normalizationTimeConstant = bnTimeConst, useCntkEngine = false}
+)
+
+## Convolution + Batch Normalization + Rectifier Linear
+ConvBNReLULayer {outChannels, kernelSize, stride, bnTimeConst} = Sequential(
+    ConvBNLayer {outChannels, kernelSize, stride, bnTimeConst} :
+    ReLU
+)
+
+ConvBNSigmoidLayer {outChannels, kernelSize, stride, bnTimeConst} = Sequential(
+    ConvBNLayer {outChannels, kernelSize, stride, bnTimeConst} :
+    Sigmoid
+)
+
+
+BNReLUConvLayer {outChannels, kernel, stride, bnTimeConst} = Sequential(
+    BatchNormalizationLayer {spatialRank = 2, normalizationTimeConstant = bnTimeConst, useCntkEngine = false} :
+    ReLU :
+    ConvolutionalLayer {outChannels, kernel, init = "heNormal", stride = stride, pad = true, bias = false}
+)
+
+BNSigmoidConvLayer {outChannels, kernel, stride, bnTimeConst} = Sequential(
+    BatchNormalizationLayer {spatialRank = 2, normalizationTimeConstant = bnTimeConst, useCntkEngine = false} :
+    Sigmoid :
+    ConvolutionalLayer {outChannels, kernel, init = "heNormal", stride = stride, pad = true, bias = false}
+)
+
+# Sig
+ConvTanhLayer {outChannels, kernel, stride} = Sequential(
+    ConvolutionalLayer {outChannels, kernel, init = "heNormal", stride = stride, pad = true, bias = true} :
+    Tanh
+)
+
+ConvTanhLayerNoBias {outChannels, kernel, stride} = Sequential(
+    ConvolutionalLayer {outChannels, kernel, init = "heNormal", stride = stride, pad = true, bias = false} :
+    Tanh
+)
+
+# ResNet components
+
+# The basic ResNet block contains two 3x3 convolutions, which is added to the orignal input 
+# of the block.  
+ResNetBasic {outChannels, bnTimeConst} = {
+    apply (x) = {
+        # Convolution
+        b = Sequential (
+            ConvBNReLULayer {outChannels, (3:3), (1:1), bnTimeConst} : 
+            ConvBNLayer {outChannels, (3:3), (1:1), bnTimeConst}) (x) 
+
+        p = Plus(b, x)
+        r = ReLU(p)
+    }.r
+}.apply
+
+ResNetBasic2 {outChannels, bnTimeConst} = {
+    apply (x) = {
+        # Convolution
+        b = Sequential (
+            ConvBNReLULayer {outChannels, (3:3), (1:1), bnTimeConst} : 
+            ConvBNLayer {outChannels, (3:3), (1:1), bnTimeConst}) (x) 
+
+        p = Plus(b, x)
+    }.p
+}.apply
+
+
+ResNetBasic3 {outChannels, bnTimeConst} = {
+    apply (x) = {
+        # Convolution
+        b = Sequential (
+            BNReLUConvLayer {outChannels, (3:3), (1:1), bnTimeConst} : 
+            BNReLUConvLayer {outChannels, (3:3), (1:1), bnTimeConst}) (x) 
+
+        p = Plus(b, x)
+    }.p
+}.apply
+
+
+ResNetSBasic3 {outChannels, bnTimeConst} = {
+    apply (x) = {
+        # Convolution
+        b = Sequential (
+            BNSigmoidConvLayer {outChannels, (3:3), (1:1), bnTimeConst} : 
+            BNSigmoidConvLayer {outChannels, (3:3), (1:1), bnTimeConst}) (x) 
+
+        p = Plus(b, x)
+    }.p
+}.apply
+
+
+ResNet1 {outChannels, bnTimeConst} = {
+    apply (x) = {
+        # Convolution
+        b = ConvBNReLULayer {outChannels, (3:3), (1:1), bnTimeConst} (x)
+        p = Plus(b, x)
+    }.p
+}.apply
+
+# A block to reduce the feature map resolution. Two 3x3 convolutions with stride, which is
+# added to the original input with 1x1 convolution and stride 
+ResNetBasicInc {outChannels, stride, bnTimeConst} = {
+    apply (x) = {
+        # Convolution 
+        b = Sequential (
+            ConvBNReLULayer {outChannels, (3:3), stride, bnTimeConst} :
+            ConvBNLayer {outChannels, (3:3), (1:1), bnTimeConst}) (x)
+
+        # Shortcut
+        s = ConvBNLayer {outChannels, (1:1), stride, bnTimeConst} (x)
+
+        p = Plus(b, s)
+        r = ReLU(p)
+    }.r
+}.apply
+
+# A bottleneck ResNet block is attempting to reduce the amount of computation by replacing
+# the two 3x3 convolutions by a 1x1 convolution, bottlenecked to `interOutChannels` feature 
+# maps (usually interOutChannels < outChannels, thus the name bottleneck), followed by a 
+# 3x3 convolution, and then a 1x1 convolution again, with `outChannels` feature maps. 
+ResNetBottleneck {outChannels, interOutChannels, bnTimeConst} = {
+    apply (x) = {
+        # Convolution
+        # b = Sequential (
+        #     ConvBNReLULayer {interOutChannels, (1:1), (1:1), bnTimeConst} :
+        #     ConvBNReLULayer {interOutChannels, (3:3), (1:1), bnTimeConst} :
+        #     ConvBNLayer {outChannels, (1:1), (1:1), bnTimeConst}) (x)
+
+        # p = Plus(b, x)
+        # r = ReLU(p)
+        b = Sequential (
+            BNReLUConvLayer {interOutChannels, (1:1), (1:1), bnTimeConst} :
+            BNReLUConvLayer {interOutChannels, (3:3), (1:1), bnTimeConst} :
+            BNReLUConvLayer {outChannels, (1:1), (1:1), bnTimeConst}) (x)
+
+        r = Plus(b, x)
+    }.r
+}.apply
+
+# a block to reduce the feature map resolution using bottleneck. One can reduce the size 
+# either at the first 1x1 convolution by specifying "stride1x1=(2:2)" (original paper), 
+# or at the 3x3 convolution by specifying "stride3x3=(2:2)" (Facebook re-implementation). 
+ResNetBottleneckInc {outChannels, interOutChannels, stride1x1, stride3x3, bnTimeConst} = {
+    apply (x) = {
+        # Convolution
+        b = Sequential (
+            ConvBNReLULayer {interOutChannels, (1:1), stride1x1, bnTimeConst} :
+            ConvBNReLULayer {interOutChannels, (3:3), stride3x3, bnTimeConst} :
+            ConvBNLayer {outChannels, (1:1), (1:1), bnTimeConst}) (x)
+
+        # Shortcut
+        stride[i:0..Length(stride1x1)-1] = stride1x1[i] * stride3x3[i]
+        s = ConvBNLayer {outChannels, (1:1), stride, bnTimeConst} (x)
+
+        p = Plus(b, s)
+        r = ReLU(p)
+    }.r
+}.apply
+
+NLayerStack {n, c} = Sequential (array[0..n-1] (c))
+ResNetBasicStack {n, outChannels, bnTimeConst} = NLayerStack {n, i => ResNetBasic {outChannels, bnTimeConst}}
+ResNetBasic2Stack {n, outChannels, bnTimeConst} = NLayerStack {n, i => ResNetBasic2 {outChannels, bnTimeConst}}
+ResNetBasic3Stack {n, outChannels, bnTimeConst} = NLayerStack {n, i => ResNetBasic3 {outChannels, bnTimeConst}}
+ResNetSBasic3Stack {n, outChannels, bnTimeConst} = NLayerStack {n, i => ResNetSBasic3 {outChannels, bnTimeConst}}
+ResNetBottleneckStack {n, outChannels, interOutChannels, bnTimeConst} = NLayerStack {n, i => ResNetBottleneck {outChannels, interOutChannels, bnTimeConst}}
+
+ResNet1Stack {n, outChannels, bnTimeConst} = NLayerStack {n, i => ResNet1 {outChannels, bnTimeConst}}
+
+ConvBNReLULayerStack {n, outChannels, kernelSize, stride, bnTimeConst} =
+	NLayerStack {n, i => ConvBNReLULayer {outChannels, kernelSize, stride, bnTimeConst}}
+
+# The basic ResNet block contains two 3x3 convolutions, which is added to the orignal input 
+# of the block.
+ResNetBasic3D {outChannels, kernelSize, stride, bnTimeConst} = {
+    apply (x) = {
+        # Convolution
+        b = Sequential (
+            ConvBNReLULayer {outChannels, kernelSize, stride, bnTimeConst} : 
+            ConvBNLayer {outChannels, kernelSize, stride, bnTimeConst}) (x) 
+
+        p = Plus(b, x)
+        r = ReLU(p)
+    }.r
+}.apply
+
+ResNetBasic3DStack {n, outChannels, kernelSize, stride, bnTimeConst} =
+	NLayerStack {n, i => ResNetBasic3D {outChannels, kernelSize, stride, bnTimeConst}}
+
+ResNetBasic3D2 {outChannels, kernelSize, stride, bnTimeConst} = {
+    apply (x) = {
+        # Convolution
+        b = Sequential (
+            BNReLUConvLayer {outChannels, kernelSize, stride, bnTimeConst} : 
+            BNReLUConvLayer {outChannels, kernelSize, stride, bnTimeConst}) (x) 
+
+        r = Plus(b, x)
+    }.r
+}.apply
+
+ResNetBasic3D2Stack {n, outChannels, kernelSize, stride, bnTimeConst} =
+	NLayerStack {n, i => ResNetBasic3D2 {outChannels, kernelSize, stride, bnTimeConst}}
