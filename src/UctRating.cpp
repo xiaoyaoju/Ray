@@ -78,7 +78,6 @@ const unsigned long long uct_mask[UCT_MASK_MAX] = {
 };
 
 
-
 static double criticality_init = CRITICALITY_INIT;
 static double criticality_bias = CRITICALITY_BIAS;
 static double owner_bias = OWNER_BIAS;
@@ -807,7 +806,6 @@ UctCheckRemove2Stones( const game_info_t *game, int color, uct_features_t *uct_f
     tactical_features1[rm1] |= uct_mask[UCT_THROW_IN_2];
   }
 
-
   for (i = 0, connect = 0; i < 4; i++) {
     if ((game->board[rm2 + cross[i]] & color) == color) {
       connect++;
@@ -876,7 +874,6 @@ UctCheckKeimaTsukekoshi( const game_info_t *game, int color, int pos, uct_featur
   opponent_pos[5] = board_size - 1;
   opponent_pos[6] = board_size;
   opponent_pos[7] = board_size + 1;
-
 
   // Pattern No.1
   // ?O+?
@@ -1050,7 +1047,6 @@ UctCheckSnapBack( const game_info_t *game, int color, int pos, uct_features_t *u
 
   GetNeighbor4(neighbor4, pos);
 
-
   for (i = 0; i < 4; i++) {
     if (board[neighbor4[i]] == other) {
       int id = string_id[neighbor4[i]];
@@ -1080,7 +1076,7 @@ UctCheckSnapBack( const game_info_t *game, int color, int pos, uct_features_t *u
 double
 CalculateLFRScore( const game_info_t *game, int pos, int index[3], uct_features_t *uct_features )
 {
-  const struct pattern *pat = game->pat;
+  const pattern_t *pat = game->pat;
   int pm1 = PASS, pm2 = PASS;
   int moves = game->moves;
   int i, j, f, dis1 = -1, dis2 = -1;

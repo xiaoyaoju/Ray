@@ -44,41 +44,14 @@ char po_params_path[1024];
 
 // ビットマスク
 unsigned int po_tactical_features_mask[F_MASK_MAX] = {
-  0x00000001,
-  0x00000002,
-  0x00000004,
-  0x00000008,
-  0x00000010,
-
-  0x00000020,
-  0x00000040,
-  0x00000080,
-  0x00000100,
-  0x00000200,
-
-  0x00000400,
-  0x00000800,
-  0x00001000,
-  0x00002000,
-  0x00004000,
-
-  0x00008000,
-  0x00010000,
-  0x00020000,
-  0x00040000,
-  0x00080000,
-
-  0x00100000,
-  0x00200000,
-  0x00400000,
-  0x00800000,
-  0x01000000,
-
-  0x02000000,
-  0x04000000,
-  0x08000000,
-  0x10000000,
-  0x20000000,
+  0x00000001,  0x00000002,  0x00000004,  0x00000008,
+  0x00000010,  0x00000020,  0x00000040,  0x00000080,
+  0x00000100,  0x00000200,  0x00000400,  0x00000800,
+  0x00001000,  0x00002000,  0x00004000,  0x00008000,
+  0x00010000,  0x00020000,  0x00040000,  0x00080000,
+  0x00100000,  0x00200000,  0x00400000,  0x00800000,
+  0x01000000,  0x02000000,  0x04000000,  0x08000000,
+  0x10000000,  0x20000000,
 };
 
 
@@ -98,11 +71,33 @@ double po_bias = PO_BIAS;
 //  関数の宣言  //
 //////////////////
 
+//  呼吸点が1つの連に対する特徴の判定  
+static void PoCheckFeaturesLib1( game_info_t *game, const int color, const int id, int *update, int *update_num );
+
+//  呼吸点が2つの連に対する特徴の判定
+static void PoCheckFeaturesLib2( game_info_t *game, const int color, const int id, int *update, int *update_num );
+
+//  呼吸点が3つの連に対する特徴の判定
+static void PoCheckFeaturesLib3( game_info_t *game, const int color, const int id, int *update, int *update_num );
+
+//  特徴の判定
+static void PoCheckFeatures( game_info_t *game, const int color, int previous_move, int *update, int *update_num );
+
+//  劫を解消するトリの判定
+static void PoCheckCaptureAfterKo( game_info_t *game, const int color, int *update, int *update_num );
+
+//  自己アタリの判定
+static bool PoCheckSelfAtari( game_info_t *game, const int color, const int pos );
+
+//  トリとアタリの判定
+static void PoCheckCaptureAndAtari( game_info_t *game, const int color, const int pos );
+
+//  2目の抜き後に対するホウリコミ   
+static void PoCheckRemove2Stones( game_info_t *game, const int color, int *update, int *update_num );
+
 //  γ読み込み
 static void InputPOGamma( void );
 static void InputMD2( const char *filename, float *ap );
-
-
 
 
 /////////////////
@@ -664,12 +659,11 @@ Rating( game_info_t *game, int color, long long *sum_rate, long long *sum_rate_r
 }
 
 
-
 /////////////////////////////////////////
 //  呼吸点が1つの連に対する特徴の判定  //
 /////////////////////////////////////////
-void
-PoCheckFeaturesLib1( game_info_t *game, int color, int id, int *update, int *update_num )
+static void
+PoCheckFeaturesLib1( game_info_t *game, const int color, const int id, int *update, int *update_num )
 {
   char *board = game->board;
   string_t *string = game->string;
@@ -684,8 +678,8 @@ PoCheckFeaturesLib1( game_info_t *game, int color, int id, int *update, int *upd
 
   // 呼吸点の上下左右が敵石に接触しているか確認
   if (board[NORTH(lib)] == other) contact = true;
-  if (board[EAST(lib)] == other) contact = true;
-  if (board[WEST(lib)] == other) contact = true;
+  if (board[ EAST(lib)] == other) contact = true;
+  if (board[ WEST(lib)] == other) contact = true;
   if (board[SOUTH(lib)] == other) contact = true;
 
   // 呼吸点の上下左右が敵連に接しているか
@@ -774,8 +768,8 @@ PoCheckFeaturesLib1( game_info_t *game, int color, int id, int *update, int *upd
 /////////////////////////////////////////
 //  呼吸点が2つの連に対する特徴の判定  //
 /////////////////////////////////////////
-void
-PoCheckFeaturesLib2( game_info_t *game, int color, int id, int *update, int *update_num )
+static void
+PoCheckFeaturesLib2( game_info_t *game, const int color, const int id, int *update, int *update_num )
 {
   int *string_id = game->string_id;
   string_t *string = game->string;
@@ -792,9 +786,9 @@ PoCheckFeaturesLib2( game_info_t *game, int color, int id, int *update, int *upd
   if (nb4_empty[Pat3(game->pat, lib1)] == 3 ||
       (board[NORTH(lib1)] == color && string_id[NORTH(lib1)] != id &&
        string[string_id[NORTH(lib1)]].libs >= 3) ||
-      (board[WEST(lib1)] == color && string_id[WEST(lib1)] != id &&
+      (board[ WEST(lib1)] == color && string_id[ WEST(lib1)] != id &&
        string[string_id[WEST(lib1)]].libs >= 3) ||
-      (board[EAST(lib1)] == color && string_id[EAST(lib1)] != id &&
+      (board[ EAST(lib1)] == color && string_id[ EAST(lib1)] != id &&
        string[string_id[EAST(lib1)]].libs >= 3) ||
       (board[SOUTH(lib1)] == color && string_id[SOUTH(lib1)] != id &&
        string[string_id[SOUTH(lib1)]].libs >= 3)) {
@@ -807,9 +801,9 @@ PoCheckFeaturesLib2( game_info_t *game, int color, int id, int *update, int *upd
   if (nb4_empty[Pat3(game->pat, lib2)] == 3 ||
       (board[NORTH(lib2)] == color && string_id[NORTH(lib2)] != id &&
        string[string_id[NORTH(lib2)]].libs >= 3) ||
-      (board[WEST(lib2)] == color && string_id[WEST(lib2)] != id &&
+      (board[ WEST(lib2)] == color && string_id[ WEST(lib2)] != id &&
        string[string_id[WEST(lib2)]].libs >= 3) ||
-      (board[EAST(lib2)] == color && string_id[EAST(lib2)] != id &&
+      (board[ EAST(lib2)] == color && string_id[ EAST(lib2)] != id &&
        string[string_id[EAST(lib2)]].libs >= 3) ||
       (board[SOUTH(lib2)] == color && string_id[SOUTH(lib2)] != id &&
        string[string_id[SOUTH(lib2)]].libs >= 3)) {
@@ -874,8 +868,8 @@ PoCheckFeaturesLib2( game_info_t *game, int color, int id, int *update, int *upd
 /////////////////////////////////////////
 //  呼吸点が3つの連に対する特徴の判定  //
 /////////////////////////////////////////
-void
-PoCheckFeaturesLib3( game_info_t *game, int color, int id, int *update, int *update_num )
+static void
+PoCheckFeaturesLib3( game_info_t *game, const int color, const int id, int *update, int *update_num )
 {
   int *string_id = game->string_id;
   string_t *string = game->string;
@@ -893,9 +887,9 @@ PoCheckFeaturesLib3( game_info_t *game, int color, int id, int *update, int *upd
   if (nb4_empty[Pat3(game->pat, lib1)] == 3 ||
       (board[NORTH(lib1)] == color && string_id[NORTH(lib1)] != id &&
        string[string_id[NORTH(lib1)]].libs >= 3) ||
-      (board[WEST(lib1)] == color && string_id[WEST(lib1)] != id &&
+      (board[ WEST(lib1)] == color && string_id[ WEST(lib1)] != id &&
        string[string_id[WEST(lib1)]].libs >= 3) ||
-      (board[EAST(lib1)] == color && string_id[EAST(lib1)] != id &&
+      (board[ EAST(lib1)] == color && string_id[ EAST(lib1)] != id &&
        string[string_id[EAST(lib1)]].libs >= 3) ||
       (board[SOUTH(lib1)] == color && string_id[SOUTH(lib1)] != id &&
        string[string_id[SOUTH(lib1)]].libs >= 3)) {
@@ -908,9 +902,9 @@ PoCheckFeaturesLib3( game_info_t *game, int color, int id, int *update, int *upd
   if (nb4_empty[Pat3(game->pat, lib2)] == 3 ||
       (board[NORTH(lib2)] == color && string_id[NORTH(lib2)] != id &&
        string[string_id[NORTH(lib2)]].libs >= 3) ||
-      (board[WEST(lib2)] == color && string_id[WEST(lib2)] != id &&
+      (board[ WEST(lib2)] == color && string_id[ WEST(lib2)] != id &&
        string[string_id[WEST(lib2)]].libs >= 3) ||
-      (board[EAST(lib2)] == color && string_id[EAST(lib2)] != id &&
+      (board[ EAST(lib2)] == color && string_id[ EAST(lib2)] != id &&
        string[string_id[EAST(lib2)]].libs >= 3) ||
       (board[SOUTH(lib2)] == color && string_id[SOUTH(lib2)] != id &&
        string[string_id[SOUTH(lib2)]].libs >= 3)) {
@@ -923,10 +917,10 @@ PoCheckFeaturesLib3( game_info_t *game, int color, int id, int *update, int *upd
   if (nb4_empty[Pat3(game->pat, lib3)] == 3 ||
       (board[NORTH(lib3)] == color && string_id[NORTH(lib3)] != id &&
        string[string_id[NORTH(lib3)]].libs >= 3) ||
-      (board[WEST(lib3)] == color && string_id[WEST(lib3)] != id &&
-       string[string_id[WEST(lib3)]].libs >= 3) ||
-      (board[EAST(lib3)] == color && string_id[EAST(lib3)] != id &&
-       string[string_id[EAST(lib3)]].libs >= 3) ||
+      (board[ WEST(lib3)] == color && string_id[ WEST(lib3)] != id &&
+       string[string_id[ WEST(lib3)]].libs >= 3) ||
+      (board[ EAST(lib3)] == color && string_id[ EAST(lib3)] != id &&
+       string[string_id[ EAST(lib3)]].libs >= 3) ||
       (board[SOUTH(lib3)] == color && string_id[SOUTH(lib3)] != id &&
        string[string_id[SOUTH(lib3)]].libs >= 3)) {
     game->tactical_features2[lib3] |= po_tactical_features_mask[F_3POINT_EXTENSION_SAFELY];
@@ -1008,8 +1002,8 @@ PoCheckFeaturesLib3( game_info_t *game, int color, int id, int *update, int *upd
 //////////////////
 //  特徴の判定  //
 //////////////////
-void
-PoCheckFeatures( game_info_t *game, int color, int previous_move, int *update, int *update_num )
+static void
+PoCheckFeatures( game_info_t *game, const int color, int previous_move, int *update, int *update_num )
 {
   string_t *string = game->string;
   char *board = game->board;
@@ -1083,8 +1077,8 @@ PoCheckFeatures( game_info_t *game, int color, int previous_move, int *update, i
 ////////////////////////
 //  劫を解消するトリ  //
 ////////////////////////
-void
-PoCheckCaptureAfterKo( game_info_t *game, int color, int *update, int *update_num )
+static void
+PoCheckCaptureAfterKo( game_info_t *game, const int color, int *update, int *update_num )
 {
   string_t *string = game->string;
   char *board = game->board;
@@ -1199,8 +1193,8 @@ PoCheckSnapBack( game_info_t *game, int color, int pos, int pos0 )
 //////////////////
 //  自己アタリ  //
 //////////////////
-bool
-PoCheckSelfAtari( game_info_t *game, int color, int pos )
+static bool
+PoCheckSelfAtari( game_info_t *game, const int color, const int pos )
 {
   char *board = game->board;
   string_t *string = game->string;
@@ -1392,8 +1386,8 @@ PoCheckSelfAtari( game_info_t *game, int color, int pos )
 //////////////////
 //  トリの判定  //
 //////////////////
-void
-PoCheckCaptureAndAtari( game_info_t *game, int color, int pos )
+static void
+PoCheckCaptureAndAtari( game_info_t *game, const int color, const int pos )
 {
   char *board = game->board;
   string_t *string = game->string;
@@ -1454,8 +1448,8 @@ PoCheckCaptureAndAtari( game_info_t *game, int color, int pos )
 ///////////////////////////////////
 //  2目抜かれたときのホウリコミ  //
 ///////////////////////////////////
-void
-PoCheckRemove2Stones( game_info_t *game, int color, int *update, int *update_num )
+static void
+PoCheckRemove2Stones( game_info_t *game, const int color, int *update, int *update_num )
 {
   int i, rm1, rm2, check;
   int other = FLIP_COLOR(color);
