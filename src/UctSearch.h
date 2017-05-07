@@ -7,6 +7,9 @@
 #include "GoBoard.h"
 #include "ZobristHash.h"
 
+class LGR;
+class LGRContext;
+
 const int THREAD_MAX = 32;              // 使用するスレッド数の最大値
 const int MAX_NODES = 1000000;          // UCTのノードの配列のサイズ
 const double ALL_THINKING_TIME = 90.0;  // 持ち時間(デフォルト)
@@ -202,7 +205,7 @@ void ParallelUctSearch( thread_arg_t *arg );
 void ParallelUctSearchPondering( thread_arg_t *arg );
 
 // UCT探索(1回の呼び出しにつき, 1回の探索)
-int UctSearch( game_info_t *game, int color, std::mt19937_64 *mt, int current, int *winner, std::vector<int>& path );
+int UctSearch( game_info_t *game, int color, std::mt19937_64 *mt, LGR& lgr, LGRContext& lgrctx, int current, int *winner, std::vector<int>& path );
 
 // UCB値が最大の子ノードを返す
 int SelectMaxUcbChild( const game_info_t *game, int current, int color );

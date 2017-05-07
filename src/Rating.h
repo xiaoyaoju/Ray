@@ -6,6 +6,8 @@
 
 #include "GoBoard.h"
 
+class LGR;
+class LGRContext;
 
 enum FEATURE1{
   F_SAVE_CAPTURE1_1,
@@ -116,6 +118,7 @@ const double NEIGHBOR_BIAS = 7.52598;
 const double JUMP_BIAS = 4.63207;
 const double PO_BIAS = 1.66542;
 
+
 ////////////
 //  変数  //
 ////////////
@@ -147,7 +150,7 @@ void InitializeRating( void );
 void InitializePoTacticalFeaturesSet( void );
 
 //  着手(Elo Rating)
-int RatingMove( game_info_t *game, int color, std::mt19937_64 *mt);
+int RatingMove( game_info_t *game, int color, std::mt19937_64 *mt, LGR& lgrf );
 
 //  レーティング 
 void Rating( game_info_t *game, int color, long long *sum_rate, long long *sum_rate_row, long long *rate );
