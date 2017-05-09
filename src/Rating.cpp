@@ -294,7 +294,7 @@ RatingMove(game_info_t *game, int color, std::mt19937_64 *mt, LGR& lgr)
 	  return pos;
 	}
       }
-      if (lgr_total % 1000000 == 0) {
+      if (lgr_total % 1000000 == 0 && GetDebugMessageMode()) {
 	cerr << "TGR1 " << (100.0 * lgr_hit / lgr_total) << "%" << endl;
       }
     }
@@ -310,7 +310,7 @@ RatingMove(game_info_t *game, int color, std::mt19937_64 *mt, LGR& lgr)
 	  return pos;
 	}
       }
-      if (lgr_total % 1000000 == 0) {
+      if (lgr_total % 1000000 == 0 && GetDebugMessageMode()) {
 	cerr << "LGRF1 " << (100.0 * lgr_hit / lgr_total) << "%" << endl;
       }
     }
@@ -329,7 +329,7 @@ RatingMove(game_info_t *game, int color, std::mt19937_64 *mt, LGR& lgr)
 	  return pos;
 	}
       }
-      if (lgr_total % 1000000 == 0) {
+      if (lgr_total % 1000000 == 0 && GetDebugMessageMode()) {
 	cerr << "LGRF2 " << (100 * lgr_hit / lgr_total) << "%" << std::endl;
       }
     }

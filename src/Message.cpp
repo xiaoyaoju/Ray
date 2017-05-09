@@ -26,6 +26,12 @@ SetDebugMessageMode( bool flag )
   debug_message = flag;
 }
 
+bool
+GetDebugMessageMode()
+{
+  return debug_message;
+}
+
 //////////////////
 //  盤面の表示  //
 //////////////////

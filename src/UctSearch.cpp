@@ -651,7 +651,7 @@ UctSearchGenmove(game_info_t *game, int color)
 
   ClearEvalQueue();
  
-  if (use_nn) {
+  if (use_nn && GetDebugMessageMode()) {
     cerr << "Eval NN Policy     :  " << setw(7) << (eval_count_policy + eval_policy_queue.size()) << endl;
     cerr << "Eval NN Value      :  " << setw(7) << (eval_count_value + eval_value_queue.size()) << endl;
     cerr << "Eval NN            :  " << setw(7) << eval_count_policy << "/" << eval_count_value << endl;
@@ -1636,11 +1636,8 @@ SelectMaxUcbChild(const game_info_t *game, int current, int color)
   rate_order_t order[PURE_BOARD_MAX + 1];  
   int width;
   double ucb_bonus_weight = bonus_weight * sqrt(bonus_equivalence / (sum + bonus_equivalence));
-  const bool debug = current == current_root && sum % 10000 == 0;
+  const bool debug = current == current_root && sum % 10000 == 0 && GetDebugMessageMode();
 
-  //if (evaled) {
-    //cerr << "use nn" << endl;
-//  } else 
   {
     // 128回ごとにOwnerとCriticalityでソートし直す  
     if ((sum & 0x7f) == 0 && sum != 0) {
@@ -1752,17 +1749,7 @@ SelectMaxUcbChild(const game_info_t *game, int current, int color)
 	    p = p0 * (1 - scale) + p_v * scale;
 	  }
 	}
-	//if (p2 >= 0) p = (p * 9 + p2) / 10;
-#if 0
-	if (uct_child[i].index >= 0) {
-	  uct_node_t *n = &uct_node[uct_child[i].index];
-	  if (n->evaled) {
-	    double value = color == S_BLACK ? (n->value + 1) / 2 : (1 - n->value) / 2;
-	    //cerr << "value " << p << " " << value << endl;
-	    p = (p + value) / 2;
-	  }
-	}
-#endif
+
 	double u = sqrt(sum) / (1 + uct_child[i].move_count);
 	double rate = max(uct_child[i].nnrate, 0.01);
 	ucb_value = p + c_puct * u * rate;
