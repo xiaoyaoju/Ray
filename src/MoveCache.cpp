@@ -59,6 +59,7 @@ LGR::reset()
 void
 LGR::setTGR1(int col, int pos1, int val, uint32_t hash_last, uint32_t hash)
 {
+  lock_guard<mutex> lock(board_mutex[pos1]);
   int id1 = board_pos_id[pos1];
   int c = col - 1;
   //int index = (c * pure_board_max + pos1) * 0xffff + hash_last;
@@ -79,8 +80,9 @@ LGR::setTGR1(int col, int pos1, int val, uint32_t hash_last, uint32_t hash)
 }
 
 int
-LGR::getTGR1(int col, int pos1, const game_info_t* game) const
+LGR::getTGR1(int col, int pos1, const game_info_t* game)
 {
+  lock_guard<mutex> lock(board_mutex[pos1]);
   int id1 = board_pos_id[pos1];
   int c = col - 1;
   uint32_t hash_last = MD2(game->pat, pos1);
@@ -110,8 +112,9 @@ LGR::getTGR1(int col, int pos1, const game_info_t* game) const
 }
 
 int
-LGR::getLGRF1(int col, int pos1, const game_info_t* game) const
+LGR::getLGRF1(int col, int pos1, const game_info_t* game)
 {
+  lock_guard<mutex> lock(board_mutex[pos1]);
   int id1 = board_pos_id[pos1];
   int c = col - 1;
   uint32_t hash_last = MD2(game->pat, pos1);
@@ -123,6 +126,7 @@ LGR::getLGRF1(int col, int pos1, const game_info_t* game) const
 void
 LGR::setLGRF1(int col, int pos1, int pos, uint32_t hash2)
 {
+  lock_guard<mutex> lock(board_mutex[pos1]);
   int id1 = board_pos_id[pos1];
   int c = col - 1;
   lgrf1[c * pure_board_max + id1] = pos;
@@ -136,8 +140,9 @@ LGR::clearLGRF1(int col, int pos1)
 }
 
 int
-LGR::getLGRF2(int col, int pos1, int pos2) const
+LGR::getLGRF2(int col, int pos1, int pos2)
 {
+  lock_guard<mutex> lock(board_mutex[pos1]);
   pos1 = board_pos_id[pos1];
   pos2 = board_pos_id[pos2];
   int c = col - 1;
@@ -154,7 +159,7 @@ LGR::setLGRF2(int col, int pos1, int pos2, int val)
 }
 
 bool
-LGR::hasLGRF2(int col, int pos1, int pos2) const
+LGR::hasLGRF2(int col, int pos1, int pos2)
 {
   return (this->getLGRF2(col, pos1, pos2) != PASS);
 }

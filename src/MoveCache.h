@@ -4,6 +4,7 @@
 #include <string>
 #include <random>
 #include <memory>
+#include <mutex>
 
 #include "GoBoard.h"
 
@@ -22,21 +23,22 @@ class LGR {
 public:
   LGR();
   void reset();
-  int getLGRF1(int col, int pos1, const game_info_t* game) const;
+  int getLGRF1(int col, int pos1, const game_info_t* game);
   void setLGRF1(int col, int pos1, int val, uint32_t hash2);
   void clearLGRF1(int col, int pos1);
 
   void setTGR1(int col, int pos1, int pos, uint32_t hash, uint32_t hash2);
-  int getTGR1(int col, int pos1, const game_info_t* game) const;
+  int getTGR1(int col, int pos1, const game_info_t* game);
 
-  int getLGRF2(int col, int pos1, int pos2) const;
+  int getLGRF2(int col, int pos1, int pos2);
   void setLGRF2(int col, int pos1, int pos2, int pos);
-  bool hasLGRF2(int col, int pos1, int pos2) const;
+  bool hasLGRF2(int col, int pos1, int pos2);
   void clearLGRF2(int col, int pos1, int pos2);
 
   void update(game_info_t* game, int strat, int win, const LGRContext& ctx);
 
 private:
+  std::mutex board_mutex[BOARD_MAX];
   std::unique_ptr<int16_t[]> tgr1;
   std::unique_ptr<uint32_t[]> tgr1_hash;
   std::unique_ptr<uint16_t[]> tgr1_count;
