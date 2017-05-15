@@ -56,6 +56,8 @@ int corner_neighbor[4][2];
 
 int cross[4];
 
+bool check_superko = false;  // 超劫の確認の設定
+
 ///////////////
 // 関数宣言  //
 ///////////////
@@ -114,6 +116,15 @@ static void CheckBentFourInTheCorner( game_info_t *game );
 //  盤端での処理
 static bool IsFalseEyeConnection( const game_info_t *game, const int pos, const int color );
 
+
+//////////////////
+//  超劫の設定  //
+//////////////////
+void
+SetSuperKo( const bool flag )
+{
+  check_superko = flag;
+}
 
 ///////////////////////
 //  盤の大きさの設定  //
@@ -263,6 +274,7 @@ InitializeBoard( game_info_t *game )
   game->current_hash = 0;
   game->previous1_hash = 0;
   game->previous2_hash = 0;
+  game->positional_hash = 0;
 
   SetKomi(default_komi);
 
@@ -377,6 +389,7 @@ CopyGame( game_info_t *dst, const game_info_t *src )
   dst->current_hash = src->current_hash;
   dst->previous1_hash = src->previous1_hash;
   dst->previous2_hash = src->previous2_hash;
+  dst->positional_hash = src->positional_hash;
 
   dst->pass_count = src->pass_count;
 
@@ -693,6 +706,22 @@ IsLegal( const game_info_t *game, const int pos, const int color )
     return false;
   }
 
+  // 超劫である
+  if (check_superko &&
+      pos != PASS) {
+    game_info_t *tmp_game = AllocateGame();
+    CopyGame(tmp_game, game);
+    PutStone(tmp_game, pos, color);
+    unsigned long long hash = tmp_game->positional_hash;
+    for (int i = 0; i < game->moves; i++) {
+      if (game->record[i].hash == hash) {
+	FreeGame(tmp_game);
+	return false;
+      }
+    }
+    FreeGame(tmp_game);
+  }
+
   return true;
 }
 
@@ -964,6 +993,9 @@ PutStone( game_info_t *game, const int pos, const int color )
 
   // 着手がパスなら手数を進めて終了
   if (pos == PASS) {
+    if (game->moves < MAX_RECORDS) {
+      game->record[game->moves].hash = game->positional_hash;
+    }
     game->current_hash ^= hash_bit[game->pass_count++][HASH_PASS];
     if (game->pass_count >= BOARD_MAX) { 
       game->pass_count = 0;
@@ -979,6 +1011,7 @@ PutStone( game_info_t *game, const int pos, const int color )
   game->candidates[pos] = false;
 
   game->current_hash ^= hash_bit[pos][color];
+  game->positional_hash ^= hash_bit[pos][color];
 
   // パターンの更新(MD5)
   UpdatePatternStone(game->pat, color, pos);
@@ -1019,6 +1052,11 @@ PutStone( game_info_t *game, const int pos, const int color )
     AddStone(game, pos, color, connect[0]);
   } else {
     ConnectString(game, pos, color, connection, connect);
+  }
+
+  // ハッシュ値の記録
+  if (game->moves < MAX_RECORDS) {
+    game->record[game->moves].hash = game->positional_hash;
   }
 
   // 手数を1つだけ進める
@@ -1495,6 +1533,7 @@ RemoveString( game_info_t *game, string_t *string )
     UpdatePatternEmpty(game->pat, pos);
 
     game->current_hash ^= hash_bit[pos][removed_color];
+    game->positional_hash ^= hash_bit[pos][removed_color];
 
     // 上下左右を確認する
     // 隣接する連があれば呼吸点を追加する

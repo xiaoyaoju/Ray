@@ -23,6 +23,9 @@ unsigned int uct_hash_limit = UCT_HASH_SIZE * 9 / 10;
 bool enough_size;
 
 
+////////////////////////////////////
+//  ハッシュテーブルのサイズの設定  //
+////////////////////////////////////
 void
 SetHashSize( const unsigned int new_size )
 {
@@ -40,6 +43,9 @@ SetHashSize( const unsigned int new_size )
 }
 
 
+/////////////////////////
+//  インデックスの取得  //
+/////////////////////////
 unsigned int
 TransHash( const unsigned long long hash )
 {

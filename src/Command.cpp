@@ -25,6 +25,7 @@ const string command[COMMAND_MAX] = {
   "--pondering",
   "--tree-size",
   "--no-debug",
+  "--superko",
   "--sim-move",
   "--no-early-pass",
   "--no-nn",
@@ -45,6 +46,7 @@ const string errmessage[COMMAND_MAX] = {
   "Set pondering mode",
   "Set tree size (tree size must be 2 ^ n)",
   "Prohibit any debug message",
+  "Prohibit superko move",
   "Play simulation move",
   "No early pass",
   "Don't use NN",
@@ -112,6 +114,9 @@ AnalyzeCommand( int argc, char **argv )
       case COMMAND_TREE_SIZE:
 	SetHashSize((unsigned int)atoi(argv[++i]));
 	break;
+      case COMMAND_SUPERKO:
+        SetSuperKo(true);
+        break;
       case COMMAND_NO_DEBUG:
         SetDebugMessageMode(false);
         break;
