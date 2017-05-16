@@ -4,7 +4,6 @@
 #include <random>
 
 #include "GoBoard.h"
-#include "UctSearch.h"
 
 class LGR;
 class LGRContext;

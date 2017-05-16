@@ -7,7 +7,7 @@
 
 
 //  エラーメッセージの出力の設定
-void SetDebugMessageMode( bool flag );
+void SetDebugMessageMode( const bool flag );
 bool GetDebugMessageMode();
 
 //  盤面の表示
@@ -27,34 +27,31 @@ void PrintStringID( const game_info_t *game );
 void PrintStringNext( const game_info_t *game );
 
 //  合法手である候補手を表示 
-void PrintLegal( const game_info_t *game, int color );
+void PrintLegal( const game_info_t *game, const int color );
 
 //  オーナーの表示
-void PrintOwner( const uct_node_t *root, int color, double *own );
-
-void
-PrintOwnerNN(int color, double *own);
+void PrintOwner( const uct_node_t *root, const int color, double *own );
 
 //  最善応手列の表示
-void PrintBestSequence( const game_info_t *game, const uct_node_t *uct_node, int root, int start_color );
+void PrintBestSequence( const game_info_t *game, const uct_node_t *uct_node, const int root, const int start_color );
 
 //  探索の情報の表示
-void PrintPlayoutInformation( const uct_node_t *root, const po_info_t *po_info, double finish_time, int pre_simulated );
+void PrintPlayoutInformation( const uct_node_t *root, const po_info_t *po_info, const double finish_time, const int pre_simulated );
 
 //  座標の出力
-void PrintPoint( int pos );
+void PrintPoint( const int pos );
 std::string FormatMove( int pos );
 
 //  コミの値の出力
 void PrintKomiValue( void );
 
 //  Ponderingのプレイアウト回数の出力
-void PrintPonderingCount( int count );
+void PrintPonderingCount( const int count );
 
 //  探索時間の出力
-void PrintPlayoutLimits( double time_limit, int playout_limit );
+void PrintPlayoutLimits( const double time_limit, const int playout_limit );
 
 //  再利用した探索回数の出力
-void PrintReuseCount( int count );
+void PrintReuseCount( const int count );
 
 #endif

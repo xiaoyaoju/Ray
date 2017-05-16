@@ -124,7 +124,7 @@ statistic_t statistic[BOARD_MAX];
 // 盤上の各点のCriticality
 double criticality[BOARD_MAX];  
 // 盤上の各点のOwner(0-100%)
-double owner[BOARD_MAX];
+static double owner[BOARD_MAX];
 
 // 現在のオーナーのインデックス
 int owner_index[BOARD_MAX];   
@@ -201,29 +201,96 @@ ClearEvalQueue()
   eval_policy_queue.swap(empty_policy);
 }
 
-///////////////////
-//
-//
+////////////
+//  関数  //
+////////////
+
+// Virtual Lossを加算
+static void AddVirtualLoss( child_node_t *child, int current );
+
+// 次のプレイアウト回数の設定
+static void CalculateNextPlayouts( game_info_t *game, int color, double best_wp, double finish_time );
+
+// Criticaliityの計算
+static void CalculateCriticality( int color );
+
+// Criticality
+static void CalculateCriticalityIndex( uct_node_t *node, statistic_t *node_statistic, int color, int *index );
+
+// Ownershipの計算
+static void CalculateOwner( int color, int count );
+
+// Ownership
+static void CalculateOwnerIndex( uct_node_t *node, statistic_t *node_statistc, int color, int *index );
+
+// ノードの展開
+static int ExpandNode( game_info_t *game, int color, int current );
+
+// ルートの展開
+static int ExpandRoot( game_info_t *game, int color );
+
+// 思考時間を延長する処理
+static bool ExtendTime( void );
+
+// 候補手の初期化
+static void InitializeCandidate( child_node_t *uct_child, int pos, bool ladder );
+
+// 探索打ち切りの確認
+static bool InterruptionCheck( void );
+
+// UCT探索
+static void ParallelUctSearch( thread_arg_t *arg );
+
+// UCT探索(予測読み)
+static void ParallelUctSearchPondering( thread_arg_t *arg );
+
+// ノードのレーティング
+static void RatingNode( game_info_t *game, int color, int index, int depth );
+
+static int RateComp( const void *a, const void *b );
+
+// UCB値が最大の子ノードを返す
+static int SelectMaxUcbChild(const game_info_t *game, int current, int color );
+
+// 各座標の統計処理
+static void Statistic( game_info_t *game, int winner );
+
+// UCT探索(1回の呼び出しにつき, 1回の探索)
+static int UctSearch(game_info_t *game, int color, mt19937_64 *mt, LGR& lgrf, LGRContext& lgrctx, int current, int *winner, std::vector<int>& path);
+
+// 各ノードの統計情報の更新
+static void UpdateNodeStatistic( game_info_t *game, int winner, statistic_t *node_statistic );
+
+// 結果の更新
+static void UpdateResult( child_node_t *child, int result, int current );
+
+
+
+/////////////////////
+//  予測読みの設定  //
+/////////////////////
 void
-SetPonderingMode(bool flag)
+SetPonderingMode( bool flag )
 {
   pondering_mode = flag;
 }
+
 
 ////////////////////////
 //  探索モードの指定  //
 ////////////////////////
 void
-SetMode(enum SEARCH_MODE new_mode)
+SetMode( enum SEARCH_MODE new_mode )
 {
   mode = new_mode;
 }
+
 
 ///////////////////////////////////////
 //  1手あたりのプレイアウト数の指定  //
 ///////////////////////////////////////
 void
-SetPlayout(int po)
+SetPlayout( int po )
 {
   playout = po;
 }
@@ -233,7 +300,7 @@ SetPlayout(int po)
 //  1手にかける試行時間の設定  //
 /////////////////////////////////
 void
-SetConstTime(double time)
+SetConstTime( double time )
 {
   const_thinking_time = time;
 }
@@ -243,7 +310,7 @@ SetConstTime(double time)
 //  使用するスレッド数の指定  //
 ////////////////////////////////
 void
-SetThread(int new_thread)
+SetThread( int new_thread )
 {
   threads = new_thread;
 
@@ -255,7 +322,7 @@ SetThread(int new_thread)
 //  持ち時間の設定  //
 //////////////////////
 void
-SetTime(double time)
+SetTime( double time )
 {
   default_remaining_time = time;
 }
@@ -265,7 +332,7 @@ SetTime(double time)
 //  ノード再利用の設定  //
 //////////////////////////
 void
-SetReuseSubtree(bool flag)
+SetReuseSubtree( bool flag )
 {
   reuse_subtree = flag;
 }
@@ -284,7 +351,7 @@ SetEarlyPass(bool pass)
 //  盤の大きさに合わせたパラメータの設定  //
 ////////////////////////////////////////////
 void
-SetParameter(void)
+SetParameter( void )
 {
   if (pure_board_size < 11) {
     expand_threshold = EXPAND_THRESHOLD_9;
@@ -320,7 +387,7 @@ SetNoExpand(bool flag)
 //  UCT探索の初期設定  //
 /////////////////////////
 void
-InitializeUctSearch(void)
+InitializeUctSearch( void )
 {
   int i;
 
@@ -352,19 +419,17 @@ InitializeUctSearch(void)
 //  探索設定の初期化  //
 ////////////////////////
 void
-InitializeSearchSetting(void)
+InitializeSearchSetting( void )
 {
-  int i;
-
   // Ownerの初期化
-  for (i = 0; i < board_max; i++){
+  for (int i = 0; i < board_max; i++){
     owner[i] = 50;
     owner_index[i] = 5;
     candidates[i] = true;
   }
 
   // 乱数の初期化
-  for (i = 0; i < THREAD_MAX; i++) {
+  for (int i = 0; i < THREAD_MAX; i++) {
     if (mt[i]) {
       delete mt[i];
     }
@@ -376,7 +441,7 @@ InitializeSearchSetting(void)
   lgr_ctx.resize(threads);
 
   // 持ち時間の初期化
-  for (i = 0; i < 3; i++) {
+  for (int i = 0; i < 3; i++) {
     remaining_time[i] = default_remaining_time;
   }
 
@@ -415,30 +480,23 @@ InitializeSearchSetting(void)
 //  終了  //
 ////////////
 void
-FinalizeUctSearch(void)
+FinalizeUctSearch( void )
 {
-
+  
 }
 
 
-bool
-IsPondered()
-{
-  return pondered;
-}
 
 void
-StopPondering()
+StopPondering( void )
 {
-  int i;
-
   if (!pondering_mode) {
     return;
   }
 
   if (ponder) {
     pondering_stop = true;
-    for (i = 0; i < threads; i++) {
+    for (int i = 0; i < threads; i++) {
       handle[i]->join();
       delete handle[i];
       handle[i] = nullptr;
@@ -460,27 +518,23 @@ StopPondering()
 //  UCTアルゴリズムによる着手生成  //
 /////////////////////////////////////
 int
-UctSearchGenmove(game_info_t *game, int color)
+UctSearchGenmove( game_info_t *game, int color )
 {
-  int i, pos;
-  double finish_time;
-  int select_index;
-  int max_count;
-  double pass_wp;
-  double best_wp;
+  int pos, select_index, max_count, pre_simulated;
+  double finish_time, pass_wp, best_wp;
   child_node_t *uct_child;
-  int pre_simulated;
-
 
   // 探索情報をクリア
   if (!pondered) {
-    memset(statistic, 0, sizeof(statistic_t) * board_max); 
-    memset(criticality_index, 0, sizeof(int) * board_max); 
-    memset(criticality, 0, sizeof(double) * board_max);    
+    memset(statistic, 0, sizeof(statistic_t) * board_max);
+    fill_n(criticality_index, board_max, 0);
+    for (int i = 0; i < board_max; i++) {
+      criticality[i] = 0.0;
+    }
   }
   po_info.count = 0;
 
-  for (i = 0; i < pure_board_max; i++) {
+  for (int i = 0; i < pure_board_max; i++) {
     pos = onboard_pos[i];
     owner[pos] = 50;
     owner_index[pos] = 5;
@@ -526,7 +580,7 @@ UctSearchGenmove(game_info_t *game, int color)
   // 探索時間とプレイアウト回数の予定値を出力
   PrintPlayoutLimits(time_limit, po_info.halt);
 
-  for (i = 0; i < threads; i++) {
+  for (int i = 0; i < threads; i++) {
     t_arg[i].thread_id = i;
     t_arg[i].game = game;
     t_arg[i].color = color;
@@ -536,7 +590,7 @@ UctSearchGenmove(game_info_t *game, int color)
   if (use_nn)
     handle[threads] = new thread(EvalNode);
 
-  for (i = 0; i < threads; i++) {
+  for (int i = 0; i < threads; i++) {
     handle[i]->join();
     delete handle[i];
     handle[i] = nullptr;
@@ -556,13 +610,13 @@ UctSearchGenmove(game_info_t *game, int color)
       ExtendTime()) {
     po_info.halt = (int)(1.5 * po_info.halt);
     time_limit *= 1.5;
-    for (i = 0; i < threads; i++) {
+    for (int i = 0; i < threads; i++) {
       handle[i] = new thread(ParallelUctSearch, &t_arg[i]);
     }
     if (use_nn)
       handle[threads] = new thread(EvalNode);
 
-    for (i = 0; i < threads; i++) {
+    for (int i = 0; i < threads; i++) {
       handle[i]->join();
       delete handle[i];
       handle[i] = nullptr;
@@ -580,7 +634,7 @@ UctSearchGenmove(game_info_t *game, int color)
   max_count = early_pass ? (int)uct_child[PASS_INDEX].move_count : 0;
 
   // 探索回数最大の手を見つける
-  for (i = 1; i < uct_node[current_root].child_num; i++){
+  for (int i = 1; i < uct_node[current_root].child_num; i++){
     if (uct_child[i].move_count > max_count) {
       select_index = i;
       max_count = uct_child[i].move_count;
@@ -610,7 +664,7 @@ UctSearchGenmove(game_info_t *game, int color)
 
   // 取れている石を数える
   int count = 0;
-  for (i = 0; i < pure_board_max; i++) {
+  for (int i = 0; i < pure_board_max; i++) {
     int pos = onboard_pos[i];
 
     if (game->board[pos] == FLIP_COLOR(color) && owner[pos] > 70) {
@@ -668,9 +722,9 @@ UctSearchGenmove(game_info_t *game, int color)
 //  予測読み  //
 ///////////////
 void
-UctSearchPondering(game_info_t *game, int color)
+UctSearchPondering( game_info_t *game, int color )
 {
-  int i, pos;
+  int pos;
 
   if (!pondering_mode) {
     return ;
@@ -678,11 +732,14 @@ UctSearchPondering(game_info_t *game, int color)
 
   // 探索情報をクリア
   memset(statistic, 0, sizeof(statistic_t) * board_max);  
-  memset(criticality_index, 0, sizeof(int) * board_max);  
-  memset(criticality, 0, sizeof(double) * board_max);     
+  fill_n(criticality_index, board_max, 0);  
+  for (int i = 0; i < board_max; i++) {
+    criticality[i] = 0.0;    
+  }
+				  
   po_info.count = 0;
 
-  for (i = 0; i < pure_board_max; i++) {
+  for (int i = 0; i < pure_board_max; i++) {
     pos = onboard_pos[i];
     owner[pos] = 50;
     owner_index[pos] = 5;
@@ -709,7 +766,7 @@ UctSearchPondering(game_info_t *game, int color)
   // Dynamic Komiの算出(置碁のときのみ)
   DynamicKomi(game, &uct_node[current_root], color);
 
-  for (i = 0; i < threads; i++) {
+  for (int i = 0; i < threads; i++) {
     t_arg[i].thread_id = i;
     t_arg[i].game = game;
     t_arg[i].color = color;
@@ -757,7 +814,7 @@ UctSearchStat(game_info_t *game, int color, int num)
     ClearUctHash();
   }
 
-  double org_use_nn = use_nn;
+  bool org_use_nn = use_nn;
   use_nn = false;
 
   // 探索開始時刻の記録
@@ -835,8 +892,8 @@ UctSearchStat(game_info_t *game, int color, int num)
 /////////////////////
 //  候補手の初期化  //
 /////////////////////
-void
-InitializeCandidate(child_node_t *uct_child, int pos, bool ladder)
+static void
+InitializeCandidate( child_node_t *uct_child, int pos, bool ladder )
 {
   uct_child->pos = pos;
   uct_child->move_count = 0;
@@ -855,8 +912,8 @@ InitializeCandidate(child_node_t *uct_child, int pos, bool ladder)
 /////////////////////////
 //  ルートノードの展開  //
 /////////////////////////
-int
-ExpandRoot(game_info_t *game, int color)
+static int
+ExpandRoot( game_info_t *game, int color )
 {
   unsigned int index = FindSameHashIndex(game->current_hash, color, game->moves);
   child_node_t *uct_child;
@@ -930,7 +987,7 @@ ExpandRoot(game_info_t *game, int color)
     uct_node[index].value_move_count = 0;
     uct_node[index].value_win = 0;
     memset(uct_node[index].statistic, 0, sizeof(statistic_t) * BOARD_MAX); 
-    memset(uct_node[index].seki, false, sizeof(bool) * BOARD_MAX);
+    fill_n(uct_node[index].seki, BOARD_MAX, false);
     
     uct_child = uct_node[index].child;
     
@@ -981,8 +1038,8 @@ ExpandRoot(game_info_t *game, int color)
 ///////////////////
 //  ノードの展開  //
 ///////////////////
-int
-ExpandNode(game_info_t *game, int color, int current, const std::vector<int>& path)
+static int
+ExpandNode( game_info_t *game, int color, int current, const std::vector<int>& path )
 {
   unsigned int index = FindSameHashIndex(game->current_hash, color, game->moves);
   child_node_t *uct_child, *uct_sibling;
@@ -1023,9 +1080,10 @@ ExpandNode(game_info_t *game, int color, int current, const std::vector<int>& pa
   uct_node[index].evaled = false;
   uct_node[index].value_move_count = 0;
   uct_node[index].value_win = 0;
+  memset(uct_node[index].statistic, 0, sizeof(statistic_t) * BOARD_MAX);  
+  fill_n(uct_node[index].seki, BOARD_MAX, false);
   memset(uct_node[index].statistic, 0, sizeof(statistic_t) * BOARD_MAX);
   memset(uct_node[index].seki, false, sizeof(bool) * BOARD_MAX);
-  
   uct_child = uct_node[index].child;
 
   // パスノードの展開
@@ -1084,10 +1142,9 @@ ExpandNode(game_info_t *game, int color, int current, const std::vector<int>& pa
 //  ノードのレーティング             //
 //  (Progressive Wideningのために)  //
 //////////////////////////////////////
-void
-RatingNode(game_info_t *game, int color, int index, int depth)
+static void
+RatingNode( game_info_t *game, int color, int index, int depth )
 {
-  int i;
   int child_num = uct_node[index].child_num;
   int pos;
   int moves = game->moves;
@@ -1147,7 +1204,7 @@ RatingNode(game_info_t *game, int color, int index, int depth)
 #endif
   }
 
-  for (i = 1; i < child_num; i++) {
+  for (int i = 1; i < child_num; i++) {
     pos = uct_child[i].pos;
 
     // 自己アタリの確認
@@ -1207,17 +1264,6 @@ RatingNode(game_info_t *game, int color, int index, int depth)
       max_index = i;
       max_score = score + dynamic_parameter;
     }
-
-    // ウッテガエシだったら強制的に探索候補に入れる
-    if ((uct_features.tactical_features1[pos] & uct_mask[UCT_SNAPBACK]) > 0) {
-      uct_child[i].open = true;
-    }
-
-    // オイオトシだったら強制的に探索候補に入れる
-    if ((uct_features.tactical_features1[pos] & uct_mask[UCT_OIOTOSHI]) > 0) {
-      uct_child[i].open = true;
-    }
-
   }
 
   // 最もγが大きい着手を探索できるようにする
@@ -1230,13 +1276,12 @@ RatingNode(game_info_t *game, int color, int index, int depth)
 //////////////////////////
 //  探索打ち止めの確認  //
 //////////////////////////
-bool
-InterruptionCheck(void)
+static bool
+InterruptionCheck( void )
 {
-  int i;
   int max = 0, second = 0;
-  int child_num = uct_node[current_root].child_num;
-  int rest = po_info.halt - po_info.count;
+  const int child_num = uct_node[current_root].child_num;
+  const int rest = po_info.halt - po_info.count;
   child_node_t *uct_child = uct_node[current_root].child;
 
   if (mode != CONST_PLAYOUT_MODE && 
@@ -1245,7 +1290,7 @@ InterruptionCheck(void)
   }
 
   // 探索回数が最も多い手と次に多い手を求める
-  for (i = 0; i < child_num; i++) {
+  for (int i = 0; i < child_num; i++) {
     if (uct_child[i].move_count > max) {
       second = max;
       max = uct_child[i].move_count;
@@ -1267,16 +1312,15 @@ InterruptionCheck(void)
 ///////////////////////////
 //  思考時間延長の確認   //
 ///////////////////////////
-bool
-ExtendTime(void)
+static bool
+ExtendTime( void )
 {
-  int i;
   int max = 0, second = 0;
-  int child_num = uct_node[current_root].child_num;
+  const int child_num = uct_node[current_root].child_num;
   child_node_t *uct_child = uct_node[current_root].child;
 
   // 探索回数が最も多い手と次に多い手を求める
-  for (i = 0; i < child_num; i++) {
+  for (int i = 0; i < child_num; i++) {
     if (uct_child[i].move_count > max) {
       second = max;
       max = uct_child[i].move_count;
@@ -1300,8 +1344,8 @@ ExtendTime(void)
 //  並列処理で呼び出す関数     //
 //  UCTアルゴリズムを反復する  //
 /////////////////////////////////
-void
-ParallelUctSearch(thread_arg_t *arg)
+static void
+ParallelUctSearch( thread_arg_t *arg )
 {
   static std::atomic<int> queue_full;
   thread_arg_t *targ = (thread_arg_t *)arg;
@@ -1382,8 +1426,8 @@ ParallelUctSearch(thread_arg_t *arg)
 //  並列処理で呼び出す関数     //
 //  UCTアルゴリズムを反復する  //
 /////////////////////////////////
-void
-ParallelUctSearchPondering(thread_arg_t *arg)
+static void
+ParallelUctSearchPondering( thread_arg_t *arg )
 {
   thread_arg_t *targ = (thread_arg_t *)arg;
   game_info_t *game;
@@ -1440,7 +1484,7 @@ ParallelUctSearchPondering(thread_arg_t *arg)
 //  UCT探索を行う関数                        //
 //  1回の呼び出しにつき, 1プレイアウトする    //
 //////////////////////////////////////////////
-int 
+static int 
 UctSearch(game_info_t *game, int color, mt19937_64 *mt, LGR& lgrf, LGRContext& lgrctx, int current, int *winner, std::vector<int>& path)
 {
   int result = 0, next_index;
@@ -1570,7 +1614,7 @@ UctSearch(game_info_t *game, int color, mt19937_64 *mt, LGR& lgrf, LGRContext& l
 //////////////////////////
 //  Virtual Lossの加算  //
 //////////////////////////
-void
+static void
 AddVirtualLoss(child_node_t *child, int current)
 {
 #if defined CPP11
@@ -1586,8 +1630,8 @@ AddVirtualLoss(child_node_t *child, int current)
 //////////////////////
 //  探索結果の更新  //
 /////////////////////
-void
-UpdateResult(child_node_t *child, int result, int current)
+static void
+UpdateResult( child_node_t *child, int result, int current )
 {
   atomic_fetch_add(&uct_node[current].win, result);
   atomic_fetch_add(&uct_node[current].move_count, 1 - VIRTUAL_LOSS);
@@ -1603,8 +1647,8 @@ UpdateResult(child_node_t *child, int result, int current)
 //////////////////////////
 //  ノードの並び替え用  //
 //////////////////////////
-int
-RateComp(const void *a, const void *b)
+static int
+RateComp( const void *a, const void *b )
 {
   rate_order_t *ro1 = (rate_order_t *)a;
   rate_order_t *ro2 = (rate_order_t *)b;
@@ -1618,16 +1662,17 @@ RateComp(const void *a, const void *b)
 }
 
 
-///////////////////////////////////////////////////////
+/////////////////////////////////////////////////////
 //  UCBが最大となる子ノードのインデックスを返す関数  //
-///////////////////////////////////////////////////////
-int
-SelectMaxUcbChild(const game_info_t *game, int current, int color)
+/////////////////////////////////////////////////////
+static int
+SelectMaxUcbChild( const game_info_t *game, int current, int color )
 {
   bool evaled = uct_node[current].evaled;
   child_node_t *uct_child = uct_node[current].child;
-  int child_num = uct_node[current].child_num;
-  int max_child = 0, sum = uct_node[current].move_count;
+  const int child_num = uct_node[current].child_num;
+  int max_child = 0;
+  const int sum = uct_node[current].move_count;
   double p, max_value;
   double ucb_value;
   int max_index;
@@ -1788,13 +1833,13 @@ SelectMaxUcbChild(const game_info_t *game, int current, int color)
 ///////////////////////////////////////////////////////////
 //  OwnerやCriiticalityを計算するための情報を記録する関数  //
 ///////////////////////////////////////////////////////////
-void
-Statistic(game_info_t *game, int winner)
+static void
+Statistic( game_info_t *game, int winner )
 {
-  char *board = game->board;
-  int i, pos, color;
+  const char *board = game->board;
+  int pos, color;
 
-  for (i = 0; i < pure_board_max; i++) {
+  for (int i = 0; i < pure_board_max; i++) {
     pos = onboard_pos[i];
     color = board[pos];
     if (color == S_EMPTY) color = territory[Pat3(game->pat, pos)];
@@ -1810,13 +1855,13 @@ Statistic(game_info_t *game, int winner)
 ///////////////////////////////
 //  各ノードの統計情報の更新  //
 ///////////////////////////////
-void
-UpdateNodeStatistic(game_info_t *game, int winner, statistic_t *node_statistic)
+static void
+UpdateNodeStatistic( game_info_t *game, int winner, statistic_t *node_statistic )
 {
-  char *board = game->board;
-  int i, pos, color;
+  const char *board = game->board;
+  int pos, color;
 
-  for (i = 0; i < pure_board_max; i++) {
+  for (int i = 0; i < pure_board_max; i++) {
     pos = onboard_pos[i];
     color = board[pos];
     if (color == S_EMPTY) color = territory[Pat3(game->pat, pos)];
@@ -1831,14 +1876,14 @@ UpdateNodeStatistic(game_info_t *game, int winner, statistic_t *node_statistic)
 //////////////////////////////////
 //  各ノードのCriticalityの計算  //
 //////////////////////////////////
-void
-CalculateCriticalityIndex(uct_node_t *node, statistic_t *node_statistic, int color, int *index)
+static void
+CalculateCriticalityIndex( uct_node_t *node, statistic_t *node_statistic, int color, int *index )
 {
   double win, lose;
-  int other = FLIP_COLOR(color);
-  int count = node->move_count;
-  int child_num = node->child_num;
-  int i, pos;
+  const int other = FLIP_COLOR(color);
+  const int count = node->move_count;
+  const int child_num = node->child_num;
+  int pos;
   double tmp;
 
   win = (double)node->win / node->move_count;
@@ -1846,7 +1891,7 @@ CalculateCriticalityIndex(uct_node_t *node, statistic_t *node_statistic, int col
 
   index[0] = 0;
 
-  for (i = 1; i < child_num; i++) {
+  for (int i = 1; i < child_num; i++) {
     pos = node->child[i].pos;
 
     tmp = ((double)node_statistic[pos].colors[0] / count) -
@@ -1861,18 +1906,18 @@ CalculateCriticalityIndex(uct_node_t *node, statistic_t *node_statistic, int col
 ////////////////////////////////////
 //  Criticalityの計算をする関数   // 
 ////////////////////////////////////
-void
-CalculateCriticality(int color)
+static void
+CalculateCriticality( int color )
 {
-  int i, pos;
+  int pos;
   double tmp;
-  int other = FLIP_COLOR(color);
+  const int other = FLIP_COLOR(color);
   double win, lose;
 
   win = (double)uct_node[current_root].win / uct_node[current_root].move_count;
   lose = 1.0 - win;
 
-  for (i = 0; i < pure_board_max; i++) {
+  for (int i = 0; i < pure_board_max; i++) {
     pos = onboard_pos[i];
 
     tmp = ((float)statistic[pos].colors[0] / po_info.count) -
@@ -1886,20 +1931,19 @@ CalculateCriticality(int color)
 }
 
 
-
 //////////////////////////////
 //  Ownerの計算をする関数   //
 //////////////////////////////
-void
+static void
 CalculateOwnerIndex( uct_node_t *node, statistic_t *node_statistic, int color, int *index )
 {
-  int i, pos;
-  int count = node->move_count;
-  int child_num = node->child_num;
+  int pos;
+  const int count = node->move_count;
+  const int child_num = node->child_num;
 
   index[0] = 0;
 
-  for (i = 1; i < child_num; i++){
+  for (int i = 1; i < child_num; i++){
     pos = node->child[i].pos;
     index[i] = (int)((double)node_statistic[pos].colors[color] * 10.0 / count + 0.5);
     if (index[i] > OWNER_MAX - 1) index[i] = OWNER_MAX - 1;
@@ -1908,17 +1952,15 @@ CalculateOwnerIndex( uct_node_t *node, statistic_t *node_statistic, int color, i
 }
 
 
-
-
 //////////////////////////////
 //  Ownerの計算をする関数   //
 //////////////////////////////
-void
+static void
 CalculateOwner( int color, int count )
 {
-  int i, pos;
+  int pos;
 
-  for (i = 0; i < pure_board_max; i++){
+  for (int i = 0; i < pure_board_max; i++){
     pos = onboard_pos[i];
     owner_index[pos] = (int)((double)statistic[pos].colors[color] * 10.0 / count + 0.5);
     if (owner_index[pos] > OWNER_MAX - 1) owner_index[pos] = OWNER_MAX - 1;
@@ -1930,7 +1972,7 @@ CalculateOwner( int color, int count )
 /////////////////////////////////
 //  次のプレイアウト回数の設定  //
 /////////////////////////////////
-void
+static void
 CalculateNextPlayouts( game_info_t *game, int color, double best_wp, double finish_time )
 {
   double po_per_sec;
@@ -1972,20 +2014,22 @@ CalculateNextPlayouts( game_info_t *game, int color, double best_wp, double fini
 int
 UctAnalyze( game_info_t *game, int color )
 {
-  int i, pos;
+  int pos;
   thread *handle[THREAD_MAX];
 
   // 探索情報をクリア
   memset(statistic, 0, sizeof(statistic_t) * board_max);  
-  memset(criticality_index, 0, sizeof(int) * board_max);  
-  memset(criticality, 0, sizeof(double) * board_max);     
+  fill_n(criticality_index, board_max, 0);  
+  for (int i = 0; i < board_max; i++) {
+    criticality[i] = 0.0;
+  }
   po_info.count = 0;
 
   ClearUctHash();
 
   current_root = ExpandRoot(game, color);
 
-  for (i = 0; i < pure_board_max; i++) {
+  for (int i = 0; i < pure_board_max; i++) {
     pos = onboard_pos[i];
   }
 
@@ -1994,7 +2038,7 @@ UctAnalyze( game_info_t *game, int color )
 
   po_info.halt = 10000;
 
-  for (i = 0; i < threads; i++) {
+  for (int i = 0; i < threads; i++) {
     t_arg[i].thread_id = i;
     t_arg[i].game = game;
     t_arg[i].color = color;
@@ -2002,7 +2046,7 @@ UctAnalyze( game_info_t *game, int color )
   }
 
 
-  for (i = 0; i < threads; i++) {
+  for (int i = 0; i < threads; i++) {
     handle[i]->join();
     delete handle[i];
     handle[i] = nullptr;
@@ -2037,8 +2081,8 @@ UctAnalyze( game_info_t *game, int color )
 void
 OwnerCopy( int *dest )
 {
-  int i, pos;
-  for (i = 0; i < pure_board_max; i++) {
+  int pos;
+  for (int i = 0; i < pure_board_max; i++) {
     pos = onboard_pos[i];
     dest[pos] = (int)((double)uct_node[current_root].statistic[pos].colors[my_color] / uct_node[current_root].move_count * 100);
   }
@@ -2051,8 +2095,8 @@ OwnerCopy( int *dest )
 void
 CopyCriticality( double *dest )
 {
-  int i, pos;
-  for (i = 0; i < pure_board_max; i++) {
+  int pos;
+  for (int i = 0; i < pure_board_max; i++) {
     pos = onboard_pos[i];
     dest[pos] = criticality[pos];
   }
@@ -2071,7 +2115,7 @@ CopyStatistic( statistic_t *dest )
 int
 UctSearchGenmoveCleanUp( game_info_t *game, int color )
 {
-  int i, pos;
+  int pos;
   double finish_time;
   int select_index;
   int max_count;
@@ -2081,8 +2125,10 @@ UctSearchGenmoveCleanUp( game_info_t *game, int color )
   thread *handle[THREAD_MAX];
 
   memset(statistic, 0, sizeof(statistic_t)* board_max); 
-  memset(criticality_index, 0, sizeof(int)* board_max); 
-  memset(criticality, 0, sizeof(double)* board_max);    
+  fill_n(criticality_index, board_max, 0); 
+  for (int i = 0; i < board_max; i++) {
+    criticality[i] = 0.0;
+  }
 
   begin_time = ray_clock::now();
 
@@ -2095,7 +2141,7 @@ UctSearchGenmoveCleanUp( game_info_t *game, int color )
     return pos;
   }
 
-  for (i = 0; i < pure_board_max; i++) {
+  for (int i = 0; i < pure_board_max; i++) {
     pos = onboard_pos[i];
     owner[pos] = 50.0;
   }
@@ -2104,14 +2150,14 @@ UctSearchGenmoveCleanUp( game_info_t *game, int color )
 
   DynamicKomi(game, &uct_node[current_root], color);
 
-  for (i = 0; i < threads; i++) {
+  for (int i = 0; i < threads; i++) {
     t_arg[i].thread_id = i;
     t_arg[i].game = game;
     t_arg[i].color = color;
     handle[i] = new std::thread(ParallelUctSearch, &t_arg[i]);
   }
 
-  for (i = 0; i < threads; i++) {
+  for (int i = 0; i < threads; i++) {
     handle[i]->join();
     delete handle[i];
     handle[i] = nullptr;
@@ -2122,7 +2168,7 @@ UctSearchGenmoveCleanUp( game_info_t *game, int color )
   select_index = 0;
   max_count = uct_child[0].move_count;
 
-  for (i = 0; i < uct_node[current_root].child_num; i++){
+  for (int i = 0; i < uct_node[current_root].child_num; i++){
     if (uct_child[i].move_count > max_count) {
       select_index = i;
       max_count = uct_child[i].move_count;
@@ -2144,7 +2190,7 @@ UctSearchGenmoveCleanUp( game_info_t *game, int color )
 
   count = 0;
 
-  for (i = 0; i < pure_board_max; i++) {
+  for (int i = 0; i < pure_board_max; i++) {
     pos = onboard_pos[i];
 
     if (owner[pos] >= 5 || owner[pos] <= 95) {

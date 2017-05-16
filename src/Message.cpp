@@ -21,7 +21,7 @@ bool debug_message = true;
 //  エラーメッセージの出力の設定  //
 ////////////////////////////////////
 void
-SetDebugMessageMode( bool flag )
+SetDebugMessageMode( const bool flag )
 {
   debug_message = flag;
 }
@@ -125,7 +125,7 @@ PrintRate( const game_info_t *game )
 void
 PrintString( const game_info_t *game )
 {
-  auto string = game->string;
+  const string_t *string = game->string;
   int i, pos, neighbor;
 
   if (!debug_message) return ;
@@ -250,22 +250,21 @@ PrintStringNext( const game_info_t *game )
 //  Ownerの表示  //
 ///////////////////
 void
-PrintOwner( const uct_node_t *root, int color, double *own )
+PrintOwner( const uct_node_t *root, const int color, double *own )
 {
   int i, pos, x, y;
-  double owner;
   int player = 0, opponent = 0;
   double score;
-  auto statistic = root->statistic;
+  const statistic_t *statistic = root->statistic;
 
-  for (i = 1, y = board_start; y <= board_end; y++, i++) {
-    for (x = board_start; x <= board_end; x++) {
-      pos = POS(x, y);
-      owner = (double)statistic[pos].colors[color] / root->move_count;
+  for (int i = 1, y = board_start; y <= board_end; y++, i++) {
+    for (int x = board_start; x <= board_end; x++) {
+      int pos = POS(x, y);
+      double owner = (double)statistic[pos].colors[color] / root->move_count;
       if (owner > 0.5) {
-	player++;
+        player++;
       } else {
-	opponent++;
+        opponent++;
       }
       own[pos] = owner * 100.0;
     }
@@ -382,7 +381,7 @@ PrintOwnerNN(int color, double *own)
 //  最善応手列の出力  //
 ///////////////////////
 void
-PrintBestSequence( const game_info_t *game, const uct_node_t *uct_node, int root, int start_color )
+PrintBestSequence( const game_info_t *game, const uct_node_t *uct_node, const int root, const int start_color )
 {
   game_info_t *search_result;
   int current = root;
@@ -469,7 +468,7 @@ PrintBestSequence( const game_info_t *game, const uct_node_t *uct_node, int root
 //  探索の情報の表示  //
 ///////////////////////
 void
-PrintPlayoutInformation( const uct_node_t *root, const po_info_t *po_info, double finish_time, int pre_simulated )
+PrintPlayoutInformation( const uct_node_t *root, const po_info_t *po_info, const double finish_time, const int pre_simulated )
 {
   double winning_percentage = (double)root->win / root->move_count;
   double value = (double)root->value_win / root->value_move_count;
@@ -495,7 +494,7 @@ PrintPlayoutInformation( const uct_node_t *root, const po_info_t *po_info, doubl
 //  座標の出力  //
 //////////////////
 void
-PrintPoint( int pos )
+PrintPoint( const int pos )
 {
   if (!debug_message) return ;
 
@@ -539,7 +538,7 @@ PrintKomiValue( void )
 //  Ponderingのプレイアウト回数の出力  //
 ////////////////////////////////////////
 void
-PrintPonderingCount( int count )
+PrintPonderingCount( const int count )
 {
   if (!debug_message) return ;
 
@@ -551,7 +550,7 @@ PrintPonderingCount( int count )
 //  探索時間の出力  //
 /////////////////////
 void
-PrintPlayoutLimits( double time_limit, int playout_limit )
+PrintPlayoutLimits( const double time_limit, const int playout_limit )
 {
   if (!debug_message) return ;
 
@@ -563,7 +562,7 @@ PrintPlayoutLimits( double time_limit, int playout_limit )
 //  Ponderingのプレイアウト回数の出力  //
 ////////////////////////////////////////
 void
-PrintReuseCount( int count )
+PrintReuseCount( const int count )
 {
   if (!debug_message) return ;
 

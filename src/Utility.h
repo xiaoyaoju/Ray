@@ -11,9 +11,9 @@ inline double GetSpendTime(const ray_clock::time_point& start_time) {
 }
 
 // データ読み込み(float)
-void InputTxtFLT( const char *filename, float *ap, int array_size );
+void InputTxtFLT( const char *filename, float *ap, const int array_size );
 
 // データ読み込み(double)
-void InputTxtDBL( const char *filename, double *ap, int array_size );
+void InputTxtDBL( const char *filename, double *ap, const int array_size );
 
 #endif

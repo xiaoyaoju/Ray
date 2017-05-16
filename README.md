@@ -12,7 +12,7 @@ and require 800MB of memory.
 
 Ray has some options :
 
---playout 3000    Setting the total number of playouts per move. Default is 10000.
+--playout 3000    Setting the total number of playouts per move (3000 PO/move). Default is 10000.
 
 --time 1800       Ray plays with time settings 30:00 (1800 seconds).
 
@@ -42,18 +42,23 @@ Ray has some options :
 
 --no-debug        Ray never print Ray's log.
 
+--superko         Ray avoids positional-superko move.
+
 
 e.g.
 
 Playing with 4 sec/move with 8 threads
-   ./ray --const-time 4 --thread 8
+
+    ./ray --const-time 4 --thread 8
 
 Playing with 1000 playouts/move with 1 threads
-   ./ray --playout 1000
+
+    ./ray --playout 1000
 
 Playing with 16 threads and 65536 uct nodes. Time setting is 30 minutes.
 Ray thinks during the opponent's turn.
-   ./ray --time 1800 --thread 16 --tree-size 65536 --pondering
+
+    ./ray --time 1800 --thread 16 --tree-size 65536 --pondering
 
 
 Licence

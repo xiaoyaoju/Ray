@@ -85,8 +85,9 @@ enum eye_condition {
 
 // 着手を記録する構造体
 struct move {
-  int color;  // 着手した石の色
-  int pos;    // 着手箇所の座標
+  int color;                // 着手した石の色
+  int pos;                  // 着手箇所の座標
+  unsigned long long hash;  //
 };
 
 // 連を表す構造体 (19x19 : 1987bytes)
@@ -113,12 +114,13 @@ struct game_info_t {
   unsigned long long current_hash;     // 現在の局面のハッシュ値
   unsigned long long previous1_hash;   // 1手前の局面のハッシュ値
   unsigned long long previous2_hash;   // 2手前の局面のハッシュ値
+  unsigned long long positional_hash;  // 局面のハッシュ値(石の位置のみ)
 
   char board[BOARD_MAX];            // 盤面 
 
   int pass_count;                   // パスした回数
 
-  pattern pat[BOARD_MAX];    // 周囲の石の配置 
+  pattern_t pat[BOARD_MAX];    // 周囲の石の配置 
 
   string_t string[MAX_STRING];        // 連のデータ(19x19 : 573,845bytes)
   int string_id[STRING_POS_MAX];    // 各座標の連のID
@@ -185,9 +187,6 @@ extern unsigned char territory[PAT3_MAX];
 // 上下左右4近傍の空点の数
 extern unsigned char nb4_empty[PAT3_MAX];
 
-// 周囲に石のないパターン
-extern bool empty_pat[PAT3_MAX];
-
 // 眼の状態
 extern unsigned char eye_condition[PAT3_MAX];
 
@@ -210,8 +209,11 @@ extern int first_move_candidate[PURE_BOARD_MAX];
 //   関数   //
 //////////////
 
+// 超劫の設定
+void SetSuperKo( const bool flag );
+
 // 盤の大きさの設定
-void SetBoardSize( int size );
+void SetBoardSize( const int size );
 
 // メモリ領域の確保
 game_info_t *AllocateGame( void );
@@ -233,33 +235,30 @@ void ClearBoard( game_info_t *game );
 
 // 合法手判定
 // 合法手ならばtrueを返す
-bool IsLegal( const game_info_t *game, int pos, int color );
+bool IsLegal( const game_info_t *game, const int pos, const int color );
 
 // 合法手かつ眼でないか判定
 // 合法手かつ眼でなければtrueを返す
-bool IsLegalNotEye( game_info_t *game, int pos, int color );
+bool IsLegalNotEye( game_info_t *game, const int pos, const int color );
 
 // 自殺手判定
 // 自殺手ならばtrueを返す
-bool IsSuicide( const game_info_t *game, const string_t *string, int color, int pos );
+bool IsSuicide( const game_info_t *game, const string_t *string, const int color, const int pos );
 
 // 石を置く
-void PutStone( game_info_t *game, int pos, int color );
+void PutStone( game_info_t *game, const int pos, const int color );
 
 // 石を置く(プレイアウト用)
-void PoPutStone( game_info_t *game, int pos, int color );
-
-// 隅のマガリ四目の確認
-void CheckBentFourInTheCorner( game_info_t *game );
+void PoPutStone( game_info_t *game, const int pos, const int color );
 
 // スコアの判定
 int CalculateScore( game_info_t *game );
 
 // コミの値の設定
-void SetKomi( double new_komi );
+void SetKomi( const double new_komi );
 
 // 上下左右の座標の計算
-void GetNeighbor4( int neighbor4[4], int pos );
+void GetNeighbor4( int neighbor4[4], const int pos );
 
 
 struct uct_node_t;

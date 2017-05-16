@@ -12,7 +12,7 @@ using namespace std;
 //  テキスト入力 (float)  //
 ////////////////////////////
 void
-InputTxtFLT( const char *filename, float *ap, int array_size )
+InputTxtFLT( const char *filename, float *ap, const int array_size )
 {
   FILE *fp;
   int i;
@@ -49,7 +49,7 @@ InputTxtFLT( const char *filename, float *ap, int array_size )
 //  テキスト入力 (double)  //
 /////////////////////////////
 void
-InputTxtDBL( const char *filename, double *ap, int array_size )
+InputTxtDBL( const char *filename, double *ap, const int array_size )
 {
   FILE *fp;
   int i;

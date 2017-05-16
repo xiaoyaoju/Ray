@@ -1,13 +1,12 @@
 TARGET=ray
-CC = g++
-#CC = x86_64-w64-mingw32-g++
+CXX = g++
 OPTIMIZE = -O3
 CPP11 = -std=c++11
 WARNING = -Wall
-DEBUG = -g
+DEBUG = #-g
 CNTKDIR = /home/ubuntu/src/cntk
 CFLAGS = ${OPTIMIZE} ${WARNING} ${CPP11} ${DEBUG}  -I${CNTKDIR}/Source/Common/Include/
-LIBS = -lm -pthread  -L${CNTKDIR}/lib -leval #-static-libstdc++ -static-libgcc
+LIBS = -lm -pthread  -L${CNTKDIR}/lib -leval
 RM = rm
 
 SRCS=${shell ls src/*.cpp}
@@ -20,10 +19,10 @@ OBJS=${SRCS:.cpp=.o}
 all : ${TARGET}
 
 ${TARGET} : ${OBJS}
-	${CC} ${CFLAGS} -o $@ ${OBJS} ${LIBS}
+	${CXX} ${CFLAGS} -o $@ ${OBJS} ${LIBS}
 
 .cpp.o:
-	${CC} ${CFLAGS} -c $< -o $@
+	${CXX} ${CFLAGS} -c $< -o $@
 
 .PHONY: clean
 

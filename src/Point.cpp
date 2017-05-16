@@ -9,25 +9,18 @@
 
 using namespace std;
 
-
-char gogui_x[] = { 
-  'I', 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'J', 
-  'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 
-  'U', 'V', 'W', 'X', 'Y', 'Z' 
-};
-
-char pass[] = "PASS";
-char resign[] = "resign";
+const char pass[] = "PASS";
+const char resign[] = "resign";
 
 
 ////////////////////////////////////
 //  2次元表記から1次元表記へ変換  //
 ////////////////////////////////////
 int
-StringToInteger( char *cpos )
+StringToInteger( const char *cpos )
 {
   char alphabet;
-  int i, x, y, pos;
+  int x, y, pos;
 
   if (strcmp(cpos, "pass") == 0 || 
       strcmp(cpos, "PASS") == 0){
@@ -35,7 +28,7 @@ StringToInteger( char *cpos )
   } else {
     alphabet = (char)toupper(cpos[0]);
     x = 0;
-    for (i = 1; i <= pure_board_size; i++) {
+    for (int i = 1; i <= pure_board_size; i++) {
       if (gogui_x[i] == alphabet) {
 	x = i;
       }
@@ -52,7 +45,7 @@ StringToInteger( char *cpos )
 //  1次元表記から2次元表記へ変換  //
 ////////////////////////////////////
 void
-IntegerToString( int pos, char *cpos )
+IntegerToString( const int pos, char *cpos )
 {
   int x, y;
 
@@ -60,13 +53,13 @@ IntegerToString( int pos, char *cpos )
 #if defined (_WIN32)
     sprintf_s(cpos, 5, "%s", pass);
 #else
-    sprintf(cpos, "%s", pass);
+    snprintf(cpos, 5, "%s", pass);
 #endif	
   } else if (pos == RESIGN) {
 #if defined (_WIN32)
     sprintf_s(cpos, 7, "%s", resign);
 #else
-    sprintf(cpos, "%s", resign);
+    snprintf(cpos, 7, "%s", resign);
 #endif	
   } else {
     x = X(pos) - (OB_SIZE - 1);
