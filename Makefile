@@ -7,8 +7,8 @@ CPP11 = -std=c++11 -std=c++1y
 WARNING = -Wall
 DEBUG = -g
 CNTKDIR = /home/ubuntu/src/cntk
-CFLAGS = ${OPTIMIZE} ${WARNING} ${CPP11} ${DEBUG}  -I${CNTKDIR}/Source/Common/Include/
-LIBS = -lm -pthread  -L${CNTKDIR}/lib -leval #-static-libstdc++ -static-libgcc
+CFLAGS = ${OPTIMIZE} ${WARNING} ${CPP11} ${DEBUG}  -I${CNTKDIR}/Include/
+LIBS = -lm -pthread  -L${CNTKDIR}/cntk/lib -leval #-static-libstdc++ -static-libgcc
 RM = rm
 
 SRCS=${shell ls src/*.cpp}
