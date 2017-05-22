@@ -65,9 +65,10 @@ const double c_puct = 1;
 const double value_scale = 0.5;
 
 enum SEARCH_MODE {
-  CONST_PLAYOUT_MODE, // 1手のプレイアウト回数を固定したモード
-  CONST_TIME_MODE,    // 1手の思考時間を固定したモード
-  TIME_SETTING_MODE,  // 持ち時間ありのモード
+  CONST_PLAYOUT_MODE,             // 1手のプレイアウト回数を固定したモード
+  CONST_TIME_MODE,                // 1手の思考時間を固定したモード
+  TIME_SETTING_MODE,              // 持ち時間ありのモード(秒読みなし)
+  TIME_SETTING_WITH_BYOYOMI_MODE, // 持ち時間ありのモード(秒読みあり)
 };
 
 
@@ -167,6 +168,9 @@ void SetNoExpand(bool flag);
 
 // パラメータの設定
 void SetParameter( void );
+
+// time_settingsコマンドによる設定
+void SetTimeSettings( int main_time, int byoyomi, int stones );
 
 // UCT探索の初期設定
 void InitializeUctSearch( void ); 

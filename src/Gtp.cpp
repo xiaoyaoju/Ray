@@ -521,6 +521,22 @@ GTP_finalscore( void )
 static void
 GTP_timesettings( void )
 {
+  char *str1, *str2, *str3;
+  double main_time, byoyomi, stone;
+
+  str1 = STRTOK(NULL, DELIM, &next_token);
+  str2 = STRTOK(NULL, DELIM, &next_token);
+  str3 = STRTOK(NULL, DELIM, &next_token);
+
+  main_time = atoi(str1);
+  byoyomi = atoi(str2);
+  stone = atoi(str3);
+
+  cerr << main_time << "," << byoyomi << "," << stone << endl;
+
+  SetTimeSettings(main_time, byoyomi, stone);
+  InitializeSearchSetting();
+  
   GTP_response(brank, true);
 }
 
@@ -620,7 +636,7 @@ GTP_fixed_handicap( void )
     PutStone(game, handicap[place_index[num - 2][i]], S_BLACK);
 #if defined (_WIN32)
     sprintf_s(pos, 5, "%c%d ", GOGUI_X(handicap[place_index[num - 2][i]]), GOGUI_Y(handicap[place_index[num - 2][i]]));
-    strncat_s(buf, sizeof(buf), pos, 5);
+    strcat_s(buf, 1024, pos);
 #else
     snprintf(pos, 5, "%c%d ", GOGUI_X(handicap[place_index[num - 2][i]]), GOGUI_Y(handicap[place_index[num - 2][i]]));
     strncat(buf, pos, 5);
