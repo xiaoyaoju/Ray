@@ -279,12 +279,12 @@ RatingMove(game_info_t *game, int color, std::mt19937_64 *mt, LGR& lgr)
     if (((*mt)() % 100) < tgr1_rate && game->moves > 0) {
       static std::atomic<uint64_t> lgr_total;
       static std::atomic<uint64_t> lgr_hit;
-      std::atomic_fetch_add(&lgr_total, 1);
+      std::atomic_fetch_add(&lgr_total, (uint64_t)1);
       int pos1 = game->record[game->moves - 1].pos;
       pos = lgr.getTGR1(color, pos1, game);
 
       if (pos != PASS && rate[pos] > 0) {
-	std::atomic_fetch_add(&lgr_hit, 1);
+	std::atomic_fetch_add(&lgr_hit, (uint64_t)1);
 	if (IsLegalNotEye(game, pos, color)) {
 	  return pos;
 	}
@@ -296,11 +296,11 @@ RatingMove(game_info_t *game, int color, std::mt19937_64 *mt, LGR& lgr)
     if (((*mt)() % 100) < lgrf1_rate && game->moves > 0) {
       static std::atomic<uint64_t> lgr_total;
       static std::atomic<uint64_t> lgr_hit;
-      std::atomic_fetch_add(&lgr_total, 1);
+      std::atomic_fetch_add(&lgr_total, (uint64_t)1);
       int pos1 = game->record[game->moves - 1].pos;
       pos = lgr.getLGRF1(color, pos1, game);
       if (pos != PASS && rate[pos] > 0) {
-	std::atomic_fetch_add(&lgr_hit, 1);
+	std::atomic_fetch_add(&lgr_hit, (uint64_t)1);
 	if (IsLegalNotEye(game, pos, color)) {
 	  return pos;
 	}
@@ -313,12 +313,12 @@ RatingMove(game_info_t *game, int color, std::mt19937_64 *mt, LGR& lgr)
     if (use_lgrf2 && game->moves > 1) {
       static std::atomic<uint64_t> lgr_total;
       static std::atomic<uint64_t> lgr_hit;
-      std::atomic_fetch_add(&lgr_total, 1);
+      std::atomic_fetch_add(&lgr_total, (uint64_t)1);
       int pos1 = game->record[game->moves - 2].pos;
       int pos2 = game->record[game->moves - 1].pos;
       pos = lgr.getLGRF2(color, pos1, pos2);
       if (pos != PASS && rate[pos] > 0) {
-	std::atomic_fetch_add(&lgr_hit, 1);
+	std::atomic_fetch_add(&lgr_hit, (uint64_t)1);
 	if (IsLegalNotEye(game, pos, color)) {
 	  //cerr << "Use LGRF2 " << FormatMove(pos1) << " -> " << FormatMove(pos2) << " -> " << FormatMove(pos) << endl;
 	  return pos;

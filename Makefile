@@ -1,12 +1,13 @@
 TARGET=ray
+# you need to use g++ 4.9 for both CNTK and C++14 features
 CXX = g++
 OPTIMIZE = -O3
-CPP11 = -std=c++11
+CPP11 = -std=c++11 -std=c++1y
 WARNING = -Wall
 DEBUG = #-g
 CNTKDIR = /home/ubuntu/src/cntk
-CFLAGS = ${OPTIMIZE} ${WARNING} ${CPP11} ${DEBUG}  -I${CNTKDIR}/Source/Common/Include/
-LIBS = -lm -pthread  -L${CNTKDIR}/lib -leval
+CFLAGS = ${OPTIMIZE} ${WARNING} ${CPP11} ${DEBUG}  -I${CNTKDIR}/Include/
+LIBS = -lm -pthread  -L${CNTKDIR}/cntk/lib -leval
 RM = rm
 
 SRCS=${shell ls src/*.cpp}
