@@ -6,6 +6,8 @@
 #include <iostream>
 #include <iomanip>
 #include <sstream>
+#include <algorithm>
+#include <numeric>
 
 #include "Message.h"
 #include "Point.h"
@@ -465,7 +467,7 @@ PrintBestSequence( const game_info_t *game, const uct_node_t *uct_node, const in
 
 
 void
-PrintLiveBestSequence(std::ostream& out, const game_info_t *game, const uct_node_t *uct_node, int current_root, int start_color)
+PrintBestSequenceGFX(std::ostream& out, const game_info_t *game, const uct_node_t *uct_node, int current_root, int start_color)
 {
   int current = current_root;
   int color = start_color;
@@ -557,6 +559,138 @@ PrintLiveBestSequence(std::ostream& out, const game_info_t *game, const uct_node
   out << endl;
 }
 
+
+static void
+PrintBestSequence(std::ostream& out, const game_info_t *game, const uct_node_t *uct_node, int current_root)
+{
+  int current = current_root;
+
+  auto root = &uct_node[current_root];
+  auto statistic = root->statistic;
+  auto uct_child = uct_node[current].child;
+  int child_num = uct_node[current].child_num;
+
+  if (root->move_count == 0)
+    return;
+
+  int index = -1;
+  int max = 0;
+  for (int i = 0; i < child_num; i++) {
+    if (uct_child[i].move_count > max) {
+      max = uct_child[i].move_count;
+      index = i;
+    }
+  }
+  if (node_hash[current].color == S_BLACK) out << "b ";
+  else if (node_hash[current].color == S_WHITE) out << "w ";
+  out << FormatMove(uct_child[index].pos) << " ";
+
+  current = uct_child[index].index;
+
+  while (current != NOT_EXPANDED) {
+    uct_child = uct_node[current].child;
+    child_num = uct_node[current].child_num;
+
+    max = 50;
+    index = -1;
+
+    for (int i = 0; i < child_num; i++) {
+      if (uct_child[i].move_count > max) {
+        max = uct_child[i].move_count;
+        index = i;
+      }
+    }
+
+    if (index == -1) break;
+
+    if (node_hash[current].color == S_BLACK) out << "b ";
+    else if (node_hash[current].color == S_WHITE) out << "w ";
+    out << FormatMove(uct_child[index].pos) << " ";
+
+    current = uct_child[index].index;
+  }
+}
+
+void
+PrintMoveStat( std::ostream& out, const game_info_t *game, const uct_node_t *uct_node, int current_root )
+{
+  bool evaled = uct_node[current_root].evaled;
+  const child_node_t *uct_child = uct_node[current_root].child;
+  const int child_num = uct_node[current_root].child_num;
+  const double scale = std::max(0.2, std::min(1.0, 1.0 - (game->moves - 200) / 50.0)) * value_scale;
+
+  vector<size_t> idx(child_num);
+  iota(idx.begin(), idx.end(), 0);
+
+  auto idxComp = [&uct_child](size_t i1, size_t i2) {
+    return uct_child[i1].move_count > uct_child[i2].move_count;
+  };
+
+  sort(idx.begin(), idx.end(), idxComp);
+
+  out << "|Move|Count|Simulation|Policy    |Value     |Win       |Best Sequence" << endl;
+  // UCB値最大の手を求める  
+  for (int j = 0; j < std::min(10, child_num); j++) {
+    int i = idx[j];
+    if (uct_child[i].move_count == 0)
+      continue;
+    if (!uct_child[i].flag && !uct_child[i].open)
+      continue;
+    //double p2 = -1;
+    double value_win = 0;
+    double value_move_count = 0;
+
+    if (uct_child[i].index >= 0 && i != 0) {
+      auto node = &uct_node[uct_child[i].index];
+      if (node->value_move_count > 0) {
+        //p2 = 1 - (double)node->value_win / node->value_move_count;
+        value_win = node->value_win;
+        value_move_count = node->value_move_count;
+        value_win = value_move_count - value_win;
+      }
+      //cerr << "VA:" << (value_win / value_move_count) << " VS:" << uct_child[i].value << endl;
+    }
+    if (value_move_count == 0 && uct_child[i].value >= 0) {
+      value_move_count = 1;
+      value_win = uct_child[i].value;
+    }
+
+    double win = uct_child[i].win;
+    double move_count = uct_child[i].move_count;
+    double p0 = win / move_count;
+
+    out << "|" << setw(4) << FormatMove(uct_child[i].pos);
+    out << "|" << setw(5) << (int) move_count;
+
+    auto precision = out.precision();
+    out.precision(4);
+    out << "|" << setw(10) << fixed << (p0 * 100);
+    if (evaled) {
+      out << "|" << setw(10) << fixed << (uct_child[i].nnrate * 100);
+      if (value_move_count > 0) {
+        double p1 = value_win / value_move_count;
+        double p = p0 * (1 - scale) + p1 * scale;
+        out
+          << "|" << setw(10) << fixed << (p1 * 100)
+          << "|" << setw(10) << fixed << (p * 100);
+      } else {
+        out
+          << "|"
+          << "|";
+      }
+    } else {
+      out
+        << "|"
+        << "|"
+        << "|";
+    }
+    out.precision(precision);
+    out << "|";
+    if (uct_child[i].index > 0)
+      PrintBestSequence(out, game, uct_node, uct_child[i].index);
+    out << endl;
+  }
+}
 
 ///////////////////////
 //  探索の情報の表示  //

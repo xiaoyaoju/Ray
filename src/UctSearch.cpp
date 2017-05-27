@@ -167,6 +167,9 @@ bool reuse_subtree = false;
 // 自分の手番の色
 int my_color;
 
+//
+static bool live_best_sequence = false;
+
 const double pass_po_limit = 0.5;
 const int policy_batch_size = 16;
 const int value_batch_size = 64;
@@ -346,6 +349,14 @@ SetEarlyPass(bool pass)
   early_pass = pass;
 }
 
+//////////////////////////////
+// Toggle Live Best Sequece //
+//////////////////////////////
+void
+ToggleLiveBestSequence()
+{
+  live_best_sequence = !live_best_sequence;
+}
 
 ////////////////////////////////////////////
 //  盤の大きさに合わせたパラメータの設定  //
@@ -1708,8 +1719,8 @@ SelectMaxUcbChild( const game_info_t *game, int current, int color )
   double ucb_bonus_weight = bonus_weight * sqrt(bonus_equivalence / (sum + bonus_equivalence));
   const bool debug = current == current_root && sum % 10000 == 0 && GetDebugMessageMode();
 
-  if (current == current_root && sum % 1000 == 0) {
-    PrintLiveBestSequence(cerr, game, uct_node, current_root, color);
+  if (live_best_sequence && current == current_root && sum % 1000 == 0) {
+    PrintBestSequenceGFX(cerr, game, uct_node, current_root, color);
   }
   //if (evaled) {
     //cerr << "use nn" << endl;

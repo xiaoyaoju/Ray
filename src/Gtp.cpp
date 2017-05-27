@@ -8,6 +8,8 @@
 #include <fstream>
 #include <vector>
 #include <random>
+#include <sstream>
+#include <iomanip>
 
 #include "DynamicKomi.h"
 #include "Gtp.h"
@@ -67,8 +69,14 @@ static void GTP_final_status_list( void );
 static void GTP_set_free_handicap( void );
 // fixed_handicapコマンドを処理
 static void GTP_fixed_handicap( void );
+// GOGUI
+static void GTP_gogui_analyze_commands( void );
 //
-static void GTP_ray_analyze(void);
+static void GTP_ray_toggle_live_best_sequence();
+//
+static void GTP_ray_best_sequence();
+//
+static void GTP_ray_stat();
 //
 static void GTP_features_planes_file(void);
 //
@@ -107,7 +115,10 @@ const GTP_command_t gtpcmd[GTP_COMMAND_NUM] = {
   { "place_free_handicap", GTP_fixed_handicap      },
   { "set_free_handicap",   GTP_set_free_handicap   },
   { "kgs-genmove_cleanup", GTP_kgs_genmove_cleanup },
-  { "ray_analyze",         GTP_ray_analyze         },
+  { "gogui-analyze_commands", GTP_gogui_analyze_commands },
+  { "ray-toggle_live_best_sequence", GTP_ray_toggle_live_best_sequence },
+  { "ray-best_sequence", GTP_ray_best_sequence },
+  { "ray-stat", GTP_ray_stat },
   { "_clear", GTP_features_clear },
   { "_store", GTP_features_store },
   { "_dump", GTP_features_planes_file },
@@ -782,12 +793,32 @@ GTP_kgs_genmove_cleanup( void )
   GTP_response(pos, true);
 }
 
-
-//////////////////////////
-//  void GTP_genmove()  //
-//////////////////////////
+/////////////////////////////////////////
+//  void GTP_gogui_analyze_commands()  //
+/////////////////////////////////////////
 static void
-GTP_ray_analyze(void)
+GTP_gogui_analyze_commands()
+{
+  GTP_response(
+    "none/Togle Live Best Sequence/ray-toggle_live_best_sequence\n"
+    "gfx/Print Best Sequence/ray-best_sequence %m\n"
+    "hpstring/Print Moves/ray-stat %m\n"
+    "",
+    true);
+}
+
+static void
+GTP_ray_toggle_live_best_sequence()
+{
+  ToggleLiveBestSequence();
+  GTP_response(brank, true);
+}
+
+////////////////////////////////////
+//  void GTP_ray_best_sequence()  //
+////////////////////////////////////
+static void
+GTP_ray_best_sequence()
 {
   char *command;
   char c;
@@ -798,26 +829,20 @@ GTP_ray_analyze(void)
   command = STRTOK(input_copy, DELIM, &next_token);
 
   CHOMP(command);
-  if (!strcmp("genmove_black", command)) {
-    color = S_BLACK;
-  } else if (!strcmp("genmove_white", command)) {
+  command = STRTOK(NULL, DELIM, &next_token);
+  if (command == NULL) {
+    GTP_response(err_genmove, true);
+    return;
+  }
+  CHOMP(command);
+  c = (char)tolower((int)command[0]);
+  if (c == 'w') {
     color = S_WHITE;
+  } else if (c == 'b') {
+    color = S_BLACK;
   } else {
-    command = STRTOK(NULL, DELIM, &next_token);
-    if (command == NULL) {
-      GTP_response(err_genmove, true);
-      return;
-    }
-    CHOMP(command);
-    c = (char)tolower((int)command[0]);
-    if (c == 'w') {
-      color = S_WHITE;
-    } else if (c == 'b') {
-      color = S_BLACK;
-    } else {
-      GTP_response(err_genmove, true);
-      return;
-    }
+    GTP_response(err_genmove, true);
+    return;
   }
 
   player_color = color;
@@ -826,19 +851,55 @@ GTP_ray_analyze(void)
     point = SimulationGenmove(game, color);
   else
     point = UctSearchGenmove(game, color);
-  /*
-  if (point != RESIGN) {
-    PutStone(game, point, color);
+
+  stringstream out;
+  PrintBestSequenceGFX(out, game, uct_node, current_root, color);
+  GTP_response(out.str().c_str(), true);
+}
+
+///////////////////////////
+//  void GTP_ray_stat()  //
+///////////////////////////
+static void
+GTP_ray_stat()
+{
+  char *command;
+  char c;
+  char pos[10];
+  int color;
+  int point = PASS;
+
+  command = STRTOK(input_copy, DELIM, &next_token);
+
+  CHOMP(command);
+  command = STRTOK(NULL, DELIM, &next_token);
+  if (command == NULL) {
+    GTP_response(err_genmove, true);
+    return;
+  }
+  CHOMP(command);
+  c = (char)tolower((int)command[0]);
+  if (c == 'w') {
+    color = S_WHITE;
+  } else if (c == 'b') {
+    color = S_BLACK;
+  } else {
+    GTP_response(err_genmove, true);
+    return;
   }
 
-  IntegerToString(point, pos);
-  */
-  cout << "= ";
-  PrintLiveBestSequence(cerr, game, uct_node, current_root, color);
-  //GTP_response(pos, true);
-  cout << endl << endl;
+  player_color = color;
 
-  UctSearchPondering(game, FLIP_COLOR(color));
+  if (sim_move)
+    point = SimulationGenmove(game, color);
+  else
+    point = UctSearchGenmove(game, color);
+
+  stringstream out;
+  PrintMoveStat(out, game, uct_node, current_root);
+
+  GTP_response(out.str().c_str(), true);
+  //cout << endl << endl;
 }
  
 static int features_turn_count = 0;

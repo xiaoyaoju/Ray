@@ -166,6 +166,9 @@ void SetEarlyPass( bool pass );
 // ノード展開の有無指定
 void SetNoExpand(bool flag);
 
+//
+void ToggleLiveBestSequence();
+
 // パラメータの設定
 void SetParameter( void );
 

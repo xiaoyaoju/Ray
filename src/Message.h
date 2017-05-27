@@ -34,7 +34,8 @@ void PrintOwner( const uct_node_t *root, const int color, double *own );
 
 //  最善応手列の表示
 void PrintBestSequence( const game_info_t *game, const uct_node_t *uct_node, const int root, const int start_color );
-void PrintLiveBestSequence( std::ostream& out, const game_info_t *game, const uct_node_t *uct_node, int root, int start_color );
+void PrintBestSequenceGFX( std::ostream& out, const game_info_t *game, const uct_node_t *uct_node, int root, int start_color );
+void PrintMoveStat( std::ostream& out, const game_info_t *game, const uct_node_t *uct_node, int current_root );
 
 //  探索の情報の表示
 void PrintPlayoutInformation( const uct_node_t *root, const po_info_t *po_info, const double finish_time, const int pre_simulated );
