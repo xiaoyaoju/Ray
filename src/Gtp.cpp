@@ -68,6 +68,8 @@ static void GTP_set_free_handicap( void );
 // fixed_handicapコマンドを処理
 static void GTP_fixed_handicap( void );
 //
+static void GTP_ray_analyze(void);
+//
 static void GTP_features_planes_file(void);
 //
 static void GTP_features_clear(void);
@@ -105,7 +107,7 @@ const GTP_command_t gtpcmd[GTP_COMMAND_NUM] = {
   { "place_free_handicap", GTP_fixed_handicap      },
   { "set_free_handicap",   GTP_set_free_handicap   },
   { "kgs-genmove_cleanup", GTP_kgs_genmove_cleanup },
-  { "features_planes_file", GTP_features_planes_file },
+  { "ray_analyze",         GTP_ray_analyze         },
   { "_clear", GTP_features_clear },
   { "_store", GTP_features_store },
   { "_dump", GTP_features_planes_file },
@@ -778,6 +780,65 @@ GTP_kgs_genmove_cleanup( void )
   IntegerToString(point, pos);
   
   GTP_response(pos, true);
+}
+
+
+//////////////////////////
+//  void GTP_genmove()  //
+//////////////////////////
+static void
+GTP_ray_analyze(void)
+{
+  char *command;
+  char c;
+  char pos[10];
+  int color;
+  int point = PASS;
+
+  command = STRTOK(input_copy, DELIM, &next_token);
+
+  CHOMP(command);
+  if (!strcmp("genmove_black", command)) {
+    color = S_BLACK;
+  } else if (!strcmp("genmove_white", command)) {
+    color = S_WHITE;
+  } else {
+    command = STRTOK(NULL, DELIM, &next_token);
+    if (command == NULL) {
+      GTP_response(err_genmove, true);
+      return;
+    }
+    CHOMP(command);
+    c = (char)tolower((int)command[0]);
+    if (c == 'w') {
+      color = S_WHITE;
+    } else if (c == 'b') {
+      color = S_BLACK;
+    } else {
+      GTP_response(err_genmove, true);
+      return;
+    }
+  }
+
+  player_color = color;
+
+  if (sim_move)
+    point = SimulationGenmove(game, color);
+  else
+    point = UctSearchGenmove(game, color);
+  /*
+  if (point != RESIGN) {
+    PutStone(game, point, color);
+  }
+
+  IntegerToString(point, pos);
+  */
+  cout << "= ";
+  PrintLiveBestSequence(cerr, game, uct_node, current_root, color);
+  //GTP_response(pos, true);
+  cout << endl << endl;
+
+  UctSearchPondering(game, FLIP_COLOR(color));
 }
  
 static int features_turn_count = 0;

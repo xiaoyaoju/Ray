@@ -1709,7 +1709,7 @@ SelectMaxUcbChild( const game_info_t *game, int current, int color )
   const bool debug = current == current_root && sum % 10000 == 0 && GetDebugMessageMode();
 
   if (current == current_root && sum % 1000 == 0) {
-    PrintLiveBestSequence(game, uct_node, current_root, color);
+    PrintLiveBestSequence(cerr, game, uct_node, current_root, color);
   }
   //if (evaled) {
     //cerr << "use nn" << endl;

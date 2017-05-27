@@ -465,12 +465,12 @@ PrintBestSequence( const game_info_t *game, const uct_node_t *uct_node, const in
 
 
 void
-PrintLiveBestSequence(const game_info_t *game, const uct_node_t *uct_node, int current_root, int start_color)
+PrintLiveBestSequence(std::ostream& out, const game_info_t *game, const uct_node_t *uct_node, int current_root, int start_color)
 {
   int current = current_root;
   int color = start_color;
-  //cerr << "gogui-gfx: CLEAR" << endl;
-  cerr << "gogui-gfx:" << endl;
+  //out << "gogui-gfx: CLEAR" << endl;
+  out << "gogui-gfx:" << endl;
 
   auto root = &uct_node[current_root];
   auto statistic = root->statistic;
@@ -497,11 +497,11 @@ PrintLiveBestSequence(const game_info_t *game, const uct_node_t *uct_node, int c
       index = i;
     }
   }
-  //cerr << "gogui-gfx: VAR ";
-  cerr << "VAR ";
-  if (node_hash[current].color == S_BLACK) cerr << "b ";
-  else if (node_hash[current].color == S_WHITE) cerr << "w ";
-  cerr << FormatMove(uct_child[index].pos) << " ";
+  //out << "gogui-gfx: VAR ";
+  out << "VAR ";
+  if (node_hash[current].color == S_BLACK) out << "b ";
+  else if (node_hash[current].color == S_WHITE) out << "w ";
+  out << FormatMove(uct_child[index].pos) << " ";
   own[uct_child[index].pos] = 0.5;
 
   color = FLIP_COLOR(color);
@@ -524,20 +524,20 @@ PrintLiveBestSequence(const game_info_t *game, const uct_node_t *uct_node, int c
 
     if (index == -1) break;
 
-    if (node_hash[current].color == S_BLACK) cerr << "b ";
-    else if (node_hash[current].color == S_WHITE) cerr << "w ";
-    cerr << FormatMove(uct_child[index].pos) << " ";
+    if (node_hash[current].color == S_BLACK) out << "b ";
+    else if (node_hash[current].color == S_WHITE) out << "w ";
+    out << FormatMove(uct_child[index].pos) << " ";
     own[uct_child[index].pos] = 0.5;
 
     color = FLIP_COLOR(color);
 
     current = uct_child[index].index;
   }
-  cerr << endl;
+  out << endl;
 #endif
 #if 1
-  //cerr << "gogui-gfx: INFLUENCE ";
-  cerr << "INFLUENCE ";
+  //out << "gogui-gfx: INFLUENCE ";
+  out << "INFLUENCE ";
   for (int i = 1, y = board_start; y <= board_end; y++, i++) {
     for (int x = board_start; x <= board_end; x++) {
       int pos = POS(x, y);
@@ -548,13 +548,13 @@ PrintLiveBestSequence(const game_info_t *game, const uct_node_t *uct_node, int c
       double inf = (owner - 0.5) * 2;
       if (start_color == S_WHITE)
         inf *= -1;
-      cerr << FormatMove(pos) << " " << inf << " ";
+      out << FormatMove(pos) << " " << inf << " ";
     }
   }
-  cerr << endl;
+  out << endl;
 #endif
 
-  cerr << endl;
+  out << endl;
 }
 
 
