@@ -14,7 +14,7 @@ using namespace std;
 ////////////////
 
 // LGR
-int tgr1_rate = 80;
+int tgr1_rate = 0;
 int lgrf1_rate = 0;
 bool use_lgrf2 = false;
 
