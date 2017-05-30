@@ -1,0 +1,285 @@
+# ConvNet applied on CIFAR-10 dataset, with data augmentation (translation and flipping).
+
+command = TrainConvNet:Eval
+
+precision = "float"; traceLevel = 1 ; deviceId = "auto"
+
+rootDir = "." ; configDir = "./Config" ;
+#dataDir = "$rootDir$/DataSets/CIFAR-10" ;
+outputDir = "./Output" ;
+AEpoch = "0"
+
+Name = "ResNetV90a"
+modelPath = "$ModelDir$/Conv"
+stderr    = "$OutputDir$/$Name$_$command$.log"
+
+DataFile    = "e:/tmp/v50/test/test.txt"
+CvDataFile  = "e:/tmp/v50/test/test2.txt"
+#CvDataFile  = "h:/tmp/v50p/test/test2.txt"
+#CvDataFile  = "E:/tmp/value-mokusan-ladder/test_0.txt"
+#CvDataFile  = "E:/tmp/value-mokusan-ladder2/test_0.txt"
+#CvDataFile  = "E:/tmp/value-mokusan-ladder2/test2/test_2.txt"
+
+TestDataFile  = "E:/tmp/v50/test_all.txt"
+
+AEpoch = 0
+
+
+ModelDir  =  "$OutputDir$/$Name$"
+
+deviceId = 0
+imageLayout = "cudnn"
+# override the above as follows when running on CPU:
+# deviceId = -1
+# imageLayout = "legacy"
+traceLevel = 1
+#traceLevel = 2
+
+train = {
+    action = "train"
+
+    BrainScriptNetworkBuilder = {
+        include "$configDir$/$Name$.bs"
+    }
+
+    SGD = {
+        #epochSize = 4198912
+		#epochSize =   1024000
+        #minibatchSize = 256
+		
+		epochSize =  256000
+		#minibatchSize = 96
+		minibatchSize = 128
+		#minibatchSize = 64
+		#minibatchSize = 32
+		#minibatchSize = 16
+
+		#epochSize = 1024000
+		#minibatchSize = 256
+
+        # Note that learning rates are 10x more than in the paper due to a different 
+        # momentum update rule in CNTK: v{t + 1} = lr*(1 - momentum)*g{t + 1} + momentum*v{t} 
+        #learningRatesPerMB = 1.0*80:0.1*40:0.01
+		#learningRatesPerMB=0.001*10:0.01*40:0.004
+		#learningRatesPerMB=0.001*2:0.01
+		#learningRatesPerMB=0.01*10:0.1
+		#learningRatesPerMB=0.001
+		#learningRatesPerMB=0.004*20:0.002*20:0.001*20:0.0008*20:0.0004*20:0.0002*20:0.0001*20:0.0008
+		#learningRatesPerMB=0.004*20:0.002*20:0.001*20:0.0004*20:0.0002*20:0.0001*20
+		#learningRatesPerMB=0.004*20:0.002*20:0.001*20:0.0004*20
+		#learningRatesPerMB=0.001*2:0.01*50:0.004*50:0.002*50:0.001*50:0.0008*50:0.0004*50:0.0002*50:0.0001*50
+		#learningRatesPerMB=0.001*2:0.01*50:0.004*50:0.002*50:0.001*50:0.0008
+		#learningRatesPerMB=0.001*2:0.02*50:0.01
+		#learningRatesPerMB=0.001*2:0.02
+		#learningRatesPerMB=0.0016*50:0.0008*50:0.0004*50
+		#learningRatesPerMB=0.0001*2:0.002
+		learningRatesPerMB=0.002
+        momentumPerMB = 0.9
+        #maxEpochs = 160
+        L2RegWeight = 0.0001
+		dropoutRate=0*10:0.5
+
+		maxEpochs = 100000
+		#maxEpochs = 16
+		numMBsToShowResult = 100
+		#gradUpdateType = FSAdaGrad
+		#gradUpdateType = None
+		#gradUpdateType = rmsProp
+		# None AdaGrad RmsProp FSAdaGrad
+		keepCheckPointFiles = true
+
+		AutoAdjust=[
+			# auto learning rate adjustment
+			autoAdjustLR=adjustafterepoch
+			reduceLearnRateIfImproveLessThan=0.05
+			#continueReduce=true
+		# 	#increaseLearnRateIfImproveMoreThan=1000000000
+			learnRateDecreaseFactor=0.5
+		# 	#learnRateIncreaseFactor=1.382
+		# 	numMiniBatch4LRSearch=100
+		# 	#numBestSearchEpoch=500
+			learnRateAdjustInterval = 200
+		]
+
+    }
+
+    reader = [
+		readerType = "CNTKTextFormatReader"
+		file = "$DataFile$"
+		randomize = false
+#		miniBatchMode=Full
+		traceLevel = 1
+		keepDataInMemory = false
+
+		input = [
+			win = [
+	            dim = 1
+        	    format = "dense"
+	        ]
+	        move = [
+    	        dim = 361
+        	    format = "sparse"
+	        ]
+			color = [
+	            dim = 1
+        	    format = "dense"
+	        ]
+			komi = [
+	            dim = 1
+        	    format = "dense"
+	        ]
+	        basic = [
+    	        dim = 3610
+        	    format = "sparse"
+	        ]
+	        features = [
+    	        dim = 14801
+        	    format = "sparse"
+	        ]
+	        history = [
+    	        dim = 361
+        	    format = "sparse"
+	        ]
+	        statistic = [
+    	        dim = 361
+        	    format = "dense"
+	        ]
+		]
+    ]
+
+    cvReader = [
+		readerType = "CNTKTextFormatReader"
+		file = "$CvDataFile$"
+		randomize = false
+		traceLevel = 1
+		keepDataInMemory = false
+
+		input = [
+			win = [
+	            dim = 1
+        	    format = "dense"
+	        ]
+	        move = [
+    	        dim = 361
+        	    format = "sparse"
+	        ]
+			color = [
+	            dim = 1
+        	    format = "dense"
+	        ]
+			komi = [
+	            dim = 1
+        	    format = "dense"
+	        ]
+	        basic = [
+    	        dim = 3610
+        	    format = "sparse"
+	        ]
+	        features = [
+    	        dim = 14801
+        	    format = "sparse"
+	        ]
+	        history = [
+    	        dim = 361
+        	    format = "sparse"
+	        ]
+	        statistic = [
+    	        dim = 361
+        	    format = "dense"
+	        ]
+		]
+    ]
+}
+
+
+test = [
+    action = "eval"
+	#action = "write"
+    #minibatchSize = 256
+	minibatchSize = 64
+	maxEpochs=1
+	#epochSize = 2560000
+	#epochSize = 1792000
+
+    #modelPath=$ModelDir$/Conv.Eval
+	modelPath=$ModelDir$/Conv.$AEpoch$
+
+    # NDLNetworkBuilder = [
+    #     networkDescription = "$ConfigDir$/$Name$.ndl"
+    # ]
+
+    reader = [
+		readerType = "CNTKTextFormatReader"
+		file = "$TestDataFile$"
+		randomize = false
+		#miniBatchMode=Full
+		traceLevel = 1
+
+		input = [
+			win = [
+	            dim = 1
+        	    format = "dense"
+	        ]
+	        move = [
+    	        dim = 361
+        	    format = "sparse"
+	        ]
+			color = [
+	            dim = 1
+        	    format = "dense"
+	        ]
+			komi = [
+	            dim = 1
+        	    format = "dense"
+	        ]
+	        basic = [
+    	        dim = 3610
+        	    format = "sparse"
+	        ]
+	        features = [
+    	        dim = 22743
+        	    format = "sparse"
+	        ]
+	        history = [
+    	        dim = 361
+        	    format = "sparse"
+	        ]
+	        statistic = [
+    	        dim = 361
+        	    format = "dense"
+	        ]
+		]
+    ]
+#	outputNodeNames = ol.z : labels
+#	outputPath = "$OutputDir$/EvalOutput"
+]
+
+# dump parameter values
+dump = [
+    action = "dumpNode"
+    printValues = true
+	modelPath=$ModelDir$/Conv.$AEpoch$
+]
+
+plot = [
+    action = "plot"
+	modelPath=$ModelDir$/Conv.0
+
+    # outputdotFile specifies the dot file to output
+    # if the user does not specify this, it will be ${modelPath}.dot
+    outputdotFile = "$OutputDir$/$Name$.dot"
+
+    # if RenderCmd is specified, CNTK will call the plot command after replacing
+    # <IN> with ${outputdotFile} and <OUT> with ${outputfile}
+    outputFile="$OutputDir$/$Name$.svg" 
+    renderCmd="d:\programs\Graphviz2.38\bin\dot.exe -Tsvg <IN> -o<OUT>"
+#    outputFile="$OutputDir$/$Name$.png" 
+#    renderCmd="d:\programs\Graphviz2.38\bin\dot.exe -Tpng <IN> -o<OUT>"
+]
+
+edit = [
+    action = edit
+    CurModel=$ModelDir$/Pre
+    NewModel=$ModelDir$/Conv.0
+    editPath=$configDir$/$Name$.mel
+]
