@@ -16,6 +16,8 @@
 #include <random>
 #include <queue>
 
+#include "concurrentqueue.h"
+
 #include "DynamicKomi.h"
 #include "GoBoard.h"
 #include "Ladder.h"
@@ -180,8 +182,9 @@ static bool early_pass = true;
 
 static bool use_nn = true;
 static int device_id = 0;
-static std::queue<std::shared_ptr<policy_eval_req>> eval_policy_queue;
-static std::queue<std::shared_ptr<value_eval_req>> eval_value_queue;
+template<class T> using Queue = moodycamel::ConcurrentQueue<T>;
+static Queue<policy_eval_req*> eval_policy_queue;
+static Queue<value_eval_req*> eval_value_queue;
 static int eval_count_policy, eval_count_value;
 static double owner_nn[BOARD_MAX];
 
@@ -198,9 +201,9 @@ double atomic_fetch_add(std::atomic<double> *obj, double arg) {
 static void
 ClearEvalQueue()
 {
-  queue<shared_ptr<value_eval_req>> empty_value;
+  Queue<value_eval_req*> empty_value;
   eval_value_queue.swap(empty_value);
-  queue<shared_ptr<policy_eval_req>> empty_policy;
+  Queue<policy_eval_req*> empty_policy;
   eval_policy_queue.swap(empty_policy);
 }
 
@@ -742,8 +745,8 @@ UctSearchGenmove( game_info_t *game, int color )
   ClearEvalQueue();
  
   if (use_nn && GetDebugMessageMode()) {
-    cerr << "Eval NN Policy     :  " << setw(7) << (eval_count_policy + eval_policy_queue.size()) << endl;
-    cerr << "Eval NN Value      :  " << setw(7) << (eval_count_value + eval_value_queue.size()) << endl;
+    cerr << "Eval NN Policy     :  " << setw(7) << (eval_count_policy + eval_policy_queue.size_approx()) << endl;
+    cerr << "Eval NN Value      :  " << setw(7) << (eval_count_value + eval_value_queue.size_approx()) << endl;
     cerr << "Eval NN            :  " << setw(7) << eval_count_policy << "/" << eval_count_value << endl;
     cerr << "Count Captured     :  " << setw(7) << count << endl;
     cerr << "Score              :  " << setw(7) << score << endl;
@@ -1222,7 +1225,7 @@ RatingNode( game_info_t *game, int color, int index, int depth )
     double rate[PURE_BOARD_MAX];
     AnalyzePoRating(game, color, rate);
 
-    auto req = make_shared<policy_eval_req>();
+    auto req = new policy_eval_req();
     req->color = color;
     req->depth = depth;
     req->index = index;
@@ -1231,7 +1234,7 @@ RatingNode( game_info_t *game, int color, int index, int depth )
     WritePlanes(req->data_basic, req->data_features, req->data_history, nullptr,
       game, root, color, req->trans);
 #if 1
-    eval_policy_queue.push(req);
+    eval_policy_queue.enqueue(req);
     //push_back(u);
 #else
     std::vector<int> indices;
@@ -1401,17 +1404,12 @@ ParallelUctSearch( thread_arg_t *arg )
   // 探索回数が閾値を超える, または探索が打ち切られたらループを抜ける
   if (targ->thread_id == 0) {
     do {
-      // Wait if dcnn queue is full
-      LOCK_EXPAND;
-      while (eval_value_queue.size() > value_batch_size * 3 || eval_policy_queue.size() > policy_batch_size * 3) {
+      while (eval_value_queue.size_approx() > value_batch_size * 3 || eval_policy_queue.size_approx() > policy_batch_size * 3) {
 	std::atomic_fetch_add(&queue_full, 1);
-	UNLOCK_EXPAND;
 	this_thread::sleep_for(chrono::milliseconds(10));
 	if (queue_full % 1000 == 0)
 	  cerr << "EVAL QUEUE FULL" << endl;
-	LOCK_EXPAND;
       }
-      UNLOCK_EXPAND;
       // 探索回数を1回増やす	
       atomic_fetch_add(&po_info.count, 1);
       // 盤面のコピー
@@ -1568,7 +1566,7 @@ UctSearch(game_info_t *game, int color, mt19937_64 *mt, LGR& lgrf, LGRContext& l
 
       double rate[PURE_BOARD_MAX];
       AnalyzePoRating(game, color, rate);
-      auto req = make_shared<value_eval_req>();
+      auto req = new value_eval_req();
       req->uct_child = uct_child + next_index;
       req->color = color;
       //req->index = index;
@@ -1576,9 +1574,7 @@ UctSearch(game_info_t *game, int color, mt19937_64 *mt, LGR& lgrf, LGRContext& l
       req->path.swap(path);
       WritePlanes(req->data_basic, req->data_features, req->data_history, nullptr,
         game, root, color, req->trans);
-      LOCK_EXPAND;
-      eval_value_queue.push(req);
-      UNLOCK_EXPAND;
+      eval_value_queue.enqueue(req);
     }
 
     // 終局まで対局のシミュレーション
@@ -2472,31 +2468,23 @@ static std::vector<float> eval_input_data_komi;
 void EvalNode() {
 #if 1
   while (true) {
-    LOCK_EXPAND;
     bool running = handle[0] != nullptr;
-    if (!running
-      && ((!reuse_subtree && !ponder) || (eval_policy_queue.empty() && eval_value_queue.empty()))) {
-      UNLOCK_EXPAND;
-      break;
-    }
+    bool empty_policy = true;
+    bool empty_value = true;
 
-    if (eval_policy_queue.empty() && eval_value_queue.empty()) {
-      UNLOCK_EXPAND;
-      this_thread::sleep_for(chrono::milliseconds(1));
-      //cerr << "EMPTY QUEUE" << endl;
-      continue;
-    }
+    do {
+      vector<shared_ptr<policy_eval_req>> requests;
 
-    if (eval_policy_queue.size() == 0) {
-    } else {
-      std::vector<std::shared_ptr<policy_eval_req>> requests;
-
-      for (int i = 0; i < policy_batch_size && !eval_policy_queue.empty(); i++) {
-	auto req = eval_policy_queue.front();
-	requests.push_back(req);
-	eval_policy_queue.pop();
+      for (int i = 0; i < policy_batch_size; i++) {
+        policy_eval_req *req;
+        if (!eval_policy_queue.try_dequeue(req))
+          break;
+	requests.push_back(shared_ptr<policy_eval_req>(req));
       }
-      UNLOCK_EXPAND;
+      if (requests.empty()) {
+        empty_policy = true;
+        break;
+      }
 
       eval_input_data_basic.resize(0);
       eval_input_data_features.resize(0);
@@ -2511,20 +2499,21 @@ void EvalNode() {
         eval_input_data_komi.push_back(komi[0]);
       }
       EvalPolicy(requests, eval_input_data_basic, eval_input_data_features, eval_input_data_history, eval_input_data_color, eval_input_data_komi);
-      LOCK_EXPAND;
-    }
+    } while (false);
 
-    if (running && eval_value_queue.size() == 0) {
-      UNLOCK_EXPAND;
-    } else {
-      std::vector<std::shared_ptr<value_eval_req>> requests;
+    do {
+      vector<shared_ptr<value_eval_req>> requests;
 
-      for (int i = 0; i < value_batch_size && !eval_value_queue.empty(); i++) {
-	auto req = eval_value_queue.front();
-	requests.push_back(req);
-	eval_value_queue.pop();
+      for (int i = 0; i < value_batch_size; i++) {
+        value_eval_req *req;
+        if (!eval_value_queue.try_dequeue(req))
+          break;
+	requests.push_back(shared_ptr<value_eval_req>(req));
       }
-      UNLOCK_EXPAND;
+      if (requests.empty()) {
+        empty_value = true;
+        break;
+      }
 
       eval_input_data_basic.resize(0);
       eval_input_data_features.resize(0);
@@ -2539,6 +2528,16 @@ void EvalNode() {
         eval_input_data_komi.push_back(komi[0]);
       }
       EvalValue(requests, eval_input_data_basic, eval_input_data_features, eval_input_data_history, eval_input_data_color, eval_input_data_komi);
+    } while (false);
+
+    if (!running
+      && ((!reuse_subtree && !ponder) || (empty_policy && empty_value))) {
+      break;
+    }
+
+    if (empty_policy && empty_value) {
+      this_thread::sleep_for(chrono::milliseconds(1));
+      continue;
     }
   }
 #endif
