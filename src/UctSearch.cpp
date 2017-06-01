@@ -2315,7 +2315,7 @@ EvalPolicy(const std::vector<std::shared_ptr<policy_eval_req>>& requests,
   //ownern.reserve(pure_board_max * indices.size());
   moves.reserve(pure_board_max * requests.size());
   //outputLayer.insert(MapEntry(L"owner", &ownern));
-  outputLayer.insert(MapEntry(L"ol", &moves));
+  outputLayer.insert(MapEntry(L"op", &moves));
 
   nn_model->Evaluate(inputLayer, outputLayer);
 
@@ -2336,10 +2336,21 @@ EvalPolicy(const std::vector<std::shared_ptr<policy_eval_req>>& requests,
     const int ofs = pure_board_max * j;
 
     float sum = 0;
+#if 0
     for (int i = 0; i < pure_board_max; i++) {
       moves[i + ofs] = exp(moves[i + ofs]);
       sum += moves[i + ofs];
     }
+#else
+    for (int i = 1; i < child_num; i++) {
+      int pos = RevTransformMove(uct_child[i].pos, req->trans);
+
+      int x = X(pos) - OB_SIZE;
+      int y = Y(pos) - OB_SIZE;
+      int n = x + y * pure_board_size;
+      sum += moves[n + ofs];
+    }
+#endif
     LOCK_NODE(index);
 
     int depth = req->depth;
