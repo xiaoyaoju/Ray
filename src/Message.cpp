@@ -40,7 +40,7 @@ GetDebugMessageMode()
 void
 PrintBoard( const game_info_t *game )
 {
-  const char stone[S_MAX] = { '+', 'B', 'W', '#' };
+  const char stone[S_MAX] = { '.', 'X', 'O', '#' };
   int i, x, y, pos;
 
   if (!debug_message) return;
