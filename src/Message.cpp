@@ -52,7 +52,7 @@ GetVerbose()
 void
 PrintBoard( const game_info_t *game )
 {
-  const char stone[S_MAX] = { '+', 'B', 'W', '#' };
+  const char stone[S_MAX] = { '.', 'X', 'O', '#' };
 
   if (!debug_message) return;
 
