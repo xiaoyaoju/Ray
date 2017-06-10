@@ -353,6 +353,17 @@ RatingMove(game_info_t *game, int color, std::mt19937_64 *mt, LGR& lgr)
     // 選ばれた手が合法手ならループを抜け出し
     // そうでなければその箇所のレートを0にし, 手を選びなおす
     if (IsLegalNotEye(game, pos, color)) {
+      int replace_num = 0;
+      int replace[8];
+      if (ReplaceMove(game, pos, color, replace, &replace_num)) {
+        if (replace_num > 0) {
+          int rep = replace[(*mt)() % replace_num];
+          if (IsLegalNotEye(game, rep, color)) {
+            PrintBoard(game); cerr << "REPLACE " << FormatMove(pos) << " -> " << FormatMove(rep) << endl;
+            return rep;
+          }
+        }
+      }
       break;
     } else {
       *sum_rate -= rate[pos];

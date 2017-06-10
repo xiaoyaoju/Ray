@@ -245,6 +245,9 @@ bool IsLegalNotEye( game_info_t *game, const int pos, const int color );
 // 自殺手ならばtrueを返す
 bool IsSuicide( const game_info_t *game, const string_t *string, const int color, const int pos );
 
+// プレイアウト中に手を置き換える
+bool ReplaceMove(game_info_t *game, const int pos, const int color, int* replace, int* replace_num);
+
 // 石を置く
 void PutStone( game_info_t *game, const int pos, const int color );
 
