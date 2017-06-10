@@ -40,6 +40,7 @@ int board_y[BOARD_MAX];  // y方向の座標
 
 unsigned char eye[PAT3_MAX];        // 目のパターン
 unsigned char false_eye[PAT3_MAX];
+unsigned char falsy_eye[PAT3_MAX];
 unsigned char territory[PAT3_MAX];  // 領地のパターン
 unsigned char nb4_empty[PAT3_MAX];  // 上下左右の空点の数
 unsigned char eye_condition[PAT3_MAX];
@@ -547,6 +548,16 @@ InitializeEye( void )
     // XOO     XOX     ###     ### 
     0x5965, 0x9955, 0xFD56, 0xFF76,
   };
+  const int falsy_eye_pat3[] = {
+    // XOO     XO+     XO+
+    // O*O     O*O     O*O
+    // OOX     OOX     +OX
+    0x9556, 0x9546, 0x9146,
+    // XOX     XOX     XOX
+    // O*O     O*O     O*O
+    // OOO     OO+     +O+
+    0x5566, 0x5166, 0x1166,
+  };
 
   const unsigned int complete_half_eye[12] = {
     // XOX     OOX     XOX     XOX     XOX
@@ -661,6 +672,14 @@ InitializeEye( void )
     for (int j = 0; j < 8; j++) {
       false_eye[transp[j]] = S_BLACK;
       false_eye[Pat3Reverse(transp[j])] = S_WHITE;
+    }
+  }
+
+  for (int p : falsy_eye_pat3) {
+    Pat3Transpose8(p, transp);
+    for (int j = 0; j < 8; j++) {
+      falsy_eye[transp[j]] = S_BLACK;
+      falsy_eye[Pat3Reverse(transp[j])] = S_WHITE;
     }
   }
 
@@ -952,6 +971,59 @@ IsLegalNotEye( game_info_t *game, const int pos, const int color )
 
   // 候補手から除外
   game->candidates[pos] = false;
+
+  return false;
+}
+
+
+bool
+ReplaceMove( game_info_t *game, const int pos, const int color, int* replace, int* replace_num )
+{
+  const int *string_id = game->string_id;
+  const string_t *string = game->string;
+  int other = FLIP_COLOR(color);
+
+  // 眼
+  if (eye[Pat3(game->pat, pos)] != color ||
+    string[string_id[NORTH(pos)]].libs == 1 ||
+    string[string_id[EAST(pos)]].libs == 1 ||
+    string[string_id[SOUTH(pos)]].libs == 1 ||
+    string[string_id[WEST(pos)]].libs == 1) {
+
+    // 欠け眼に見える眼
+    if (falsy_eye[Pat3(game->pat, pos)] == color &&
+      string[string_id[NORTH(pos)]].libs > 1 &&
+      string[string_id[EAST(pos)]].libs > 1 &&
+      string[string_id[SOUTH(pos)]].libs > 1 &&
+      string[string_id[WEST(pos)]].libs > 1) {
+      int check[] = {
+        NORTH_WEST(pos),
+        NORTH_EAST(pos),
+        SOUTH_WEST(pos),
+        SOUTH_EAST(pos),
+      };
+      for (int p : check) {
+        if (game->board[p] != other)
+          continue;
+        const string_t *s = &string[string_id[p]];
+        if (s->libs == 1) {
+          int lib = s->lib[0];
+          replace[(*replace_num)++] = lib;
+        } else if (s->libs <= 2) {
+          int lib = s->lib[0];
+          while (lib != LIBERTY_END) {
+            //int neighbor = string[id].neighbor[0];
+            if (IsCapturableAtariForSimulation(game, lib, color, string_id[p])) {
+              replace[(*replace_num)++] = lib;
+            }
+            lib = s->lib[lib];
+          }
+        }
+      }
+      return true;
+    }
+  }
+
 
   return false;
 }
