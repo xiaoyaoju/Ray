@@ -359,7 +359,7 @@ RatingMove(game_info_t *game, int color, std::mt19937_64 *mt, LGR& lgr)
         if (replace_num > 0) {
           int rep = replace[(*mt)() % replace_num];
           if (IsLegalNotEye(game, rep, color)) {
-            PrintBoard(game); cerr << "REPLACE " << FormatMove(pos) << " -> " << FormatMove(rep) << endl;
+            //PrintBoard(game); cerr << "REPLACE " << FormatMove(pos) << " -> " << FormatMove(rep) << endl;
             return rep;
           }
         }

@@ -976,6 +976,52 @@ IsLegalNotEye( game_info_t *game, const int pos, const int color )
 }
 
 
+static int
+GetReplacementPriority( const game_info_t *game, const int pos, const int color )
+{
+  const int *string_id = game->string_id;
+  const string_t *string = game->string;
+  int other = FLIP_COLOR(color);
+
+  int check[] = {
+    NORTH(pos),
+    EAST(pos),
+    SOUTH(pos),
+    WEST(pos),
+  };
+  for (int i = 0; i < 4; i++) {
+    if (game->board[check[i]] != color)
+      continue;
+    int id = string_id[check[i]];
+    int n = 1;
+    int m = 1;
+    int wall = 0;
+    for (int j = 0; j < 4; j++) {
+      if (i == j)
+        continue;
+      if (game->board[check[j]] == color) {
+        int sid = string_id[check[j]];
+        if (sid == id) {
+          n++;
+          m++;
+        } else if (string[id].libs > 2 && string[sid].libs > 2) {
+          n++;
+        }
+      } else if (game->board[check[j]] == S_OB) {
+        wall++;
+      }
+    }
+    if (wall < 2) {
+      if (m + wall >= 3)
+        return 2;
+      if (n + wall >= 3)
+        return 1;
+    }
+  }
+  return 0;
+}
+
+
 bool
 ReplaceMove( game_info_t *game, const int pos, const int color, int* replace, int* replace_num )
 {
@@ -990,7 +1036,7 @@ ReplaceMove( game_info_t *game, const int pos, const int color, int* replace, in
     string[string_id[SOUTH(pos)]].libs == 1 ||
     string[string_id[WEST(pos)]].libs == 1) {
 
-    // 欠け眼に見える眼
+    // 欠け眼を埋めずに相手の石をとれるなら取る
     if (falsy_eye[Pat3(game->pat, pos)] == color &&
       string[string_id[NORTH(pos)]].libs > 1 &&
       string[string_id[EAST(pos)]].libs > 1 &&
@@ -1024,6 +1070,37 @@ ReplaceMove( game_info_t *game, const int pos, const int color, int* replace, in
     }
   }
 
+  // 眼が作れるならとなりに打つ
+  int p0 = GetReplacementPriority(game, pos, color);
+  if (p0 > 0) {
+    int check[] = {
+      NORTH(pos),
+      EAST(pos),
+      SOUTH(pos),
+      WEST(pos),
+    };
+    for (int p : check) {
+      int rep = PASS;
+      if (game->board[p] == other) {
+        auto s = string[string_id[p]];
+        if (s.libs == 2) {
+          int lib = s.lib[0];
+          if (lib == pos) {
+            lib = s.lib[lib];
+          }
+          rep = lib;
+        }
+      } else if (game->board[p] == S_EMPTY) {
+        rep = p;
+      }
+      if (rep != PASS) {
+        int p1 = GetReplacementPriority(game, rep, color);
+        if (p0 > p1 && !IsSelfAtari(game, color, rep))
+          replace[(*replace_num)++] = rep;
+      }
+    }
+    return true;
+  }
 
   return false;
 }
