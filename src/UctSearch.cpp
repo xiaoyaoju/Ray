@@ -1352,6 +1352,7 @@ static bool
 ExtendTime( void )
 {
   int max = 0, second = 0;
+  int max_index = 0;
   const int child_num = uct_node[current_root].child_num;
   child_node_t *uct_child = uct_node[current_root].child;
 
@@ -1360,6 +1361,7 @@ ExtendTime( void )
     if (uct_child[i].move_count > max) {
       second = max;
       max = uct_child[i].move_count;
+      max_index = i;
     } else if (uct_child[i].move_count > second) {
       second = uct_child[i].move_count;
     }
@@ -1368,10 +1370,30 @@ ExtendTime( void )
   // 最善手の探索回数がが次善手の探索回数の
   // 1.2倍未満なら探索延長
   if (max < second * 1.2) {
+    if (GetDebugMessageMode()) {
+      cerr << "Extend time "
+        << FormatMove(uct_child[max_index].pos) << " max:" << max
+        << " second:" << second << endl;
+    }
     return true;
-  } else {
-    return false;
   }
+
+  // Extend time if policy value is too low 
+  if (uct_node[current_root].evaled) {
+    if (uct_child[max_index].nnrate < 0.02) {
+      if (GetDebugMessageMode()) {
+        cerr << "Extend time "
+          << FormatMove(uct_child[max_index].pos) << " policy:" << uct_child[max_index].nnrate << endl;
+      }
+      return true;
+    } else {
+      if (GetDebugMessageMode()) {
+        cerr << "Stop policy:" << uct_child[max_index].nnrate << endl;
+      }
+    }
+  }
+
+  return false;
 }
 
 
