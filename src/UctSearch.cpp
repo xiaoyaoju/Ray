@@ -95,6 +95,8 @@ static int pw[PURE_BOARD_MAX + 1];
 // ノード展開の閾値
 static int expand_threshold = EXPAND_THRESHOLD_19;
 
+static double value_evaluation_threshold = 0;
+
 // ノードを展開しない
 static bool no_expand = false;
 
@@ -744,7 +746,7 @@ UctSearchGenmove( game_info_t *game, int color )
   if (use_nn && GetDebugMessageMode()) {
     cerr << "Eval NN Policy     :  " << setw(7) << (eval_count_policy + eval_policy_queue.size()) << endl;
     cerr << "Eval NN Value      :  " << setw(7) << (eval_count_value + eval_value_queue.size()) << endl;
-    cerr << "Eval NN            :  " << setw(7) << eval_count_policy << "/" << eval_count_value << endl;
+    cerr << "Eval NN            :  " << setw(7) << eval_count_policy << "/" << eval_count_value << "/" << value_evaluation_threshold << endl;
     cerr << "Count Captured     :  " << setw(7) << count << endl;
     cerr << "Score              :  " << setw(7) << score << endl;
     //PrintOwnerNN(S_BLACK, owner_nn);
@@ -1427,6 +1429,7 @@ ParallelUctSearch( thread_arg_t *arg )
       LOCK_EXPAND;
       while (eval_value_queue.size() > value_batch_size * 3 || eval_policy_queue.size() > policy_batch_size * 3) {
 	std::atomic_fetch_add(&queue_full, 1);
+        value_evaluation_threshold = min(0.5, value_evaluation_threshold + 0.01);
 	UNLOCK_EXPAND;
 	this_thread::sleep_for(chrono::milliseconds(10));
 	if (queue_full % 1000 == 0)
@@ -1584,6 +1587,7 @@ UctSearch(game_info_t *game, int color, mt19937_64 *mt, LGR& lgrf, LGRContext& l
 
     bool expected = false;
     if (use_nn
+      && n >= expand_threshold * value_evaluation_threshold
       && atomic_compare_exchange_strong(&uct_child[next_index].eval_value, &expected, true)) {
 
       uct_node_t *root = &uct_node[current_root];
@@ -2510,6 +2514,7 @@ void EvalNode() {
     }
 
     if (eval_policy_queue.empty() && eval_value_queue.empty()) {
+      value_evaluation_threshold = max(0.0, value_evaluation_threshold - 0.01);
       UNLOCK_EXPAND;
       this_thread::sleep_for(chrono::milliseconds(1));
       //cerr << "EMPTY QUEUE" << endl;
