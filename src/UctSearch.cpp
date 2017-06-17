@@ -209,7 +209,7 @@ ClearEvalQueue()
 ////////////
 
 // Virtual Lossを加算
-static void AddVirtualLoss( child_node_t *child, int current );
+static int AddVirtualLoss( child_node_t *child, int current );
 
 // 次のプレイアウト回数の設定
 static void CalculateNextPlayouts( game_info_t *game, int color, double best_wp, double finish_time );
@@ -1573,7 +1573,7 @@ UctSearch(game_info_t *game, int color, mt19937_64 *mt, LGR& lgrf, LGRContext& l
     path.push_back(current);
 
     // Virtual Lossを加算
-    AddVirtualLoss(&uct_child[next_index], current);
+    int n = AddVirtualLoss(&uct_child[next_index], current);
 
     memcpy(game->seki, uct_node[current].seki, sizeof(bool) * BOARD_MAX);
     
@@ -1672,16 +1672,12 @@ UctSearch(game_info_t *game, int color, mt19937_64 *mt, LGR& lgrf, LGRContext& l
 //////////////////////////
 //  Virtual Lossの加算  //
 //////////////////////////
-static void
+static int
 AddVirtualLoss(child_node_t *child, int current)
 {
-#if defined CPP11
   atomic_fetch_add(&uct_node[current].move_count, VIRTUAL_LOSS);
-  atomic_fetch_add(&child->move_count, VIRTUAL_LOSS);
-#else
-  uct_node[current].move_count += VIRTUAL_LOSS;
-  child->move_count += VIRTUAL_LOSS;
-#endif
+  int org = atomic_fetch_add(&child->move_count, VIRTUAL_LOSS);
+  return org;
 }
 
 
