@@ -1457,6 +1457,7 @@ ParallelUctSearch( thread_arg_t *arg )
 	interval += CRITICALITY_INTERVAL;
       }
       if (GetSpendTime(begin_time) > time_limit) break;
+      if (!enough_size) cerr << "HASH TABLE FULL" << endl;
     } while (po_info.count < po_info.halt && !interruption && enough_size);
   } else {
     do {
@@ -1474,6 +1475,7 @@ ParallelUctSearch( thread_arg_t *arg )
       // ハッシュに余裕があるか確認
       enough_size = CheckRemainingHashSize();
       if (GetSpendTime(begin_time) > time_limit) break;
+      if (!enough_size) cerr << "HASH TABLE FULL" << endl;
     } while (po_info.count < po_info.halt && !interruption && enough_size);
   }
 
