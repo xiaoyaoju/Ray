@@ -1587,7 +1587,8 @@ UctSearch(game_info_t *game, int color, mt19937_64 *mt, LGR& lgrf, LGRContext& l
 
     bool expected = false;
     if (use_nn
-      && n >= expand_threshold * value_evaluation_threshold
+      && (n >= expand_threshold * value_evaluation_threshold
+        || mode == CONST_PLAYOUT_MODE)
       && atomic_compare_exchange_strong(&uct_child[next_index].eval_value, &expected, true)) {
 
       uct_node_t *root = &uct_node[current_root];
