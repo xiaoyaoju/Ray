@@ -1120,8 +1120,6 @@ ExpandNode( game_info_t *game, int color, int current, const std::vector<int>& p
   uct_node[index].value_win = 0;
   memset(uct_node[index].statistic, 0, sizeof(statistic_t) * BOARD_MAX);  
   fill_n(uct_node[index].seki, BOARD_MAX, false);
-  memset(uct_node[index].statistic, 0, sizeof(statistic_t) * BOARD_MAX);
-  memset(uct_node[index].seki, false, sizeof(bool) * BOARD_MAX);
   uct_child = uct_node[index].child;
 
   // パスノードの展開
