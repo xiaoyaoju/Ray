@@ -1399,6 +1399,24 @@ ExtendTime( void )
 }
 
 
+static void
+WaitForEvaluationQueue()
+{
+  static std::atomic<int> queue_full;
+
+  // Wait if dcnn queue is full
+  LOCK_EXPAND;
+  while (eval_value_queue.size() > value_batch_size * 3 || eval_policy_queue.size() > policy_batch_size * 3) {
+    std::atomic_fetch_add(&queue_full, 1);
+    value_evaluation_threshold = min(0.5, value_evaluation_threshold + 0.01);
+    UNLOCK_EXPAND;
+    this_thread::sleep_for(chrono::milliseconds(10));
+    if (queue_full % 1000 == 0)
+      cerr << "EVAL QUEUE FULL" << endl;
+    LOCK_EXPAND;
+  }
+  UNLOCK_EXPAND;
+}
 
 /////////////////////////////////
 //  並列処理で呼び出す関数     //
@@ -1407,7 +1425,6 @@ ExtendTime( void )
 static void
 ParallelUctSearch( thread_arg_t *arg )
 {
-  static std::atomic<int> queue_full;
   thread_arg_t *targ = (thread_arg_t *)arg;
   game_info_t *game;
   int color = targ->color;
@@ -1426,17 +1443,7 @@ ParallelUctSearch( thread_arg_t *arg )
   if (targ->thread_id == 0) {
     do {
       // Wait if dcnn queue is full
-      LOCK_EXPAND;
-      while (eval_value_queue.size() > value_batch_size * 3 || eval_policy_queue.size() > policy_batch_size * 3) {
-	std::atomic_fetch_add(&queue_full, 1);
-        value_evaluation_threshold = min(0.5, value_evaluation_threshold + 0.01);
-	UNLOCK_EXPAND;
-	this_thread::sleep_for(chrono::milliseconds(10));
-	if (queue_full % 1000 == 0)
-	  cerr << "EVAL QUEUE FULL" << endl;
-	LOCK_EXPAND;
-      }
-      UNLOCK_EXPAND;
+      WaitForEvaluationQueue();
       // 探索回数を1回増やす	
       atomic_fetch_add(&po_info.count, 1);
       // 盤面のコピー
@@ -1461,6 +1468,8 @@ ParallelUctSearch( thread_arg_t *arg )
     } while (po_info.count < po_info.halt && !interruption && enough_size);
   } else {
     do {
+      // Wait if dcnn queue is full
+      WaitForEvaluationQueue();
       // 探索回数を1回増やす	
       atomic_fetch_add(&po_info.count, 1);
       // 盤面のコピー
