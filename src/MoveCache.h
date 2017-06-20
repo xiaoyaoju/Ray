@@ -14,7 +14,9 @@ public:
   void store(const game_info_t* game, int pos);
 private:
   uint32_t hash[MAX_MOVES];
+  uint16_t lib[MAX_MOVES];
   uint32_t hash_last[MAX_MOVES];
+  uint16_t lib_last[MAX_MOVES];
 
   friend class LGR;
 };
@@ -27,7 +29,7 @@ public:
   void setLGRF1(int col, int pos1, int val, uint32_t hash2);
   void clearLGRF1(int col, int pos1);
 
-  void setTGR1(int col, int pos1, int pos, uint32_t hash, uint32_t hash2);
+  void setTGR1(int col, int pos1, int pos, uint32_t hash_last, uint32_t hash, uint16_t lib_last, uint16_t lib);
   int getTGR1(int col, int pos1, const game_info_t* game);
 
   int getLGRF2(int col, int pos1, int pos2);
@@ -43,6 +45,8 @@ private:
   std::unique_ptr<uint32_t[]> tgr1_hash;
   std::unique_ptr<uint16_t[]> tgr1_count;
   std::unique_ptr<uint32_t[]> tgr1_last;
+  std::unique_ptr<uint16_t[]> tgr1_lib;
+  std::unique_ptr<uint16_t[]> tgr1_lib_last;
 
   std::unique_ptr<uint32_t[]> lgrf1;
   std::unique_ptr<uint32_t[]> lgrf1_last;
