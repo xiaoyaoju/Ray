@@ -64,7 +64,6 @@ const double KOMI = 6.5; // デフォルトのコミの値
 #define DY(pos1, pos2)  (abs(board_y[(pos1)] - board_y[(pos2)]))     // y方向の距離
 #define DIS(pos1, pos2) (move_dis[DX(pos1, pos2)][DY(pos1, pos2)])   // 着手距離
 
-
 enum stone {
   S_EMPTY,  // 空点
   S_BLACK,  // 黒石
@@ -281,6 +280,12 @@ inline bool IsNeighbor( int pos0, int pos1 ) {
     || index_distance == -1
     || index_distance == board_size
     || index_distance == -board_size;
+}
+
+inline int PureBoardPos(int pos) {
+  int x = X(pos) - OB_SIZE;
+  int y = Y(pos) - OB_SIZE;
+  return x + y * pure_board_size;
 }
 
 #endif

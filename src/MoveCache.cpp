@@ -60,7 +60,7 @@ void
 LGR::setTGR1(int col, int pos1, int val, uint32_t hash_last, uint32_t hash)
 {
   lock_guard<mutex> lock(board_mutex[pos1]);
-  int id1 = board_pos_id[pos1];
+  int id1 = PureBoardPos(pos1);
   int c = col - 1;
   //int index = (c * pure_board_max + pos1) * 0xffff + hash_last;
   int index = (c * pure_board_max + id1);
@@ -82,8 +82,9 @@ LGR::setTGR1(int col, int pos1, int val, uint32_t hash_last, uint32_t hash)
 int
 LGR::getTGR1(int col, int pos1, const game_info_t* game)
 {
+  if (pos1 == PASS) return PASS;
   lock_guard<mutex> lock(board_mutex[pos1]);
-  int id1 = board_pos_id[pos1];
+  int id1 = PureBoardPos(pos1);
   int c = col - 1;
   uint32_t hash_last = MD2(game->pat, pos1);
   //int index = (c * pure_board_max + pos1) * 0xffff + hash_last;
@@ -114,8 +115,9 @@ LGR::getTGR1(int col, int pos1, const game_info_t* game)
 int
 LGR::getLGRF1(int col, int pos1, const game_info_t* game)
 {
+  if (pos1 == PASS) return PASS;
   lock_guard<mutex> lock(board_mutex[pos1]);
-  int id1 = board_pos_id[pos1];
+  int id1 = PureBoardPos(pos1);
   int c = col - 1;
   uint32_t hash_last = MD2(game->pat, pos1);
   if (lgrf1_last[c * pure_board_max + id1] != hash_last)
@@ -127,7 +129,7 @@ void
 LGR::setLGRF1(int col, int pos1, int pos, uint32_t hash2)
 {
   lock_guard<mutex> lock(board_mutex[pos1]);
-  int id1 = board_pos_id[pos1];
+  int id1 = PureBoardPos(pos1);
   int c = col - 1;
   lgrf1[c * pure_board_max + id1] = pos;
   lgrf1_last[c * pure_board_max + id1] = hash2;
@@ -142,9 +144,10 @@ LGR::clearLGRF1(int col, int pos1)
 int
 LGR::getLGRF2(int col, int pos1, int pos2)
 {
+  if (pos1 == PASS) return PASS;
   lock_guard<mutex> lock(board_mutex[pos1]);
-  pos1 = board_pos_id[pos1];
-  pos2 = board_pos_id[pos2];
+  pos1 = PureBoardPos(pos1);
+  pos2 = PureBoardPos(pos2);
   int c = col - 1;
   return lgrf2[(c * pure_board_max + pos1) * pure_board_max + pos2];
 }
@@ -152,8 +155,8 @@ LGR::getLGRF2(int col, int pos1, int pos2)
 void
 LGR::setLGRF2(int col, int pos1, int pos2, int val)
 {
-  pos1 = board_pos_id[pos1];
-  pos2 = board_pos_id[pos2];
+  pos1 = PureBoardPos(pos1);
+  pos2 = PureBoardPos(pos2);
   int c = col - 1;
   lgrf2[(c * pure_board_max + pos1) * pure_board_max + pos2] = val;
 }
@@ -234,6 +237,9 @@ LGR::update(game_info_t* game, int start, int win, const LGRContext& ctx)
       int mp = game->record[i].pos;
       int p1 = game->record[i - 2].pos;
       int p2 = game->record[i - 1].pos;
+
+      if (mp == PASS || p1 == PASS || p2 == PASS)
+        break;
 
       bool iswin = (c == win);
 
