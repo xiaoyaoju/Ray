@@ -1770,7 +1770,7 @@ SelectMaxUcbChild( const game_info_t *game, int current, int color )
 	dynamic_parameter = uct_owner[o_index[i]] + uct_criticality[c_index[i]];
 	order[i].rate = uct_child[i].rate + dynamic_parameter;
 	order[i].index = i;
-	uct_child[i].flag |= uct_child[i].nnrate > 0.01;
+	uct_child[i].flag |= uct_child[i].nnrate > 0.0;
       }
       qsort(order, child_num, sizeof(rate_order_t), RateComp);
 
@@ -1845,7 +1845,7 @@ SelectMaxUcbChild( const game_info_t *game, int current, int color )
       double move_count = uct_child[i].move_count;
 
       if (evaled) {
-	if (debug) {
+	if (debug && move_count > 0) {
 	   cerr << uct_node[current].move_count << ".";
 	   cerr << setw(3) << FormatMove(uct_child[i].pos);
 	   cerr << ": move " << setw(5) << move_count << " policy "
@@ -1872,10 +1872,10 @@ SelectMaxUcbChild( const game_info_t *game, int current, int color )
 	}
 
 	double u = sqrt(sum) / (1 + uct_child[i].move_count);
-	double rate = max(uct_child[i].nnrate, 0.01);
+	double rate = uct_child[i].nnrate;
 	ucb_value = p + c_puct * u * rate;
 
-	if (debug) {
+	if (debug && move_count > 0) {
 	  cerr << " P:" << p << " UCB:" << ucb_value << endl;
 	}
       } else {
