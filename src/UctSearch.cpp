@@ -1404,6 +1404,8 @@ WaitForEvaluationQueue()
 {
   static std::atomic<int> queue_full;
 
+  value_evaluation_threshold = max(0.0, value_evaluation_threshold - 0.01);
+
   // Wait if dcnn queue is full
   LOCK_EXPAND;
   while (eval_value_queue.size() > value_batch_size * 3 || eval_policy_queue.size() > policy_batch_size * 3) {
