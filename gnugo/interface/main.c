@@ -20,7 +20,7 @@
  * Software Foundation, Inc., 51 Franklin Street, Fifth Floor,       *
  * Boston, MA 02111, USA.                                            *
 \* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
-
+#if 0
 #include "gnugo.h"
 
 #include <stdio.h>
@@ -1930,6 +1930,7 @@ socket_stop_listening(FILE *input_file, FILE *output_file)
 
 #endif	/* not ENABLE_SOCKET_SUPPORT */
 
+#endif
 
 /*
  * Local Variables:

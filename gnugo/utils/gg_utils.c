@@ -249,15 +249,16 @@ gg_snprintf(char *dest, unsigned long len, const char *fmt, ...)
 double
 gg_gettimeofday(void)
 {
-  struct timeval tv;
 #ifdef HAVE_GETTIMEOFDAY
+  struct timeval tv;
   gettimeofday(&tv, NULL);
-#else
-  tv.tv_sec  = time(NULL);
-  tv.tv_usec = 0;
-#endif
   return tv.tv_sec + 1.e-6 * tv.tv_usec;
+#else
+  time_t tv_sec  = time(NULL);
+  return tv_sec;
+#endif
 }
+
 
 const char *
 gg_version(void)

@@ -31,7 +31,7 @@
 
 #include "interface.h"
 #include "liberty.h"
-#include "gtp.h"
+#include "gnugo_gtp.h"
 #include "gg_utils.h"
 
 /* Internal state that's not part of the engine. */

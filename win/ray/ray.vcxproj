@@ -107,7 +107,7 @@
       </PrecompiledHeader>
       <WarningLevel>Level3</WarningLevel>
       <Optimization>Disabled</Optimization>
-      <PreprocessorDefinitions>_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>HAVE_CONFIG_H;WIN32;_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <AdditionalOptions>/source-charset:utf-8 %(AdditionalOptions)</AdditionalOptions>
     </ClCompile>
     <Link>
@@ -141,12 +141,13 @@
       <Optimization>Full</Optimization>
       <FunctionLevelLinking>false</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
-      <PreprocessorDefinitions>NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>HAVE_CONFIG_H;WIN32;NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <BufferSecurityCheck>true</BufferSecurityCheck>
       <EnableEnhancedInstructionSet>AdvancedVectorExtensions</EnableEnhancedInstructionSet>
       <EnableFiberSafeOptimizations>true</EnableFiberSafeOptimizations>
       <FavorSizeOrSpeed>Speed</FavorSizeOrSpeed>
       <AdditionalOptions>/source-charset:utf-8 %(AdditionalOptions)</AdditionalOptions>
+      <AdditionalIncludeDirectories>..\..\gnugo;..\..\gnugo\engine;..\..\gnugo\patterns;..\..\gnugo\sgf;..\..\gnugo\utils;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -178,8 +179,82 @@
     <ClCompile Include="..\..\src\UctSearch.cpp" />
     <ClCompile Include="..\..\src\Utility.cpp" />
     <ClCompile Include="..\..\src\ZobristHash.cpp" />
+    <ClCompile Include="..\..\gnugo\engine\aftermath.c" />
+    <ClCompile Include="..\..\gnugo\engine\board.c" />
+    <ClCompile Include="..\..\gnugo\engine\boardlib.c" />
+    <ClCompile Include="..\..\gnugo\engine\breakin.c" />
+    <ClCompile Include="..\..\gnugo\engine\cache.c" />
+    <ClCompile Include="..\..\gnugo\engine\clock.c" />
+    <ClCompile Include="..\..\gnugo\engine\combination.c" />
+    <ClCompile Include="..\..\gnugo\engine\dragon.c" />
+    <ClCompile Include="..\..\gnugo\engine\endgame.c" />
+    <ClCompile Include="..\..\gnugo\engine\filllib.c" />
+    <ClCompile Include="..\..\gnugo\engine\fuseki.c" />
+    <ClCompile Include="..\..\gnugo\engine\genmove.c" />
+    <ClCompile Include="..\..\gnugo\engine\globals.c" />
+    <ClCompile Include="..\..\gnugo\engine\handicap.c" />
+    <ClCompile Include="..\..\gnugo\engine\hash.c" />
+    <ClCompile Include="..\..\gnugo\engine\influence.c" />
+    <ClCompile Include="..\..\gnugo\engine\interface.c" />
+    <ClCompile Include="..\..\gnugo\engine\matchpat.c" />
+    <ClCompile Include="..\..\gnugo\engine\montecarlo.c" />
+    <ClCompile Include="..\..\gnugo\engine\movelist.c" />
+    <ClCompile Include="..\..\gnugo\engine\move_reasons.c" />
+    <ClCompile Include="..\..\gnugo\engine\optics.c" />
+    <ClCompile Include="..\..\gnugo\engine\oracle.c" />
+    <ClCompile Include="..\..\gnugo\engine\owl.c" />
+    <ClCompile Include="..\..\gnugo\engine\persistent.c" />
+    <ClCompile Include="..\..\gnugo\engine\printutils.c" />
+    <ClCompile Include="..\..\gnugo\engine\readconnect.c" />
+    <ClCompile Include="..\..\gnugo\engine\reading.c" />
+    <ClCompile Include="..\..\gnugo\engine\gnugo_semeai.c" />
+    <ClCompile Include="..\..\gnugo\engine\sgfdecide.c" />
+    <ClCompile Include="..\..\gnugo\engine\sgffile.c" />
+    <ClCompile Include="..\..\gnugo\engine\shapes.c" />
+    <ClCompile Include="..\..\gnugo\engine\showbord.c" />
+    <ClCompile Include="..\..\gnugo\engine\surround.c" />
+    <ClCompile Include="..\..\gnugo\engine\unconditional.c" />
+    <ClCompile Include="..\..\gnugo\engine\utils.c" />
+    <ClCompile Include="..\..\gnugo\engine\value_moves.c" />
+    <ClCompile Include="..\..\gnugo\engine\worm.c" />
+    <ClCompile Include="..\..\gnugo\interface\main.c" />
+    <ClCompile Include="..\..\gnugo\interface\play_ascii.c" />
+    <ClCompile Include="..\..\gnugo\interface\play_test.c" />
+    <ClCompile Include="..\..\gnugo\patterns\aa_attackpat.c" />
+    <ClCompile Include="..\..\gnugo\patterns\apatterns.c" />
+    <ClCompile Include="..\..\gnugo\patterns\barriers.c" />
+    <ClCompile Include="..\..\gnugo\patterns\conn.c" />
+    <ClCompile Include="..\..\gnugo\patterns\connections.c" />
+    <ClCompile Include="..\..\gnugo\patterns\dfa.c" />
+    <ClCompile Include="..\..\gnugo\patterns\dpatterns.c" />
+    <ClCompile Include="..\..\gnugo\patterns\pat_endgame.c" />
+    <ClCompile Include="..\..\gnugo\patterns\eyes.c" />
+    <ClCompile Include="..\..\gnugo\patterns\fuseki13.c" />
+    <ClCompile Include="..\..\gnugo\patterns\fuseki19.c" />
+    <ClCompile Include="..\..\gnugo\patterns\fuseki9.c" />
+    <ClCompile Include="..\..\gnugo\patterns\fusekipat.c" />
+    <ClCompile Include="..\..\gnugo\patterns\handipat.c" />
+    <ClCompile Include="..\..\gnugo\patterns\helpers.c" />
+    <ClCompile Include="..\..\gnugo\patterns\pat_influence.c" />
+    <ClCompile Include="..\..\gnugo\patterns\josekidb.c" />
+    <ClCompile Include="..\..\gnugo\patterns\mcpat.c" />
+    <ClCompile Include="..\..\gnugo\patterns\oraclepat.c" />
+    <ClCompile Include="..\..\gnugo\patterns\owl_attackpat.c" />
+    <ClCompile Include="..\..\gnugo\patterns\owl_defendpat.c" />
+    <ClCompile Include="..\..\gnugo\patterns\owl_vital_apat.c" />
+    <ClCompile Include="..\..\gnugo\patterns\patterns.c" />
+    <ClCompile Include="..\..\gnugo\patterns\transform.c" />
+    <ClCompile Include="..\..\gnugo\utils\getopt.c" />
+    <ClCompile Include="..\..\gnugo\utils\getopt1.c" />
+    <ClCompile Include="..\..\gnugo\utils\gg_utils.c" />
+    <ClCompile Include="..\..\gnugo\utils\random.c" />
+    <ClCompile Include="..\..\gnugo\utils\winsocket.c" />
+    <ClCompile Include="..\..\gnugo\sgf\sgfnode.c" />
+    <ClCompile Include="..\..\gnugo\sgf\sgftree.c" />
+    <ClCompile Include="..\..\gnugo\sgf\sgf_utils.c" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="..\..\gnugo\config.h" />
     <ClInclude Include="..\..\src\Command.h" />
     <ClInclude Include="..\..\src\DynamicKomi.h" />
     <ClInclude Include="..\..\src\GoBoard.h" />
@@ -199,6 +274,28 @@
     <ClInclude Include="..\..\src\UctSearch.h" />
     <ClInclude Include="..\..\src\Utility.h" />
     <ClInclude Include="..\..\src\ZobristHash.h" />
+    <ClInclude Include="..\..\gnugo\engine\board.h" />
+    <ClInclude Include="..\..\gnugo\engine\cache.h" />
+    <ClInclude Include="..\..\gnugo\engine\clock.h" />
+    <ClInclude Include="..\..\gnugo\engine\gnugo.h" />
+    <ClInclude Include="..\..\gnugo\engine\hash.h" />
+    <ClInclude Include="..\..\gnugo\engine\influence.h" />
+    <ClInclude Include="..\..\gnugo\engine\liberty.h" />
+    <ClInclude Include="..\..\gnugo\engine\move_reasons.h" />
+    <ClInclude Include="..\..\gnugo\engine\readconnect.h" />
+    <ClInclude Include="..\..\gnugo\interface\gmp.h" />
+    <ClInclude Include="..\..\gnugo\interface\gnugo_gtp.h" />
+    <ClInclude Include="..\..\gnugo\interface\interface.h" />
+    <ClInclude Include="..\..\gnugo\patterns\dfa-mkpat.h" />
+    <ClInclude Include="..\..\gnugo\patterns\dfa.h" />
+    <ClInclude Include="..\..\gnugo\patterns\eyes.h" />
+    <ClInclude Include="..\..\gnugo\patterns\patterns.h" />
+    <ClInclude Include="..\..\gnugo\utils\gg-getopt.h" />
+    <ClInclude Include="..\..\gnugo\utils\gg_utils.h" />
+    <ClInclude Include="..\..\gnugo\utils\random.h" />
+    <ClInclude Include="..\..\gnugo\utils\winsocket.h" />
+    <ClInclude Include="..\..\gnugo\sgf\sgftree.h" />
+    <ClInclude Include="..\..\gnugo\sgf\sgf_properties.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
