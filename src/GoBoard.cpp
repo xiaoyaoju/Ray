@@ -117,6 +117,10 @@ static void CheckBentFourInTheCorner( game_info_t *game );
 //  盤端での処理
 static bool IsFalseEyeConnection( const game_info_t *game, const int pos, const int color );
 
+extern "C" {
+  extern int gnugo_main();
+  extern void set_komi(float k);
+}
 
 //////////////////
 //  超劫の設定  //
@@ -216,6 +220,8 @@ SetKomi( const double new_komi )
   komi[0] = dynamic_komi[0] = default_komi;
   komi[S_BLACK] = dynamic_komi[S_BLACK] = default_komi + 1;
   komi[S_WHITE] = dynamic_komi[S_WHITE] = default_komi - 1;
+
+  set_komi(new_komi);
 }
 
 

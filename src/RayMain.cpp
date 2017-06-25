@@ -14,6 +14,9 @@
 #include "UctSearch.h"
 #include "ZobristHash.h"
 
+extern "C" {
+  extern int gnugo_main();
+}
 
 int
 main( int argc, char **argv )
@@ -63,6 +66,9 @@ main( int argc, char **argv )
   InitializeHash();
   InitializeUctHash();
   SetNeighbor();
+
+  // Init gnugo
+  gnugo_main();
 
   // GTP
   GTP_main();

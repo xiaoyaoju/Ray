@@ -20,7 +20,6 @@
  * Software Foundation, Inc., 51 Franklin Street, Fifth Floor,       *
  * Boston, MA 02111, USA.                                            *
 \* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
-#if 0
 #include "gnugo.h"
 
 #include <stdio.h>
@@ -56,6 +55,259 @@
 #include "sgftree.h"
 #include "random.h"
 
+#if 1
+
+static Gameinfo gameinfo;
+static SGFTree sgftree;
+
+int
+gnugo_main()
+{
+
+  int i;
+  int mandated_color = EMPTY;
+  int replay_color = EMPTY;
+
+  char *printsgffile = NULL;
+  int orientation = 0;
+
+  float memory = (float)DEFAULT_MEMORY; /* Megabytes used for hash table. */
+  int seed = 0;
+  int seed_specified = 0;
+
+  sgftree_clear(&sgftree);
+  gameinfo_clear(&gameinfo);
+
+  //printboard = 1;
+  resign_allowed = 0;
+  //verbose = 1;
+  //playmode = MODE_ASCII;
+  set_level(0);
+  //set_level(atoi(gg_optarg));
+  //set_min_level(atoi(gg_optarg));
+  //set_max_level(atoi(gg_optarg));
+  //clock_settings(-1, atoi(gg_optarg), -1);
+  //autolevel_on = 1;
+  //if (strcmp(gg_optarg, "white") == 0)
+  //mandated_color = WHITE;
+  //else if (strcmp(gg_optarg, "black") == 0)
+  //mandated_color = BLACK;
+
+  /* Start random number seed. */
+  if (!seed_specified)
+    seed = time(0);
+
+  /* Initialize the GNU Go engine. */
+  init_gnugo(memory, seed);
+
+  /* Initialize and empty sgf tree if there was no infile. */
+  sgftreeCreateHeaderNode(&sgftree, board_size, komi, handicap);
+
+  /* Set the game_record to be identical to the loaded one or the
+  * newly created empty sgf tree.
+  */
+  gameinfo.game_record = sgftree;
+
+  /* Figure out a default mode if there was no explicit one. */
+  /* if (playmode == MODE_UNKNOWN) {
+    if (infilename)
+      playmode = MODE_LOAD_AND_ANALYZE;
+    else
+      playmode = (isatty(0)) ? MODE_ASCII : MODE_GMP;
+      }*/
+
+  if (mandated_color != EMPTY)
+    gameinfo.computer_player = OTHER_COLOR(mandated_color);
+
+  //play_ascii(&sgftree, &gameinfo, infilename, untilstring);
+
+  //sgfFreeNode(sgftree.root);
+
+  return 0;
+}  /* end gnugo_main */
+
+void set_komi(float k)
+{
+  komi = k;
+}
+
+static int current_score_estimate = 4711;
+
+
+/*
+* Generate the computer move.
+*/
+static int
+computer_move(Gameinfo *gameinfo, int *passes)
+{
+  int move;
+  float move_value;
+  int resign;
+  int resignation_declined = 0;
+  float upper_bound, lower_bound;
+
+  /* Generate computer move. */
+  if (autolevel_on)
+    adjust_level_offset(gameinfo->to_move);
+  move = genmove(gameinfo->to_move, &move_value, &resign);
+#if 0
+  if (resignation_allowed && resign) {
+    int state = ascii_endgame(gameinfo, 2);
+    if (state != -1)
+      return state;
+
+    /* The opponent declined resignation. Remember not to resign again. */
+    resignation_allowed = 0;
+    resignation_declined = 1;
+  }
+
+  if (showscore) {
+    gnugo_estimate_score(&upper_bound, &lower_bound);
+    current_score_estimate = (int)((lower_bound + upper_bound) / 2.0);
+  }
+#endif
+
+  mprintf("%s(%d): %1m\n", color_to_string(gameinfo->to_move),
+    movenum + 1, move);
+  if (is_pass(move))
+    (*passes)++;
+  else
+    *passes = 0;
+
+  gnugo_play_move(move, gameinfo->to_move);
+  //sgffile_add_debuginfo(sgftree.lastnode, move_value);
+  //sgftreeAddPlay(&sgftree, gameinfo->to_move, I(move), J(move));
+  //if (resignation_declined)
+  //  sgftreeAddComment(&sgftree, "GNU Go resignation was declined");
+  //sgffile_output(&sgftree);
+
+  gameinfo->to_move = OTHER_COLOR(gameinfo->to_move);
+  return 0;
+}
+
+int
+gnugo_analyze(int* moves, int* critical, int* ms, float* vs)
+{
+  int passes = 0;  /* two passes and its over */
+
+  clear_board();
+  //init_sgf(gameinfo);
+
+  for (int i = 0; moves[i] != -2; i++) {
+    int m = moves[i];
+    int move = NO_MOVE;
+    if (m == -1) {
+      move = PASS_MOVE;
+    } else {
+      int x = m / board_size;
+      int y = m % board_size;
+      move = POS(x, y);
+    }
+    passes = 0;
+    TRACE("\nyour move: %d %d %1m\n\n", i, m, move);
+    gnugo_play_move(move, gameinfo.to_move);
+
+    gameinfo.to_move = OTHER_COLOR(gameinfo.to_move);
+  }
+#if 1
+  genmove(gameinfo.to_move, NULL, NULL);
+  for (int k = 0; k < 10; k++) {
+    int x = J(best_moves[k]);
+    int y = I(best_moves[k]);
+    int n = x + y * board_size;
+    ms[k] = n;
+    vs[k] = best_move_values[k];
+    if (vs[k] > 0.0) {
+      //gprintf("your move: %f %1m\n", best_move_values[k], best_moves[k]);
+    }
+    /*
+    if (best_move_values[k] > 0.0) {
+      gtp_print_vertex(I(best_moves[k]), J(best_moves[k]));
+      gtp_printf(" %.2f ", best_move_values[k]);
+    }
+    */
+  }
+#else
+  //gtp_start_sgftrace(NULL);
+
+  computer_move(&gameinfo, &passes);
+
+  //gtp_finish_sgftrace("trace.sgf");
+
+  for (int d = 0; d < number_of_dragons; d++) {
+    /*
+    dragon2[d].surround_status
+      = compute_surroundings(dragon2[d].origin, NO_MOVE, 0,
+        &(dragon2[d].surround_size));
+    if (dragon2[d].surround_status == SURROUNDED) {
+      dragon2[d].escape_route = 0;
+      if (debug & DEBUG_DRAGONS)
+        gprintf("surrounded dragon found at %1m\n", dragon2[d].origin);
+    } else if (dragon2[d].surround_status == WEAKLY_SURROUNDED) {
+      dragon2[d].escape_route /= 2;
+      if (debug & DEBUG_DRAGONS)
+        gprintf("weakly surrounded dragon found at %1m\n", dragon2[d].origin);
+    }
+    */
+#if 1
+    if (dragon2[d].semeai_attack_point != NO_MOVE) {
+      int x = I(dragon2[d].semeai_attack_point);
+      int y = J(dragon2[d].semeai_attack_point);
+      int n = x + y * board_size;
+      if (dragon[d].color == BLACK)
+        n += board_size * board_size;
+      critical[n] += 1;
+    }
+    if (dragon2[d].semeai_defense_point != NO_MOVE) {
+      int x = I(dragon2[d].semeai_defense_point);
+      int y = J(dragon2[d].semeai_defense_point);
+      int n = x + y * board_size;
+      if (dragon[d].color == WHITE)
+        n += board_size * board_size;
+      critical[n] += 1;
+    }
+#else
+    if (dragon2[d].owl_status == UNCHECKED)
+      continue;
+    if (dragon2[d].owl_attack_point != NO_MOVE) {
+      int x = I(dragon2[d].owl_attack_point);
+      int y = J(dragon2[d].owl_attack_point);
+      int n = x + y * board_size;
+      if (dragon[d].color == BLACK)
+        n += board_size * board_size;
+      critical[n] += 1;
+    }
+    if (dragon2[d].owl_second_attack_point != NO_MOVE) {
+      int x = I(dragon2[d].owl_second_attack_point);
+      int y = J(dragon2[d].owl_second_attack_point);
+      int n = x + y * board_size;
+      if (dragon[d].color == BLACK)
+        n += board_size * board_size;
+      critical[n] += 1;
+    }
+    if (dragon2[d].owl_defense_point != NO_MOVE) {
+      int x = I(dragon2[d].owl_defense_point);
+      int y = J(dragon2[d].owl_defense_point);
+      int n = x + y * board_size;
+      if (dragon[d].color == WHITE)
+        n += board_size * board_size;
+      critical[n] += 1;
+    }
+    if (dragon2[d].owl_second_defense_point != NO_MOVE) {
+      int x = I(dragon2[d].owl_second_defense_point);
+      int y = J(dragon2[d].owl_second_defense_point);
+      int n = x + y * board_size;
+      if (dragon[d].color == WHITE)
+        n += board_size * board_size;
+      critical[n] += 1;
+    }
+#endif
+  }
+#endif
+}
+
+
+#else
 static void show_copyright(void);
 static void show_version(void);
 static void show_help(void);

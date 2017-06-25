@@ -72,6 +72,12 @@ struct policy_eval_req {
   std::vector<float> data_history;
 };
 
+struct gnugo_eval_req {
+  int index;
+  int depth;
+  vector<int> moves;
+};
+
 void ReadWeights();
 void EvalNode();
 //void EvalUctNode(std::vector<int>& indices, std::vector<int>& color, std::vector<int>& trans, std::vector<float>& data, std::vector<int>& path);
@@ -184,6 +190,7 @@ static bool use_nn = true;
 static int device_id = 0;
 static std::queue<std::shared_ptr<policy_eval_req>> eval_policy_queue;
 static std::queue<std::shared_ptr<value_eval_req>> eval_value_queue;
+static std::queue<std::shared_ptr<gnugo_eval_req>> eval_gnugo_queue;
 static int eval_count_policy, eval_count_value;
 static double owner_nn[BOARD_MAX];
 
@@ -270,6 +277,15 @@ static void UpdateNodeStatistic( game_info_t *game, int winner, statistic_t *nod
 static void UpdateResult( child_node_t *child, int result, int current );
 
 
+static void SearchHint( gnugo_eval_req* req );
+
+extern "C" {
+  int
+    gnugo_analyze(int* moves, int* critical, int* ms, float* vs);
+}
+
+static mutex mutex_gnugo;
+float owl_points[2][BOARD_MAX];
 
 /////////////////////
 //  予測読みの設定  //
@@ -569,6 +585,8 @@ UctSearchGenmove( game_info_t *game, int color )
     for (int i = 0; i < board_max; i++) {
       criticality[i] = 0.0;
     }
+    fill_n(owl_points[0], board_max, 1);
+    fill_n(owl_points[1], board_max, 1);
   }
   po_info.count = 0;
 
@@ -777,6 +795,8 @@ UctSearchPondering( game_info_t *game, int color )
   for (int i = 0; i < board_max; i++) {
     criticality[i] = 0.0;    
   }
+  fill_n(owl_points[0], board_max, 1);
+  fill_n(owl_points[1], board_max, 1);
 				  
   po_info.count = 0;
 
@@ -1242,6 +1262,26 @@ RatingNode( game_info_t *game, int color, int index, int depth )
     EvalUctNode(indices, req.data);
 #endif
   }
+  if (depth <= 2) {
+    auto req = make_shared<gnugo_eval_req>();
+    int color = S_BLACK;
+    for (int i = 1; i < game->moves; i++) {
+      if (game->record[i].color != color)
+        req->moves.push_back(-1);
+      int pos = game->record[i].pos;
+      if (pos == PASS || pos == RESIGN)
+        req->moves.push_back(-1);
+      else
+        req->moves.push_back(PureBoardPos(pos));
+      //cerr << FormatMove(pos) << ":" << moves[moves.size() - 1] << " ";
+      color = FLIP_COLOR(color);
+    }
+    //cerr << endl;
+    req->moves.push_back(-2);
+    req->depth = depth;
+    req->index = index;
+    eval_gnugo_queue.push(req);
+  }
 
   for (int i = 1; i < child_num; i++) {
     pos = uct_child[i].pos;
@@ -1471,6 +1511,26 @@ ParallelUctSearch( thread_arg_t *arg )
     } while (po_info.count < po_info.halt && !interruption && enough_size);
   } else {
     do {
+      if (targ->thread_id == 1) {
+        //if (uct_node[current_root].evaled) {
+
+        LOCK_EXPAND;
+        if (eval_gnugo_queue.size() == 0) {
+          UNLOCK_EXPAND;
+        } else {
+          while (eval_gnugo_queue.size() > 0) {
+            auto req = eval_gnugo_queue.front();
+            eval_gnugo_queue.pop();
+            UNLOCK_EXPAND;
+
+            SearchHint(req.get());
+
+            LOCK_EXPAND;
+          }
+          UNLOCK_EXPAND;
+        }
+      }
+
       // Wait if dcnn queue is full
       WaitForEvaluationQueue();
       // 探索回数を1回増やす	
@@ -1480,7 +1540,7 @@ ParallelUctSearch( thread_arg_t *arg )
       memcpy(game->seki, seki, sizeof(bool) * BOARD_MAX);
       // 1回プレイアウトする
       //double value_result = -1;
-	  std::vector<int> path;
+      std::vector<int> path;
       UctSearch(game, color, mt[targ->thread_id], lgr, lgr_ctx[targ->thread_id], current_root, &winner, path);
       // 探索を打ち切るか確認
       interruption = InterruptionCheck();
@@ -2432,7 +2492,7 @@ EvalPolicy(const std::vector<std::shared_ptr<policy_eval_req>>& requests,
       else */{
 	//if (score > 0)
 	//uct_child[i].flag = true;
-	uct_child[i].nnrate = max(score, 0.0);
+	uct_child[i].nnrate += max(score, 0.0);
 
 	if (flat) {
 	   cs.push_back(i);
@@ -2602,4 +2662,55 @@ void EvalNode() {
     }
   }
 #endif
+}
+
+static void
+SearchHint( gnugo_eval_req* req )
+{
+  lock_guard<mutex> lock(mutex_gnugo);
+  auto begin_time = ray_clock::now();
+#if 1
+  int ms[10];
+  float vs[10];
+
+  gnugo_analyze(req->moves.data(), nullptr, ms, vs);
+
+  LOCK_NODE(req->index);
+
+  child_node_t *uct_child = uct_node[req->index].child;
+  int child_num = uct_node[req->index].child_num;
+  for (int k = 0; k < 10; k++) {
+    if (vs[k] > 0) {
+      int pos = onboard_pos[ms[k]];
+      cerr << "GNUGO " << FormatMove(pos) << ":" << vs[k];
+      for (int i = 0; i < child_num; i++) {
+        if (uct_child[i].pos == pos) {
+          cerr << " " << uct_child[i].nnrate;
+          uct_child[i].nnrate += vs[k] / 100.0 * 0.2;
+        }
+      }
+      cerr << endl;
+    }
+  }
+  UNLOCK_NODE(req->index);
+  
+#else
+  int critical[PURE_BOARD_MAX * 2];
+  fill(begin(critical), end(critical), 0);
+
+  gnugo_analyze(moves.data(), critical);
+
+  for (int c = 0; c < 2; c++) {
+    cerr << ((c == 0) ? "BLACK:" : "WHITE:");
+    for (int i = 0; i < pure_board_max; i++) {
+      int n = c * pure_board_max + i;
+      if (owl_points[n] > 0)
+        cerr << " " << FormatMove(onboard_pos[i]);
+      owl_points[c][onboard_pos[i]] = 1 + critical[n] * 10;
+    }
+    cerr << endl;
+  }
+#endif
+  double finish_time = GetSpendTime(begin_time);
+  cerr << "analyze " << finish_time << "sec" << endl;
 }
