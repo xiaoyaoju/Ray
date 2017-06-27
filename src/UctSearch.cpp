@@ -15,6 +15,7 @@
 #include <thread>
 #include <random>
 #include <queue>
+#include <set>
 
 #include "DynamicKomi.h"
 #include "GoBoard.h"
@@ -74,8 +75,11 @@ struct policy_eval_req {
 
 struct gnugo_eval_req {
   int index;
-  int depth;
+  int tree_depth;
+  int gnugo_depth;
   vector<int> moves;
+  //pattern_t pat[BOARD_MAX];
+  game_info_t game;
 };
 
 void ReadWeights();
@@ -191,6 +195,7 @@ static int device_id = 0;
 static std::queue<std::shared_ptr<policy_eval_req>> eval_policy_queue;
 static std::queue<std::shared_ptr<value_eval_req>> eval_value_queue;
 static std::queue<std::shared_ptr<gnugo_eval_req>> eval_gnugo_queue;
+static std::set<std::pair<int, int>> gnugo_searched;
 static int eval_count_policy, eval_count_value;
 static double owner_nn[BOARD_MAX];
 
@@ -286,6 +291,28 @@ extern "C" {
 
 static mutex mutex_gnugo;
 float owl_points[2][BOARD_MAX];
+int owl_pat[2][BOARD_MAX];
+
+shared_ptr<gnugo_eval_req> CreateGnugoReq( const game_info_t* game )
+{
+  auto req = make_shared<gnugo_eval_req>();
+  int color = S_BLACK;
+  for (int i = 1; i < game->moves; i++) {
+    if (game->record[i].color != color)
+      req->moves.push_back(-1);
+    int pos = game->record[i].pos;
+    if (pos == PASS || pos == RESIGN)
+      req->moves.push_back(-1);
+    else
+      req->moves.push_back(PureBoardPos(pos));
+    //cerr << FormatMove(pos) << ":" << moves[moves.size() - 1] << " ";
+    color = FLIP_COLOR(color);
+  }
+  //cerr << endl;
+  req->moves.push_back(-2);
+  CopyGame(&req->game, game);
+  return req;
+}
 
 /////////////////////
 //  予測読みの設定  //
@@ -1262,26 +1289,14 @@ RatingNode( game_info_t *game, int color, int index, int depth )
     EvalUctNode(indices, req.data);
 #endif
   }
+#if 0
   if (depth <= 2) {
-    auto req = make_shared<gnugo_eval_req>();
-    int color = S_BLACK;
-    for (int i = 1; i < game->moves; i++) {
-      if (game->record[i].color != color)
-        req->moves.push_back(-1);
-      int pos = game->record[i].pos;
-      if (pos == PASS || pos == RESIGN)
-        req->moves.push_back(-1);
-      else
-        req->moves.push_back(PureBoardPos(pos));
-      //cerr << FormatMove(pos) << ":" << moves[moves.size() - 1] << " ";
-      color = FLIP_COLOR(color);
-    }
-    //cerr << endl;
-    req->moves.push_back(-2);
+    auto req = CreateGnugoReq(game);
     req->depth = depth;
     req->index = index;
     eval_gnugo_queue.push(req);
   }
+#endif
 
   for (int i = 1; i < child_num; i++) {
     pos = uct_child[i].pos;
@@ -1481,10 +1496,35 @@ ParallelUctSearch( thread_arg_t *arg )
 
   CheckSeki(targ->game, seki);
   
+  if (threads == 1 || threads > 1 && targ->thread_id == 1) {
+    auto req = CreateGnugoReq(targ->game);
+    req->tree_depth = 1;
+    req->gnugo_depth = 1;
+    req->index = current_root;
+    eval_gnugo_queue.push(req);
+  }
+
   // スレッドIDが0のスレッドだけ別の処理をする
   // 探索回数が閾値を超える, または探索が打ち切られたらループを抜ける
   if (targ->thread_id == 0) {
     do {
+      if (threads == 1) {
+        LOCK_EXPAND;
+        if (eval_gnugo_queue.size() == 0) {
+          UNLOCK_EXPAND;
+        } else {
+          while (eval_gnugo_queue.size() > 0) {
+            auto req = eval_gnugo_queue.front();
+            eval_gnugo_queue.pop();
+            UNLOCK_EXPAND;
+
+            SearchHint(req.get());
+
+            LOCK_EXPAND;
+          }
+          UNLOCK_EXPAND;
+        }
+      }
       // Wait if dcnn queue is full
       WaitForEvaluationQueue();
       // 探索回数を1回増やす	
@@ -1511,14 +1551,15 @@ ParallelUctSearch( thread_arg_t *arg )
     } while (po_info.count < po_info.halt && !interruption && enough_size);
   } else {
     do {
-      if (targ->thread_id == 1) {
+      if (targ->thread_id == 1 && threads > 1) {
         //if (uct_node[current_root].evaled) {
 
         LOCK_EXPAND;
         if (eval_gnugo_queue.size() == 0) {
           UNLOCK_EXPAND;
         } else {
-          while (eval_gnugo_queue.size() > 0) {
+          //while (eval_gnugo_queue.size() > 0) {
+          {
             auto req = eval_gnugo_queue.front();
             eval_gnugo_queue.pop();
             UNLOCK_EXPAND;
@@ -1553,6 +1594,13 @@ ParallelUctSearch( thread_arg_t *arg )
 
   // メモリの解放
   FreeGame(game);
+
+  LOCK_EXPAND;
+  queue<shared_ptr<gnugo_eval_req>> empty_gnugo;
+  eval_gnugo_queue.swap(empty_gnugo);
+  gnugo_searched.clear();
+  UNLOCK_EXPAND;
+
   return;
 }
 
@@ -1652,9 +1700,25 @@ UctSearch(game_info_t *game, int color, mt19937_64 *mt, LGR& lgrf, LGRContext& l
   // 色を入れ替える
   color = FLIP_COLOR(color);
 
+  bool expected = false;
   bool end_of_game = game->moves > 2 &&
     game->record[game->moves - 1].pos == PASS &&
     game->record[game->moves - 2].pos == PASS;
+
+  if (uct_child[next_index].move_count > 1000
+    && uct_child[next_index].move_count % 100 == 0
+    && atomic_compare_exchange_strong(&uct_child[next_index].eval_gnugo, &expected, true)) {
+    LOCK_EXPAND;
+    if (eval_gnugo_queue.empty()) {
+      UNLOCK_EXPAND;
+      auto req = CreateGnugoReq(game);
+      req->tree_depth = path.size();
+      req->gnugo_depth = 2;
+      LOCK_EXPAND;
+      eval_gnugo_queue.push(req);
+    }
+    UNLOCK_EXPAND;
+  }
 
   if (no_expand || uct_child[next_index].move_count < expand_threshold || end_of_game) {
     int start = game->moves;
@@ -1670,7 +1734,7 @@ UctSearch(game_info_t *game, int color, mt19937_64 *mt, LGR& lgrf, LGRContext& l
 
     // Enqueue value
 
-    bool expected = false;
+    expected = false;
     if (use_nn
       && (n >= expand_threshold * value_evaluation_threshold
         || mode == CONST_PLAYOUT_MODE)
@@ -2174,6 +2238,8 @@ UctAnalyze( game_info_t *game, int color )
   for (int i = 0; i < board_max; i++) {
     criticality[i] = 0.0;
   }
+  fill_n(owl_points[0], board_max, 1);
+  fill_n(owl_points[1], board_max, 1);
   po_info.count = 0;
 
   ClearUctHash();
@@ -2280,6 +2346,8 @@ UctSearchGenmoveCleanUp( game_info_t *game, int color )
   for (int i = 0; i < board_max; i++) {
     criticality[i] = 0.0;
   }
+  fill_n(owl_points[0], board_max, 1);
+  fill_n(owl_points[1], board_max, 1);
 
   begin_time = ray_clock::now();
 
@@ -2492,7 +2560,7 @@ EvalPolicy(const std::vector<std::shared_ptr<policy_eval_req>>& requests,
       else */{
 	//if (score > 0)
 	//uct_child[i].flag = true;
-	uct_child[i].nnrate += max(score, 0.0);
+	uct_child[i].nnrate = max(score, 0.0);
 
 	if (flat) {
 	   cs.push_back(i);
@@ -2669,48 +2737,119 @@ SearchHint( gnugo_eval_req* req )
 {
   lock_guard<mutex> lock(mutex_gnugo);
   auto begin_time = ray_clock::now();
-#if 1
   int ms[10];
   float vs[10];
 
-  gnugo_analyze(req->moves.data(), nullptr, ms, vs);
-
-  LOCK_NODE(req->index);
-
-  child_node_t *uct_child = uct_node[req->index].child;
-  int child_num = uct_node[req->index].child_num;
-  for (int k = 0; k < 10; k++) {
-    if (vs[k] > 0) {
-      int pos = onboard_pos[ms[k]];
-      cerr << "GNUGO " << FormatMove(pos) << ":" << vs[k];
-      for (int i = 0; i < child_num; i++) {
-        if (uct_child[i].pos == pos) {
-          cerr << " " << uct_child[i].nnrate;
-          uct_child[i].nnrate += vs[k] / 100.0 * 0.2;
-        }
-      }
-      cerr << endl;
-    }
-  }
-  UNLOCK_NODE(req->index);
-  
-#else
   int critical[PURE_BOARD_MAX * 2];
   fill(begin(critical), end(critical), 0);
 
-  gnugo_analyze(moves.data(), critical);
+  gnugo_analyze(req->moves.data(), critical, ms, vs);
+
+#if 0
+  //gnugo_analyze(req->moves.data(), nullptr, ms, vs);
+  if (req->index >= 0) {
+    LOCK_NODE(req->index);
+
+    child_node_t *uct_child = uct_node[req->index].child;
+    int child_num = uct_node[req->index].child_num;
+    double sum = 0;
+    for (int k = 0; k < 10; k++) {
+      sum += vs[k];
+    }
+    for (int k = 0; k < 10; k++) {
+      if (vs[k] > 0) {
+        int pos = onboard_pos[ms[k]];
+        cerr << "GNUGO " << FormatMove(pos) << ":" << vs[k];
+        for (int i = 0; i < child_num; i++) {
+          if (uct_child[i].pos == pos) {
+            cerr << " " << uct_child[i].nnrate;
+            double rate = vs[k] / sum * 0.10;
+            uct_child[i].nnrate = max(uct_child[i].nnrate, rate);
+            //uct_child[i].nnrate += vs[k] / 100.0 * 0.2;
+          }
+        }
+        cerr << endl;
+      }
+    }
+    UNLOCK_NODE(req->index);
+  }
+#endif
 
   for (int c = 0; c < 2; c++) {
     cerr << ((c == 0) ? "BLACK:" : "WHITE:");
     for (int i = 0; i < pure_board_max; i++) {
       int n = c * pure_board_max + i;
-      if (owl_points[n] > 0)
-        cerr << " " << FormatMove(onboard_pos[i]);
-      owl_points[c][onboard_pos[i]] = 1 + critical[n] * 10;
+      int pos = onboard_pos[i];
+      if (critical[n] > 0) {
+        cerr << " " << FormatMove(pos);
+        if (owl_points[c][pos] <= 1.5) {
+          owl_points[c][pos] = 1 + critical[n];
+          owl_pat[c][pos] = MD2(req->game.pat, pos);
+        }
+      }
     }
     cerr << endl;
   }
+
+  if (req->gnugo_depth < 4) {
+    game_info_t* game = AllocateGame();
+#if 0
+    int color = S_BLACK;
+    if (req->game.moves > 0) {
+      color = FLIP_COLOR(req->game.record[req->game.moves - 1].color);
+    }
+    for (int i = 0; i < pure_board_max; i++) {
+      int n = (color - 1) * pure_board_max + i;
+      int pos = onboard_pos[i];
+      if (critical[n] == 0)
+        continue;
+      cerr << "Search " << FormatMove(pos) << endl;
+      CopyGame(game, &req->game);
+      PutStone(game, pos, color);
+      auto req2 = CreateGnugoReq(game);
+      req2->tree_depth = req->tree_depth;
+      req2->gnugo_depth = req->gnugo_depth + 1;
+      //req->index = current_root;
+      LOCK_EXPAND;
+      eval_gnugo_queue.push(req2);
+      UNLOCK_EXPAND;
+    }
+#else
+    int color = S_BLACK;
+    if (req->game.moves > 0) {
+      color = FLIP_COLOR(req->game.record[req->game.moves - 1].color);
+    }
+    for (int c = 0; c < 2; c++) {
+      if (req->gnugo_depth > 2 && color != c + 1)
+        continue;
+      for (int i = 0; i < pure_board_max; i++) {
+        int n = c * pure_board_max + i;
+        int pos = onboard_pos[i];
+        if (critical[n] == 0)
+          continue;
+        auto key = make_pair(c, pos);
+        if (gnugo_searched.count(key) > 0)
+          continue;
+        gnugo_searched.insert(key);
+        cerr << ((c == 0) ? "BLACK:" : "WHITE:");
+        cerr << " SEARCH " << FormatMove(pos) << endl;
+
+        CopyGame(game, &req->game);
+        PutStone(game, pos, c + 1);
+        PrintBoard(game);
+        auto req2 = CreateGnugoReq(game);
+        req2->tree_depth = req->tree_depth;
+        req2->gnugo_depth = req->gnugo_depth + 1;
+        req2->index = -1;
+        LOCK_EXPAND;
+        eval_gnugo_queue.push(req2);
+        UNLOCK_EXPAND;
+      }
+      cerr << endl;
+    }
 #endif
+    FreeGame(game);
+  }
   double finish_time = GetSpendTime(begin_time);
   cerr << "analyze " << finish_time << "sec" << endl;
 }

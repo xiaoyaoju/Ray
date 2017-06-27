@@ -87,6 +87,7 @@ struct child_node_t {
   std::atomic<int> move_count;  // 探索回数
   std::atomic<int> win;         // 勝った回数
   std::atomic<bool> eval_value;
+  std::atomic<bool> eval_gnugo;
   int index;   // インデックス
   double rate; // 着手のレート
   double nnrate; // ニューラルネットワークでのレート

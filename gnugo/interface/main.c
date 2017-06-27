@@ -78,7 +78,7 @@ gnugo_main()
   sgftree_clear(&sgftree);
   gameinfo_clear(&gameinfo);
 
-  //printboard = 1;
+  printboard = 0;
   resign_allowed = 0;
   //verbose = 1;
   //playmode = MODE_ASCII;
@@ -188,7 +188,9 @@ computer_move(Gameinfo *gameinfo, int *passes)
 int
 gnugo_analyze(int* moves, int* critical, int* ms, float* vs)
 {
+  static const char *snames[] = { "dead", "alive", "critical", "unknown", "unchecked" };
   int passes = 0;  /* two passes and its over */
+  int color, size;
 
   clear_board();
   //init_sgf(gameinfo);
@@ -209,28 +211,31 @@ gnugo_analyze(int* moves, int* critical, int* ms, float* vs)
 
     gameinfo.to_move = OTHER_COLOR(gameinfo.to_move);
   }
-#if 1
+
   genmove(gameinfo.to_move, NULL, NULL);
-  for (int k = 0; k < 10; k++) {
-    int x = J(best_moves[k]);
-    int y = I(best_moves[k]);
-    int n = x + y * board_size;
-    ms[k] = n;
-    vs[k] = best_move_values[k];
-    if (vs[k] > 0.0) {
-      //gprintf("your move: %f %1m\n", best_move_values[k], best_moves[k]);
+
+  if (ms && vs) {
+    for (int k = 0; k < 10; k++) {
+      int x = J(best_moves[k]);
+      int y = I(best_moves[k]);
+      int n = x + y * board_size;
+      ms[k] = n;
+      vs[k] = best_move_values[k];
+      if (vs[k] > 0.0) {
+        //gprintf("your move: %f %1m\n", best_move_values[k], best_moves[k]);
+      }
+      /*
+      if (best_move_values[k] > 0.0) {
+        gtp_print_vertex(I(best_moves[k]), J(best_moves[k]));
+        gtp_printf(" %.2f ", best_move_values[k]);
+      }
+      */
     }
-    /*
-    if (best_move_values[k] > 0.0) {
-      gtp_print_vertex(I(best_moves[k]), J(best_moves[k]));
-      gtp_printf(" %.2f ", best_move_values[k]);
-    }
-    */
   }
-#else
+
   //gtp_start_sgftrace(NULL);
 
-  computer_move(&gameinfo, &passes);
+  //computer_move(&gameinfo, &passes);
 
   //gtp_finish_sgftrace("trace.sgf");
 
@@ -249,59 +254,73 @@ gnugo_analyze(int* moves, int* critical, int* ms, float* vs)
         gprintf("weakly surrounded dragon found at %1m\n", dragon2[d].origin);
     }
     */
-#if 1
-    if (dragon2[d].semeai_attack_point != NO_MOVE) {
-      int x = I(dragon2[d].semeai_attack_point);
-      int y = J(dragon2[d].semeai_attack_point);
-      int n = x + y * board_size;
-      if (dragon[d].color == BLACK)
-        n += board_size * board_size;
-      critical[n] += 1;
-    }
-    if (dragon2[d].semeai_defense_point != NO_MOVE) {
-      int x = I(dragon2[d].semeai_defense_point);
-      int y = J(dragon2[d].semeai_defense_point);
-      int n = x + y * board_size;
-      if (dragon[d].color == WHITE)
-        n += board_size * board_size;
-      critical[n] += 1;
-    }
-#else
+    color = board[dragon2[d].origin];
+    size = dragon[dragon2[d].origin].size;
+
     if (dragon2[d].owl_status == UNCHECKED)
       continue;
-    if (dragon2[d].owl_attack_point != NO_MOVE) {
-      int x = I(dragon2[d].owl_attack_point);
-      int y = J(dragon2[d].owl_attack_point);
+    if (dragon[dragon2[d].origin].size <= 2)
+      continue;
+
+    gprintf("\nanalyzing %C %1m size:%d\n", color, dragon2[d].origin, size);
+    gprintf("status=%s, escape=%d\n",
+      snames[dragon2[d].owl_status], dragon2[d].escape_route);
+
+#if 1
+    if (dragon2[d].semeai_attack_point != NO_MOVE) {
+      int x = J(dragon2[d].semeai_attack_point);
+      int y = I(dragon2[d].semeai_attack_point);
       int n = x + y * board_size;
-      if (dragon[d].color == BLACK)
+      if (color == BLACK)
         n += board_size * board_size;
-      critical[n] += 1;
+      critical[n] = 4 * size;
+      gprintf("semeai attack %1m %d\n", dragon2[d].semeai_attack_point, dragon2[d].semeai_attack_code);
+    }
+    if (dragon2[d].semeai_defense_point != NO_MOVE) {
+      int x = J(dragon2[d].semeai_defense_point);
+      int y = I(dragon2[d].semeai_defense_point);
+      int n = x + y * board_size;
+      if (color == WHITE)
+        n += board_size * board_size;
+      critical[n] = 4 * size;
+      gprintf("semeai defense %1m %d\n", dragon2[d].semeai_defense_point, dragon2[d].semeai_defense_code);
+    }
+    if (dragon2[d].owl_attack_point != NO_MOVE) {
+      int x = J(dragon2[d].owl_attack_point);
+      int y = I(dragon2[d].owl_attack_point);
+      int n = x + y * board_size;
+      if (color == BLACK)
+        n += board_size * board_size;
+      critical[n] = (dragon2[d].owl_status == CRITICAL ? 4 : 2) * size;
+      gprintf("attack %1m %d\n", dragon2[d].owl_attack_point, dragon2[d].owl_attack_code);
     }
     if (dragon2[d].owl_second_attack_point != NO_MOVE) {
-      int x = I(dragon2[d].owl_second_attack_point);
-      int y = J(dragon2[d].owl_second_attack_point);
+      int x = J(dragon2[d].owl_second_attack_point);
+      int y = I(dragon2[d].owl_second_attack_point);
       int n = x + y * board_size;
-      if (dragon[d].color == BLACK)
+      if (color == BLACK)
         n += board_size * board_size;
-      critical[n] += 1;
+      critical[n] = (dragon2[d].owl_status == CRITICAL ? 4 : 2) * size;
+      gprintf("attack2 %1m %d\n", dragon2[d].owl_second_attack_point, -1);
     }
     if (dragon2[d].owl_defense_point != NO_MOVE) {
-      int x = I(dragon2[d].owl_defense_point);
-      int y = J(dragon2[d].owl_defense_point);
+      int x = J(dragon2[d].owl_defense_point);
+      int y = I(dragon2[d].owl_defense_point);
       int n = x + y * board_size;
-      if (dragon[d].color == WHITE)
+      if (color == WHITE)
         n += board_size * board_size;
-      critical[n] += 1;
+      critical[n] = (dragon2[d].owl_status == CRITICAL ? 4 : 2) * size;
+      gprintf("defense %1m %d\n", dragon2[d].owl_defense_point, dragon2[d].owl_defense_code);
     }
     if (dragon2[d].owl_second_defense_point != NO_MOVE) {
-      int x = I(dragon2[d].owl_second_defense_point);
-      int y = J(dragon2[d].owl_second_defense_point);
+      int x = J(dragon2[d].owl_second_defense_point);
+      int y = I(dragon2[d].owl_second_defense_point);
       int n = x + y * board_size;
-      if (dragon[d].color == WHITE)
+      if (color == WHITE)
         n += board_size * board_size;
-      critical[n] += 1;
+      critical[n] = (dragon2[d].owl_status == CRITICAL ? 4 : 2) * size;
+      gprintf("defense2 %1m %d\n", dragon2[d].owl_second_defense_point, -1);
     }
-#endif
   }
 #endif
 }
