@@ -1578,7 +1578,7 @@ UctSearch(game_info_t *game, int color, mt19937_64 *mt, LGR& lgrf, LGRContext& l
         index = i;
       }
     }
-    if (uct_child[index].move_count < 10) {
+    if (index == -1 || uct_child[index].move_count < 10) {
       lgrctx.store(game, PASS);
     } else {
       lgrctx.store(game, uct_child[index].pos);
