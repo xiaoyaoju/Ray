@@ -195,7 +195,8 @@ static std::queue<std::shared_ptr<value_eval_req>> eval_value_queue;
 static int eval_count_policy, eval_count_value;
 static double owner_nn[BOARD_MAX];
 
-static Microsoft::MSR::CNTK::IEvaluateModel<float>* nn_model = nullptr;
+static Microsoft::MSR::CNTK::IEvaluateModel<float>* nn_policy = nullptr;
+static Microsoft::MSR::CNTK::IEvaluateModel<float>* nn_value = nullptr;
 
 //template<double>
 double atomic_fetch_add(std::atomic<double> *obj, double arg) {
@@ -276,7 +277,6 @@ static void UpdateNodeStatistic( game_info_t *game, int winner, statistic_t *nod
 
 // 結果の更新
 static void UpdateResult( child_node_t *child, int result, int current );
-
 
 
 /////////////////////
@@ -449,7 +449,7 @@ InitializeUctSearch( void )
   }
 
   // UCTのノードのメモリを確保
-  uct_node = (uct_node_t *)malloc(sizeof(uct_node_t) * uct_hash_size);
+  uct_node = new uct_node_t[uct_hash_size];
   
   if (uct_node == NULL) {
     cerr << "Cannot allocate memory !!" << endl;
@@ -457,7 +457,7 @@ InitializeUctSearch( void )
     exit(1);
   }
 
-  if (use_nn && !nn_model)
+  if (use_nn && !nn_policy)
     ReadWeights();
 }
 
@@ -2319,24 +2319,43 @@ void
 ReadWeights()
 {
   cerr << "Init CNTK" << endl;
-  GetEvalF(&nn_model);
-  if (!nn_model)
+  GetEvalF(&nn_policy);
+  if (!nn_policy)
   {
     cerr << "Get EvalModel failed\n";
+  } else {
+    // Load model with desired outputs
+    std::string networkConfiguration;
+    // with the ones specified.
+    //networkConfiguration += "outputNodeNames=\"h1.z:ol.z\"\n";
+    networkConfiguration += "deviceId=";
+    networkConfiguration += to_string(device_id);
+    networkConfiguration += "\n";
+    networkConfiguration += "lockGPU=false\n";
+    networkConfiguration += "modelPath=\"";
+    networkConfiguration += uct_params_path;
+    networkConfiguration += "/model2.bin\"";
+    nn_policy->CreateNetwork(networkConfiguration);
   }
 
-  // Load model with desired outputs
-  std::string networkConfiguration;
-  // with the ones specified.
-  //networkConfiguration += "outputNodeNames=\"h1.z:ol.z\"\n";
-  networkConfiguration += "deviceId=";
-  networkConfiguration += to_string(device_id);
-  networkConfiguration += "\n";
-  networkConfiguration += "lockGPU=false\n";
-  networkConfiguration += "modelPath=\"";
-  networkConfiguration += uct_params_path;
-  networkConfiguration += "/model2.bin\"";
-  nn_model->CreateNetwork(networkConfiguration);
+  GetEvalF(&nn_value);
+  if (!nn_value)
+  {
+    cerr << "Get EvalModel failed\n";
+  } else {
+    // Load model with desired outputs
+    std::string networkConfiguration;
+    // with the ones specified.
+    //networkConfiguration += "outputNodeNames=\"h1.z:ol.z\"\n";
+    networkConfiguration += "deviceId=";
+    networkConfiguration += to_string(device_id);
+    networkConfiguration += "\n";
+    networkConfiguration += "lockGPU=false\n";
+    networkConfiguration += "modelPath=\"";
+    networkConfiguration += uct_params_path;
+    networkConfiguration += "/model3.bin\"";
+    nn_value->CreateNetwork(networkConfiguration);
+  }
 
 #if 0
   std::map<std::wstring, size_t> inDims;
@@ -2376,7 +2395,7 @@ EvalPolicy(const std::vector<std::shared_ptr<policy_eval_req>>& requests,
   //outputLayer.insert(MapEntry(L"owner", &ownern));
   outputLayer.insert(MapEntry(L"ol", &moves));
 
-  nn_model->Evaluate(inputLayer, outputLayer);
+  nn_policy->Evaluate(inputLayer, outputLayer);
 
   if (moves.size() != pure_board_max * requests.size()) {
     cerr << "Eval move error " << moves.size() << endl;
@@ -2456,7 +2475,7 @@ EvalPolicy(const std::vector<std::shared_ptr<policy_eval_req>>& requests,
 void
 EvalValue(const std::vector<std::shared_ptr<value_eval_req>>& requests,
   std::vector<float>& data_basic, std::vector<float>& data_features, std::vector<float>& data_history,
-  std::vector<float>& data_color, std::vector<float>& data_komi)
+  std::vector<float>& data_color, std::vector<float>& data_komi, std::vector<float>& data_safety)
 {
   Layer inputLayer;
   inputLayer.insert(MapEntry(L"basic", &data_basic));
@@ -2464,13 +2483,14 @@ EvalValue(const std::vector<std::shared_ptr<value_eval_req>>& requests,
   inputLayer.insert(MapEntry(L"history", &data_history));
   inputLayer.insert(MapEntry(L"color", &data_color));
   inputLayer.insert(MapEntry(L"komi", &data_komi));
+  inputLayer.insert(MapEntry(L"safety", &data_safety));
   Layer outputLayer;
   std::vector<float> win;
   win.reserve(requests.size());
   outputLayer.insert(MapEntry(L"p", &win));
 
   try {
-    nn_model->Evaluate(inputLayer, outputLayer);
+    nn_value->Evaluate(inputLayer, outputLayer);
   } catch (const std::exception& err) {
     fprintf(stderr, "Evaluation failed. EXCEPTION occurred: %s\n", err.what());
     abort();
@@ -2515,6 +2535,7 @@ static std::vector<float> eval_input_data_features;
 static std::vector<float> eval_input_data_history;
 static std::vector<float> eval_input_data_color;
 static std::vector<float> eval_input_data_komi;
+static std::vector<float> eval_input_data_safety;
 
 void EvalNode() {
 #if 1
@@ -2586,7 +2607,8 @@ void EvalNode() {
         eval_input_data_color.push_back(req->color - 1);
         eval_input_data_komi.push_back(komi[0]);
       }
-      EvalValue(requests, eval_input_data_basic, eval_input_data_features, eval_input_data_history, eval_input_data_color, eval_input_data_komi);
+      eval_input_data_safety.resize(requests.size() * pure_board_max * 8);
+      EvalValue(requests, eval_input_data_basic, eval_input_data_features, eval_input_data_history, eval_input_data_color, eval_input_data_komi, eval_input_data_safety);
     }
   }
 #endif
