@@ -1981,9 +1981,11 @@ WritePlanes(
   std::vector<float>& data_basic,
   std::vector<float>& data_features,
   std::vector<float>& data_move,
+  std::vector<float>& data_safety,
   std::vector<float>* data_owner,
   const game_info_t *game,
   const uct_node_t *root,
+  const uint8_t safety[PURE_BOARD_MAX],
   int color,
   int tran)
 {
@@ -2066,6 +2068,19 @@ WritePlanes(
       //if (i == 0 && pos == move) cerr << "bad pos2 " << n << endl;
       if (data_move[n] == 0.0f)
         data_move[n] = pow(2.0f, -i / 10.0f);
+    }
+
+    if (safety) {
+      data_safety.reserve(19 * 19 * 8);
+      for (int s = 0; s < 8; s++) {
+        for (int i = 1, y = board_start; y <= board_end; y++, i++) {
+          // cerr << setw(2) << (pure_board_size + 1 - i) << ":|";
+          for (int x = board_start; x <= board_end; x++) {
+            int pos = TransformMove(POS(x, y), tran);
+            OUTPUT_FEATURE(data_safety, safety[PureBoardPos(pos)] == s + 1);
+          }
+        }
+      }
     }
 
     if (data_owner) {

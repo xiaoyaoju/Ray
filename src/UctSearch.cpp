@@ -61,6 +61,7 @@ struct value_eval_req {
   std::vector<float> data_basic;
   std::vector<float> data_features;
   std::vector<float> data_history;
+  std::vector<float> data_safety;
 };
 
 struct policy_eval_req {
@@ -71,15 +72,7 @@ struct policy_eval_req {
   std::vector<float> data_basic;
   std::vector<float> data_features;
   std::vector<float> data_history;
-};
-
-struct gnugo_eval_req {
-  int index;
-  int tree_depth;
-  int gnugo_depth;
-  vector<int> moves;
-  //pattern_t pat[BOARD_MAX];
-  game_info_t game;
+  std::vector<float> data_safety;
 };
 
 void ReadWeights();
@@ -198,8 +191,10 @@ static std::queue<std::shared_ptr<gnugo_eval_req>> eval_gnugo_queue;
 static std::set<std::pair<int, int>> gnugo_searched;
 static int eval_count_policy, eval_count_value;
 static double owner_nn[BOARD_MAX];
+static uint8_t safety[PURE_BOARD_MAX];
 
-static Microsoft::MSR::CNTK::IEvaluateModel<float>* nn_model = nullptr;
+static Microsoft::MSR::CNTK::IEvaluateModel<float>* nn_policy = nullptr;
+static Microsoft::MSR::CNTK::IEvaluateModel<float>* nn_value = nullptr;
 
 //template<double>
 double atomic_fetch_add(std::atomic<double> *obj, double arg) {
@@ -285,8 +280,8 @@ static void UpdateResult( child_node_t *child, int result, int current );
 static void SearchHint( gnugo_eval_req* req );
 
 extern "C" {
-  int
-    gnugo_analyze(int* moves, int* critical, int* ms, float* vs);
+  int gnugo_analyze(int* moves, int* critical, int* ms, float* vs);
+  int gnugo_analyze_dragon_status(int* moves, uint8_t* critical);
 }
 
 static mutex mutex_gnugo;
@@ -482,7 +477,7 @@ InitializeUctSearch( void )
   }
 
   // UCTのノードのメモリを確保
-  uct_node = (uct_node_t *)malloc(sizeof(uct_node_t) * uct_hash_size);
+  uct_node = new uct_node_t[uct_hash_size];
   
   if (uct_node == NULL) {
     cerr << "Cannot allocate memory !!" << endl;
@@ -490,7 +485,7 @@ InitializeUctSearch( void )
     exit(1);
   }
 
-  if (use_nn && !nn_model)
+  if (use_nn && !nn_policy)
     ReadWeights();
 }
 
@@ -1076,6 +1071,7 @@ ExpandRoot( game_info_t *game, int color )
     uct_node[index].value_win = 0;
     memset(uct_node[index].statistic, 0, sizeof(statistic_t) * BOARD_MAX); 
     fill_n(uct_node[index].seki, BOARD_MAX, false);
+    //fill_n(uct_node[index].safety, pure_board_max, 0);
     
     uct_child = uct_node[index].child;
     
@@ -1170,6 +1166,7 @@ ExpandNode( game_info_t *game, int color, int current, const std::vector<int>& p
   uct_node[index].value_win = 0;
   memset(uct_node[index].statistic, 0, sizeof(statistic_t) * BOARD_MAX);  
   fill_n(uct_node[index].seki, BOARD_MAX, false);
+  //fill_n(uct_node[index].safety, pure_board_max, 0);
   uct_child = uct_node[index].child;
 
   // パスノードの展開
@@ -1278,8 +1275,8 @@ RatingNode( game_info_t *game, int color, int index, int depth )
     req->index = index;
     req->trans = rand() / (RAND_MAX / 8 + 1);
     //req.path.swap(path);
-    WritePlanes(req->data_basic, req->data_features, req->data_history, nullptr,
-      game, root, color, req->trans);
+    WritePlanes(req->data_basic, req->data_features, req->data_history, req->data_safety, nullptr,
+      game, root, nullptr, color, req->trans);
 #if 1
     eval_policy_queue.push(req);
     //push_back(u);
@@ -1495,7 +1492,7 @@ ParallelUctSearch( thread_arg_t *arg )
   game = AllocateGame();
 
   CheckSeki(targ->game, seki);
-  
+#if 1
   if (threads == 1 || threads > 1 && targ->thread_id == 1) {
     auto req = CreateGnugoReq(targ->game);
     req->tree_depth = 1;
@@ -1503,7 +1500,7 @@ ParallelUctSearch( thread_arg_t *arg )
     req->index = current_root;
     eval_gnugo_queue.push(req);
   }
-
+#endif
   // スレッドIDが0のスレッドだけ別の処理をする
   // 探索回数が閾値を超える, または探索が打ち切られたらループを抜ける
   if (targ->thread_id == 0) {
@@ -1704,7 +1701,7 @@ UctSearch(game_info_t *game, int color, mt19937_64 *mt, LGR& lgrf, LGRContext& l
   bool end_of_game = game->moves > 2 &&
     game->record[game->moves - 1].pos == PASS &&
     game->record[game->moves - 2].pos == PASS;
-
+#if 0
   if (uct_child[next_index].move_count > 1000
     && uct_child[next_index].move_count % 100 == 0
     && atomic_compare_exchange_strong(&uct_child[next_index].eval_gnugo, &expected, true)) {
@@ -1719,6 +1716,7 @@ UctSearch(game_info_t *game, int color, mt19937_64 *mt, LGR& lgrf, LGRContext& l
     }
     UNLOCK_EXPAND;
   }
+#endif
 
   if (no_expand || uct_child[next_index].move_count < expand_threshold || end_of_game) {
     int start = game->moves;
@@ -1750,8 +1748,8 @@ UctSearch(game_info_t *game, int color, mt19937_64 *mt, LGR& lgrf, LGRContext& l
       //req->index = index;
       req->trans = rand() / (RAND_MAX / 8 + 1);
       req->path.swap(path);
-      WritePlanes(req->data_basic, req->data_features, req->data_history, nullptr,
-        game, root, color, req->trans);
+      WritePlanes(req->data_basic, req->data_features, req->data_history, req->data_safety, nullptr,
+        game, root, safety, color, req->trans);
       LOCK_EXPAND;
       eval_value_queue.push(req);
       UNLOCK_EXPAND;
@@ -2436,24 +2434,43 @@ void
 ReadWeights()
 {
   cerr << "Init CNTK" << endl;
-  GetEvalF(&nn_model);
-  if (!nn_model)
+  GetEvalF(&nn_policy);
+  if (!nn_policy)
   {
     cerr << "Get EvalModel failed\n";
+  } else {
+    // Load model with desired outputs
+    std::string networkConfiguration;
+    // with the ones specified.
+    //networkConfiguration += "outputNodeNames=\"h1.z:ol.z\"\n";
+    networkConfiguration += "deviceId=";
+    networkConfiguration += to_string(device_id);
+    networkConfiguration += "\n";
+    networkConfiguration += "lockGPU=false\n";
+    networkConfiguration += "modelPath=\"";
+    networkConfiguration += uct_params_path;
+    networkConfiguration += "/model2.bin\"";
+    nn_policy->CreateNetwork(networkConfiguration);
   }
 
-  // Load model with desired outputs
-  std::string networkConfiguration;
-  // with the ones specified.
-  //networkConfiguration += "outputNodeNames=\"h1.z:ol.z\"\n";
-  networkConfiguration += "deviceId=";
-  networkConfiguration += to_string(device_id);
-  networkConfiguration += "\n";
-  networkConfiguration += "lockGPU=false\n";
-  networkConfiguration += "modelPath=\"";
-  networkConfiguration += uct_params_path;
-  networkConfiguration += "/model2.bin\"";
-  nn_model->CreateNetwork(networkConfiguration);
+  GetEvalF(&nn_value);
+  if (!nn_value)
+  {
+    cerr << "Get EvalModel failed\n";
+  } else {
+    // Load model with desired outputs
+    std::string networkConfiguration;
+    // with the ones specified.
+    //networkConfiguration += "outputNodeNames=\"h1.z:ol.z\"\n";
+    networkConfiguration += "deviceId=";
+    networkConfiguration += to_string(device_id);
+    networkConfiguration += "\n";
+    networkConfiguration += "lockGPU=false\n";
+    networkConfiguration += "modelPath=\"";
+    networkConfiguration += uct_params_path;
+    networkConfiguration += "/model3.bin\"";
+    nn_value->CreateNetwork(networkConfiguration);
+  }
 
 #if 0
   std::map<std::wstring, size_t> inDims;
@@ -2493,7 +2510,7 @@ EvalPolicy(const std::vector<std::shared_ptr<policy_eval_req>>& requests,
   //outputLayer.insert(MapEntry(L"owner", &ownern));
   outputLayer.insert(MapEntry(L"op", &moves));
 
-  nn_model->Evaluate(inputLayer, outputLayer);
+  nn_policy->Evaluate(inputLayer, outputLayer);
 
   if (moves.size() != pure_board_max * requests.size()) {
     cerr << "Eval move error " << moves.size() << endl;
@@ -2596,7 +2613,7 @@ EvalPolicy(const std::vector<std::shared_ptr<policy_eval_req>>& requests,
 void
 EvalValue(const std::vector<std::shared_ptr<value_eval_req>>& requests,
   std::vector<float>& data_basic, std::vector<float>& data_features, std::vector<float>& data_history,
-  std::vector<float>& data_color, std::vector<float>& data_komi)
+  std::vector<float>& data_color, std::vector<float>& data_komi, std::vector<float>& data_safety)
 {
   Layer inputLayer;
   inputLayer.insert(MapEntry(L"basic", &data_basic));
@@ -2604,13 +2621,14 @@ EvalValue(const std::vector<std::shared_ptr<value_eval_req>>& requests,
   inputLayer.insert(MapEntry(L"history", &data_history));
   inputLayer.insert(MapEntry(L"color", &data_color));
   inputLayer.insert(MapEntry(L"komi", &data_komi));
+  inputLayer.insert(MapEntry(L"safety", &data_safety));
   Layer outputLayer;
   std::vector<float> win;
   win.reserve(requests.size());
   outputLayer.insert(MapEntry(L"p", &win));
 
   try {
-    nn_model->Evaluate(inputLayer, outputLayer);
+    nn_value->Evaluate(inputLayer, outputLayer);
   } catch (const std::exception& err) {
     fprintf(stderr, "Evaluation failed. EXCEPTION occurred: %s\n", err.what());
     abort();
@@ -2655,6 +2673,7 @@ static std::vector<float> eval_input_data_features;
 static std::vector<float> eval_input_data_history;
 static std::vector<float> eval_input_data_color;
 static std::vector<float> eval_input_data_komi;
+static std::vector<float> eval_input_data_safety;
 
 void EvalNode() {
 #if 1
@@ -2719,14 +2738,17 @@ void EvalNode() {
       eval_input_data_history.resize(0);
       eval_input_data_color.resize(0);
       eval_input_data_komi.resize(0);
+      eval_input_data_safety.resize(0);
       for (auto& req : requests) {
         std::copy(req->data_basic.begin(), req->data_basic.end(), std::back_inserter(eval_input_data_basic));
         std::copy(req->data_features.begin(), req->data_features.end(), std::back_inserter(eval_input_data_features));
         std::copy(req->data_history.begin(), req->data_history.end(), std::back_inserter(eval_input_data_history));
         eval_input_data_color.push_back(req->color - 1);
         eval_input_data_komi.push_back(komi[0]);
+        std::copy(req->data_safety.begin(), req->data_safety.end(), std::back_inserter(eval_input_data_safety));
       }
-      EvalValue(requests, eval_input_data_basic, eval_input_data_features, eval_input_data_history, eval_input_data_color, eval_input_data_komi);
+      EvalValue(requests, eval_input_data_basic, eval_input_data_features, eval_input_data_history, eval_input_data_color,
+        eval_input_data_komi, eval_input_data_safety);
     }
   }
 #endif
@@ -2739,6 +2761,16 @@ SearchHint( gnugo_eval_req* req )
   auto begin_time = ray_clock::now();
   int ms[10];
   float vs[10];
+
+#if 1
+  {
+    fill(begin(safety), end(safety), 0);
+    gnugo_analyze_dragon_status(req->moves.data(), safety);
+    double finish_time = GetSpendTime(begin_time);
+    cerr << "analyze " << finish_time << "sec" << endl;
+    return;
+  }
+#endif
 
   int critical[PURE_BOARD_MAX * 2];
   fill(begin(critical), end(critical), 0);

@@ -904,7 +904,13 @@ GTP_ray_stat()
  
 static int features_turn_count = 0;
 static int features_turn_next = 1;
+static uint8_t stored_critical[PURE_BOARD_MAX];
+static mt19937 mt;
 void DumpFeature(const uct_node_t& node, int color, int move, int win);
+
+extern "C" {
+  int gnugo_analyze_dragon_status(int* moves, uint8_t* critical);
+}
 
 void GTP_features_planes_file(void)
 {
@@ -954,6 +960,32 @@ void GTP_features_planes_file(void)
     return;
   }
 
+  bool update_gnugo = false;
+  if (game->moves < features_turn_next) {
+    update_gnugo = true;
+  } else if (game->moves > features_turn_next + 30) {
+    if (mt() % 30 == 0) {
+      update_gnugo = true;
+    } else {
+      GTP_response(brank, true);
+      return;
+    }
+  } else {
+    if (mt() % 2 == 0) {
+      GTP_response(brank, true);
+      return;
+    } else {
+    }
+  }
+
+  if (update_gnugo) {
+    fill(begin(stored_critical), end(stored_critical), 0);
+    auto req = CreateGnugoReq(game_prev);
+
+    gnugo_analyze_dragon_status(req->moves.data(), stored_critical);
+    features_turn_next = game->moves;
+  }
+
   DumpFeature(store_node, color, move, win);
 
   GTP_response(brank, true);
@@ -984,13 +1016,14 @@ void DumpFeature(const uct_node_t& node, int color, int move, int win)
   std::vector<float> data_basic;
   std::vector<float> data_features;
   std::vector<float> data_history;
+  std::vector<float> data_safety;
   std::vector<float> data_owner;
 
-  int t = rand() / 11 % 8;
+  int t = mt() % 8;
   //static int t = 0; t++;
   int moveT = RevTransformMove(move, t);
-  WritePlanes(data_basic, data_features, data_history, &data_owner,
-    game_prev, &node, color, t);
+  WritePlanes(data_basic, data_features, data_history, data_safety, &data_owner,
+    game_prev, &node, stored_critical, color, t);
 
   int x = CORRECT_X(moveT) - 1;
   int y = CORRECT_Y(moveT) - 1;
@@ -1019,6 +1052,8 @@ void DumpFeature(const uct_node_t& node, int color, int move, int win)
   DumpSparse(stream, data_features);
   stream << "|history ";
   DumpSparse(stream, data_history);
+  stream << "|safety ";
+  DumpSparse(stream, data_safety);
 #if 1
   stream << "|statistic ";
   DumpDense(stream, data_owner);
@@ -1028,6 +1063,7 @@ void DumpFeature(const uct_node_t& node, int color, int move, int win)
 
 void GTP_features_clear(void)
 {
+  fill(begin(stored_critical), end(stored_critical), 0);
   GTP_response(brank, true);
   return;
 }
@@ -1100,9 +1136,11 @@ GTP_stat(void)
     std::vector<float> data_features;
     std::vector<float> data_history;
     std::vector<float> data_owner;
+    std::vector<float> data_safety;
+    uint8_t safety[PURE_BOARD_MAX];
 
-    WritePlanes(data_basic, data_features, data_history, &data_owner,
-      game, &store_node, player_color, t);
+    WritePlanes(data_basic, data_features, data_history, data_safety, &data_owner,
+      game, &store_node, safety, player_color, t);
 
     std::vector<int> eval_node_index;
     std::vector<int> eval_node_color;

@@ -26,6 +26,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
+#include <stdint.h>
 
 #ifdef HAVE_UNISTD_H
 /* For isatty(). */
@@ -183,6 +184,110 @@ computer_move(Gameinfo *gameinfo, int *passes)
 
   gameinfo->to_move = OTHER_COLOR(gameinfo->to_move);
   return 0;
+}
+
+int
+gnugo_analyze_dragon_status(int* moves, uint8_t* critical)
+{
+  static const char *snames[] = {
+    "DEAD",
+    "ALIVE",
+    "CRITICAL",
+    "UNKNOWN",
+    "UNCHECKED",
+    "CAN_THREATEN_ATTACK",
+    "CAN_THREATEN_DEFENSE",
+    "INESSENTIAL",
+    "TACTICALLY_DEAD",
+    "ALIVE_IN_SEKI",
+    "STRONGLY_ALIVE",
+    "INVINCIBLE",
+    "INSUBSTANTIAL",
+    "WHITE_TERRITORY",
+    "BLACK_TERRITORY",
+    "DAME",
+ };
+
+  static const int safety_map[] = {
+    1,//"DEAD",
+    2,//"ALIVE",
+    3,//"CRITICAL",
+    0,//"UNKNOWN",
+    0,//"UNCHECKED",
+    0,//"CAN_THREATEN_ATTACK",
+    0,//"CAN_THREATEN_DEFENSE",
+    4,//"INESSENTIAL",
+    5,//"TACTICALLY_DEAD",
+    6,//"ALIVE_IN_SEKI",
+    7,//"STRONGLY_ALIVE",
+    8,//"INVINCIBLE",
+    0,//"INSUBSTANTIAL",
+    0,//"WHITE_TERRITORY",
+    0,//"BLACK_TERRITORY",
+    0,//"DAME",
+  };
+  int passes = 0;  /* two passes and its over */
+  int color, size;
+
+  clear_board();
+  //init_sgf(gameinfo);
+
+  for (int i = 0; moves[i] != -2; i++) {
+    int m = moves[i];
+    int move = NO_MOVE;
+    if (m == -1) {
+      move = PASS_MOVE;
+    } else {
+      int x = m / board_size;
+      int y = m % board_size;
+      move = POS(x, y);
+    }
+    passes = 0;
+    //TRACE("\nyour move: %d %d %1m\n\n", i, m, move);
+    gnugo_play_move(move, gameinfo.to_move);
+
+    gameinfo.to_move = OTHER_COLOR(gameinfo.to_move);
+  }
+
+  genmove(gameinfo.to_move, NULL, NULL);
+
+  for (int pos = BOARDMIN; pos < BOARDMAX; pos++) {
+    color = board[pos];
+    if (!IS_STONE(color))
+      continue;
+    int d = dragon[pos].id;
+    //for (int d = 0; d < number_of_dragons; d++) {
+      /*
+      dragon2[d].surround_status
+      = compute_surroundings(dragon2[d].origin, NO_MOVE, 0,
+      &(dragon2[d].surround_size));
+      if (dragon2[d].surround_status == SURROUNDED) {
+      dragon2[d].escape_route = 0;
+      if (debug & DEBUG_DRAGONS)
+      gprintf("surrounded dragon found at %1m\n", dragon2[d].origin);
+      } else if (dragon2[d].surround_status == WEAKLY_SURROUNDED) {
+      dragon2[d].escape_route /= 2;
+      if (debug & DEBUG_DRAGONS)
+      gprintf("weakly surrounded dragon found at %1m\n", dragon2[d].origin);
+      }
+      */
+    color = board[dragon2[d].origin];
+    size = dragon[dragon2[d].origin].size;
+    enum dragon_status safety = dragon2[d].safety;
+
+    if (is_worm_origin(pos, pos)) {
+      gprintf("\nanalyzing %C %1m size:%d\n", color, dragon2[d].origin, size);
+      gprintf("status=%s, safety=%s -> %d\n",
+        snames[dragon2[d].owl_status], snames[safety],
+        safety_map[safety]);
+    }
+
+    int x = J(pos);
+    int y = I(pos);
+    int n = x + y * board_size;
+
+    critical[n] = safety_map[safety];
+  }
 }
 
 int

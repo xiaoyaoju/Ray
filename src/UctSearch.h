@@ -3,6 +3,7 @@
 
 #include <atomic>
 #include <random>
+#include <memory>
 
 #include "GoBoard.h"
 #include "ZobristHash.h"
@@ -127,6 +128,15 @@ struct rate_order_t {
   double rate;  // その手のレート
 };
 
+struct gnugo_eval_req {
+  int index;
+  int tree_depth;
+  int gnugo_depth;
+  std::vector<int> moves;
+  //pattern_t pat[BOARD_MAX];
+  game_info_t game;
+};
+
 
 // 残り時間
 extern double remaining_time[S_MAX];
@@ -215,5 +225,7 @@ void SetReuseSubtree( bool flag );
 void SetUseNN(bool flag);
 
 void SetDeviceId(int id);
+
+std::shared_ptr<gnugo_eval_req> CreateGnugoReq(const game_info_t* game);
 
 #endif
