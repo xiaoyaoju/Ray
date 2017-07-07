@@ -1022,7 +1022,7 @@ void DumpFeature(const uct_node_t& node, int color, int move, int win)
   int t = mt() % 8;
   //static int t = 0; t++;
   int moveT = RevTransformMove(move, t);
-  WritePlanes(data_basic, data_features, data_history, data_safety, &data_owner,
+  WritePlanes(data_basic, data_features, data_history, &data_safety, &data_owner,
     game_prev, &node, stored_critical, color, t);
 
   int x = CORRECT_X(moveT) - 1;
@@ -1139,7 +1139,7 @@ GTP_stat(void)
     std::vector<float> data_safety;
     uint8_t safety[PURE_BOARD_MAX];
 
-    WritePlanes(data_basic, data_features, data_history, data_safety, &data_owner,
+    WritePlanes(data_basic, data_features, data_history, &data_safety, &data_owner,
       game, &store_node, safety, player_color, t);
 
     std::vector<int> eval_node_index;

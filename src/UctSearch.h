@@ -115,6 +115,8 @@ struct uct_node_t {
   //std::atomic<double> value;
   std::atomic<int> value_move_count;
   std::atomic<double> value_win;
+  std::atomic<bool> valid_safety;
+  uint8_t safety[PURE_BOARD_MAX];
 };
 
 struct po_info_t {

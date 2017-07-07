@@ -1981,7 +1981,7 @@ WritePlanes(
   std::vector<float>& data_basic,
   std::vector<float>& data_features,
   std::vector<float>& data_move,
-  std::vector<float>& data_safety,
+  std::vector<float>* data_safety,
   std::vector<float>* data_owner,
   const game_info_t *game,
   const uct_node_t *root,
@@ -2071,16 +2071,19 @@ WritePlanes(
     }
 
     if (safety) {
-      data_safety.reserve(19 * 19 * 8);
+      data_safety->reserve(19 * 19 * 8);
       for (int s = 0; s < 8; s++) {
         for (int i = 1, y = board_start; y <= board_end; y++, i++) {
           // cerr << setw(2) << (pure_board_size + 1 - i) << ":|";
           for (int x = board_start; x <= board_end; x++) {
             int pos = TransformMove(POS(x, y), tran);
-            OUTPUT_FEATURE(data_safety, safety[PureBoardPos(pos)] == s + 1);
+            OUTPUT_FEATURE((*data_safety), safety[PureBoardPos(pos)] == s + 1);
           }
         }
       }
+    } else if (data_safety) {
+      cerr << "no safety data" << endl;
+      data_safety->resize(19 * 19 * 8);
     }
 
     if (data_owner) {
