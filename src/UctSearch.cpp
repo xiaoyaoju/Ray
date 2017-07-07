@@ -691,6 +691,7 @@ UctSearchGenmove( game_info_t *game, int color )
 
   // 選択した着手の勝率の算出(Dynamic Komi)
   best_wp = (double)uct_child[select_index].win / uct_child[select_index].move_count;
+  double best_wpv = (double)uct_node[current_root].value_win / uct_node[current_root].value_move_count;
 
   // コミを含めない盤面のスコアを求める
   double score = (double)CalculateScore(game);
@@ -728,7 +729,7 @@ UctSearchGenmove( game_info_t *game, int color )
 	     game->record[game->moves - 1].pos == PASS &&
 	     game->record[game->moves - 3].pos == PASS) {
     pos = PASS;
-  } else if (best_wp <= RESIGN_THRESHOLD) {
+  } else if (best_wp <= RESIGN_THRESHOLD && best_wpv < RESIGN_THRESHOLD) {
     pos = RESIGN;
   } else {
     pos = uct_child[select_index].pos;
