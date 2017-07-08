@@ -1506,7 +1506,7 @@ ParallelUctSearch( thread_arg_t *arg )
 
   CheckSeki(targ->game, seki);
 #if 1
-  if (threads == 1 || threads > 1 && targ->thread_id == 1) {
+  if (targ->game->moves > pure_board_size * 3 - 17 && (threads == 1 || threads > 1 && targ->thread_id == 1)) {
     auto req = CreateGnugoReq(targ->game);
     req->tree_depth = 1;
     req->gnugo_depth = 1;
@@ -1728,6 +1728,7 @@ UctSearch(game_info_t *game, int color, mt19937_64 *mt, LGR& lgrf, LGRContext& l
     game->record[game->moves - 2].pos == PASS;
 #if 1
   if (uct_child[next_index].move_count > 1000
+    && game->moves > pure_board_size * 3 - 17
     && uct_child[next_index].move_count % 100 == 0
     && atomic_compare_exchange_strong(&uct_child[next_index].eval_gnugo, &expected, true)) {
     LOCK_EXPAND;

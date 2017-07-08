@@ -275,12 +275,14 @@ gnugo_analyze_dragon_status(int* moves, uint8_t* critical)
     size = dragon[dragon2[d].origin].size;
     enum dragon_status safety = dragon2[d].safety;
 
+    /*
     if (is_worm_origin(pos, pos)) {
       gprintf("\nanalyzing %C %1m size:%d\n", color, dragon2[d].origin, size);
       gprintf("status=%s, safety=%s -> %d\n",
         snames[dragon2[d].owl_status], snames[safety],
         safety_map[safety]);
     }
+    */
 
     int x = J(pos);
     int y = I(pos);
