@@ -729,6 +729,8 @@ UctSearchGenmove( game_info_t *game, int color )
 	     game->record[game->moves - 1].pos == PASS &&
 	     game->record[game->moves - 3].pos == PASS) {
     pos = PASS;
+  } else if (count == 0 && best_wp < pass_wp) {
+    pos = PASS;
   } else if (best_wp <= RESIGN_THRESHOLD && (!use_nn || best_wpv < RESIGN_THRESHOLD)) {
     pos = RESIGN;
   } else {
