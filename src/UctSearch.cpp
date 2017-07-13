@@ -2790,6 +2790,18 @@ SearchHint( gnugo_eval_req* req )
 
 #if 1
   {
+    char text[] = {
+      '.',//0,//
+      'x',//1,//"DEAD",
+      'o',//2,//"ALIVE",
+      '!',//3,//"CRITICAL",
+      '_',//4,//"INESSENTIAL",
+      'X',//5,//"TACTICALLY_DEAD",
+      's',//6,//"ALIVE_IN_SEKI",
+      'o',//7,//"STRONGLY_ALIVE",
+      '@',//8,//"INVINCIBLE",
+    };
+
     auto& safety = uct_node[req->index].safety;
     fill(begin(safety), end(safety), 0);
     gnugo_analyze_dragon_status(req->moves.data(), safety);
@@ -2798,7 +2810,7 @@ SearchHint( gnugo_eval_req* req )
       copy(begin(safety), end(safety), previous_safety);
       for (int y = 0; y < pure_board_size; y++) {
         for (int x = 0; x < pure_board_size; x++) {
-          cerr << setw(2) << (int)previous_safety[y * pure_board_size + x];
+          cerr << setw(2) << text[previous_safety[y * pure_board_size + x]];
         }
         cerr << endl;
       }
