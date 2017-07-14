@@ -232,8 +232,15 @@ gnugo_analyze_dragon_status(int* moves, uint8_t* critical)
   clear_board();
   //init_sgf(gameinfo);
 
-  for (int i = 0; moves[i] != -2; i++) {
-    int m = moves[i];
+  for (int i = 0; moves[i] != -2;) {
+    int c = moves[i++];
+    int m = moves[i++];
+    int col;
+    gg_assert(c == 0 || c == 1);
+    if (c == 0)
+      col = BLACK;
+    else if (c == 1)
+      col = WHITE;
     int move = NO_MOVE;
     if (m == -1) {
       move = PASS_MOVE;
@@ -244,9 +251,9 @@ gnugo_analyze_dragon_status(int* moves, uint8_t* critical)
     }
     passes = 0;
     //TRACE("\nyour move: %d %d %1m\n\n", i, m, move);
-    gnugo_play_move(move, gameinfo.to_move);
+    gnugo_play_move(move, col);
 
-    gameinfo.to_move = OTHER_COLOR(gameinfo.to_move);
+    gameinfo.to_move = OTHER_COLOR(col);
   }
 
   genmove(gameinfo.to_move, NULL, NULL);

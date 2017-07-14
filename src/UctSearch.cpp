@@ -291,17 +291,17 @@ int owl_pat[2][BOARD_MAX];
 shared_ptr<gnugo_eval_req> CreateGnugoReq( const game_info_t* game )
 {
   auto req = make_shared<gnugo_eval_req>();
-  int color = S_BLACK;
   for (int i = 1; i < game->moves; i++) {
-    if (game->record[i].color != color)
-      req->moves.push_back(-1);
+    if (game->record[i].color == S_BLACK)
+      req->moves.push_back(0);
+    else
+      req->moves.push_back(1);
     int pos = game->record[i].pos;
     if (pos == PASS || pos == RESIGN)
       req->moves.push_back(-1);
     else
       req->moves.push_back(PureBoardPos(pos));
     //cerr << FormatMove(pos) << ":" << moves[moves.size() - 1] << " ";
-    color = FLIP_COLOR(color);
   }
   //cerr << endl;
   req->moves.push_back(-2);
