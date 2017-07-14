@@ -470,6 +470,7 @@ do_genmove(int color, float pure_threat_value,
   
   gg_assert(stackp == 0);
   
+#if 0
   /*
    * Ok, information gathering is complete. Now start to find some moves!
    */
@@ -632,6 +633,7 @@ do_genmove(int color, float pure_threat_value,
     TRACE("... though, genmove() thinks the position is hopeless\n");
     *resign = 1;
   }
+#endif
   
   /* If statistics is turned on, this is the place to show it. */
   if (showstatistics)
