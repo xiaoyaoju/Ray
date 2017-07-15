@@ -1410,6 +1410,7 @@ WaitForEvaluationQueue()
   // Wait if dcnn queue is full
   LOCK_EXPAND;
   while (eval_value_queue.size() > value_batch_size * 3 || eval_policy_queue.size() > policy_batch_size * 3) {
+    if (GetSpendTime(begin_time) > time_limit) break;
     std::atomic_fetch_add(&queue_full, 1);
     value_evaluation_threshold = min(0.5, value_evaluation_threshold + 0.01);
     UNLOCK_EXPAND;
