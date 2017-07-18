@@ -172,6 +172,10 @@ int my_color;
 //
 static bool live_best_sequence = false;
 
+double c_puct = 1;
+double value_scale = 0.5;
+int custom_expand_threshold = -1;
+
 const double pass_po_limit = 0.5;
 const int policy_batch_size = 16;
 const int value_batch_size = 64;
@@ -366,7 +370,9 @@ ToggleLiveBestSequence()
 void
 SetParameter( void )
 {
-  if (pure_board_size < 11) {
+  if (custom_expand_threshold > 0) {
+    expand_threshold = custom_expand_threshold;
+  }  else if (pure_board_size < 11) {
     expand_threshold = EXPAND_THRESHOLD_9;
   } else if (pure_board_size < 16) {
     expand_threshold = EXPAND_THRESHOLD_13;

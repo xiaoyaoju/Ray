@@ -1,7 +1,7 @@
 #ifndef _GTP_H_
 #define _GTP_H_
 
-const int GTP_COMMAND_NUM = 33;
+const int GTP_COMMAND_NUM = 34;
 const int GTP_COMMAND_SIZE = 64;
 const int BUF_SIZE = 256;
 
