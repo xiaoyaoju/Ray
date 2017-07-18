@@ -1728,7 +1728,7 @@ UctSearch(game_info_t *game, int color, mt19937_64 *mt, LGR& lgrf, LGRContext& l
     game->record[game->moves - 1].pos == PASS &&
     game->record[game->moves - 2].pos == PASS;
 #if 1
-  if (uct_child[next_index].move_count > 1000
+  if (uct_child[next_index].move_count > 500
     && game->moves > pure_board_size * 3 - 17
     && uct_child[next_index].move_count % 100 == 0
     && atomic_compare_exchange_strong(&uct_child[next_index].eval_gnugo, &expected, true)) {
