@@ -890,6 +890,8 @@ GTP_ray_param()
     value_scale = value;
   } else if (name == "expand_threshold") {
     custom_expand_threshold = value;
+  } else if (name == "policy_temperature") {
+    policy_temperature = value;
   } else {
     GTP_response("unknown param", false);
     return;
