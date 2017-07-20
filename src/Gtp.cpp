@@ -24,6 +24,7 @@
 #include "UctSearch.h"
 #include "Utility.h"
 #include "ZobristHash.h"
+#include "MoveCache.h"
 
 using namespace std;
 
@@ -892,6 +893,10 @@ GTP_ray_param()
     custom_expand_threshold = value;
   } else if (name == "policy_temperature") {
     policy_temperature = value;
+  } else if (name == "tgr1_rate") {
+    tgr1_rate = round(value);
+  } else if (name == "lgrf1_rate") {
+    lgrf1_rate = round(value);
   } else {
     GTP_response("unknown param", false);
     return;
