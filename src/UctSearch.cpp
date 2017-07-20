@@ -136,6 +136,9 @@ int criticality_index[BOARD_MAX];
 // 候補手のフラグ
 bool candidates[BOARD_MAX];  
 
+// 投了する勝率の閾値
+double resign_threshold = 0.20;
+
 bool pondering_mode = false;
 
 bool ponder = false;
@@ -723,7 +726,7 @@ UctSearchGenmove( game_info_t *game, int color )
   //    early_pass か有効か死石をすべて打ち上げ済み
   // 2. 着手数がMAX_MOVES以上
   // 投了するときは
-  //    Dynamic Komiでの勝率がRESIGN_THRESHOLD以下
+  //    Dynamic Komiでの勝率がresign_threshold以下
   // それ以外は選ばれた着手を返す
   if (pass_wp >= PASS_THRESHOLD &&
       (early_pass || count == 0) &&
@@ -738,7 +741,7 @@ UctSearchGenmove( game_info_t *game, int color )
     pos = PASS;
   } else if (count == 0 && best_wp < pass_wp) {
     pos = PASS;
-  } else if (best_wp <= RESIGN_THRESHOLD && (!use_nn || best_wpv < RESIGN_THRESHOLD)) {
+  } else if (best_wp <= resign_threshold && (!use_nn || best_wpv < resign_threshold)) {
     pos = RESIGN;
   } else {
     pos = uct_child[select_index].pos;
@@ -2303,7 +2306,7 @@ UctSearchGenmoveCleanUp( game_info_t *game, int color )
   if (count == 0) pos = PASS;
   else pos = uct_child[select_index].pos;
 
-  if ((double)uct_child[select_index].win / uct_child[select_index].move_count < RESIGN_THRESHOLD) {
+  if ((double)uct_child[select_index].win / uct_child[select_index].move_count < resign_threshold) {
     pos = PASS;
   }
 

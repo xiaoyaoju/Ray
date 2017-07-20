@@ -897,6 +897,8 @@ GTP_ray_param()
     tgr1_rate = round(value);
   } else if (name == "lgrf1_rate") {
     lgrf1_rate = round(value);
+  } else if (name == "resign_threshold") {
+    resign_threshold = value;
   } else {
     GTP_response("unknown param", false);
     return;
