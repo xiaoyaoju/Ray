@@ -24,6 +24,7 @@
 #include "UctSearch.h"
 #include "Utility.h"
 #include "ZobristHash.h"
+#include "MoveCache.h"
 
 using namespace std;
 
@@ -76,6 +77,8 @@ static void GTP_ray_toggle_live_best_sequence();
 //
 static void GTP_ray_best_sequence();
 //
+static void GTP_ray_param();
+//
 static void GTP_ray_stat();
 //
 static void GTP_features_planes_file(void);
@@ -118,6 +121,7 @@ const GTP_command_t gtpcmd[GTP_COMMAND_NUM] = {
   { "gogui-analyze_commands", GTP_gogui_analyze_commands },
   { "ray-toggle_live_best_sequence", GTP_ray_toggle_live_best_sequence },
   { "ray-best_sequence", GTP_ray_best_sequence },
+  { "ray-param", GTP_ray_param },
   { "ray-stat", GTP_ray_stat },
   { "_clear", GTP_features_clear },
   { "_store", GTP_features_store },
@@ -855,6 +859,52 @@ GTP_ray_best_sequence()
   stringstream out;
   PrintBestSequenceGFX(out, game, uct_node, current_root, color);
   GTP_response(out.str().c_str(), true);
+}
+
+////////////////////////////
+//  void GTP_ray_param()  //
+////////////////////////////
+static void
+GTP_ray_param()
+{
+  char *command;
+
+  command = STRTOK(NULL, DELIM, &next_token);
+  if (command == NULL) {
+    GTP_response("ray-param name value", false);
+    return;
+  }
+  CHOMP(command);
+  string name(command);
+
+  command = STRTOK(NULL, DELIM, &next_token);
+  if (command == NULL) {
+    GTP_response("ray-param name value", false);
+    return;
+  }
+  CHOMP(command);
+  double value = atof(command);
+
+  if (name == "c_puct") {
+    c_puct = value;
+  } else if (name == "value_scale") {
+    value_scale = value;
+  } else if (name == "expand_threshold") {
+    custom_expand_threshold = value;
+  } else if (name == "policy_temperature") {
+    policy_temperature = value;
+  } else if (name == "tgr1_rate") {
+    tgr1_rate = round(value);
+  } else if (name == "lgrf1_rate") {
+    lgrf1_rate = round(value);
+  } else if (name == "resign_threshold") {
+    resign_threshold = value;
+  } else {
+    GTP_response("unknown param", false);
+    return;
+  }
+
+  GTP_response(brank, true);
 }
 
 ///////////////////////////

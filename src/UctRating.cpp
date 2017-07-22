@@ -97,7 +97,6 @@ static void InputMD2( const char *filename, latent_factor_t *lf );
 static void InputLargePattern( const char *filename, latent_factor_t *lf, index_hash_t *pat_index );
 
 
-
 //////////////////////
 //  γ値の初期設定  //
 //////////////////////

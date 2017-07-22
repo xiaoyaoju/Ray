@@ -139,6 +139,9 @@ int criticality_index[BOARD_MAX];
 // 候補手のフラグ
 bool candidates[BOARD_MAX];  
 
+// 投了する勝率の閾値
+double resign_threshold = 0.20;
+
 bool pondering_mode = false;
 
 bool ponder = false;
@@ -174,6 +177,11 @@ int my_color;
 
 //
 static bool live_best_sequence = false;
+
+double policy_temperature = 1;
+double c_puct = 1;
+double value_scale = 0.5;
+int custom_expand_threshold = -1;
 
 const double pass_po_limit = 0.5;
 const int policy_batch_size = 16;
@@ -411,7 +419,9 @@ ToggleLiveBestSequence()
 void
 SetParameter( void )
 {
-  if (pure_board_size < 11) {
+  if (custom_expand_threshold > 0) {
+    expand_threshold = custom_expand_threshold;
+  }  else if (pure_board_size < 11) {
     expand_threshold = EXPAND_THRESHOLD_9;
   } else if (pure_board_size < 16) {
     expand_threshold = EXPAND_THRESHOLD_13;
@@ -765,7 +775,7 @@ UctSearchGenmove( game_info_t *game, int color )
   //    early_pass か有効か死石をすべて打ち上げ済み
   // 2. 着手数がMAX_MOVES以上
   // 投了するときは
-  //    Dynamic Komiでの勝率がRESIGN_THRESHOLD以下
+  //    Dynamic Komiでの勝率がresign_threshold以下
   // それ以外は選ばれた着手を返す
   if (pass_wp >= PASS_THRESHOLD &&
       (early_pass || count == 0) &&
@@ -780,7 +790,7 @@ UctSearchGenmove( game_info_t *game, int color )
     pos = PASS;
   } else if (count == 0 && best_wp < pass_wp) {
     pos = PASS;
-  } else if (best_wp <= RESIGN_THRESHOLD && (!use_nn || best_wpv < RESIGN_THRESHOLD)) {
+  } else if (best_wp <= resign_threshold && (!use_nn || best_wpv < resign_threshold)) {
     pos = RESIGN;
   } else {
     pos = uct_child[select_index].pos;
@@ -2448,7 +2458,7 @@ UctSearchGenmoveCleanUp( game_info_t *game, int color )
   if (count == 0) pos = PASS;
   else pos = uct_child[select_index].pos;
 
-  if ((double)uct_child[select_index].win / uct_child[select_index].move_count < RESIGN_THRESHOLD) {
+  if ((double)uct_child[select_index].win / uct_child[select_index].move_count < resign_threshold) {
     pos = PASS;
   }
 
@@ -2535,7 +2545,7 @@ EvalPolicy(const std::vector<std::shared_ptr<policy_eval_req>>& requests,
   //ownern.reserve(pure_board_max * indices.size());
   moves.reserve(pure_board_max * requests.size());
   //outputLayer.insert(MapEntry(L"owner", &ownern));
-  outputLayer.insert(MapEntry(L"op", &moves));
+  outputLayer.insert(MapEntry(L"ol", &moves));
 
   nn_policy->Evaluate(inputLayer, outputLayer);
 
@@ -2568,6 +2578,7 @@ EvalPolicy(const std::vector<std::shared_ptr<policy_eval_req>>& requests,
       int x = X(pos) - OB_SIZE;
       int y = Y(pos) - OB_SIZE;
       int n = x + y * pure_board_size;
+      moves[n + ofs] = exp(moves[n + ofs] / policy_temperature);
       sum += moves[n + ofs];
     }
 #endif
@@ -2584,8 +2595,6 @@ EvalPolicy(const std::vector<std::shared_ptr<policy_eval_req>>& requests,
     }
 #endif
 
-#if 1
-    bool flat = depth <= 2 && child_num > 3;
     vector<int> cs;
     for (int i = 1; i < child_num; i++) {
       int pos = RevTransformMove(uct_child[i].pos, req->trans);
@@ -2605,32 +2614,10 @@ EvalPolicy(const std::vector<std::shared_ptr<policy_eval_req>>& requests,
 	//if (score > 0)
 	//uct_child[i].flag = true;
 	uct_child[i].nnrate = max(score, 0.0);
-
-	if (flat) {
-	   cs.push_back(i);
-	}
       }
     }
-    if (flat && cs.size() >= 3) {
-       sort(cs.begin(), cs.end(),
-	  [&](int a, int b) {
-	  return uct_child[a].nnrate > uct_child[b].nnrate;
-       });
-       const int n = depth < 2 ? 3 : 2;
-       double topsum = 0;
-       for (int i = 0; i < n; i++) {
-	  //cerr << "FLAT" << depth << " " << i << ":" << uct_child[cs[i]].nnrate << endl;
-	  topsum += uct_child[cs[i]].nnrate;
-       }
-
-       for (int i = 0; i < n; i++) {
-	  double org = uct_child[cs[i]].nnrate;
-	  uct_child[cs[i]].nnrate = (org + topsum / n) / 2;
-	  //cerr << "FLAT" << depth << " " << i << ":" << org << " -> " << uct_child[cs[i]].nnrate << endl;
-       }
-    }
     uct_node[index].evaled = true;
-#endif
+
     UNLOCK_NODE(index);
   }
   eval_count_policy += requests.size();
