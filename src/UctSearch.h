@@ -65,6 +65,7 @@ const int VIRTUAL_LOSS = 1;
 extern double c_puct;
 extern double value_scale;
 extern double policy_temperature;
+extern double policy_temperature_inc;
 
 enum SEARCH_MODE {
   CONST_PLAYOUT_MODE,             // 1手のプレイアウト回数を固定したモード
@@ -91,6 +92,7 @@ struct child_node_t {
   std::atomic<bool> eval_value;
   int index;   // インデックス
   double rate; // 着手のレート
+  double nnrate0; // ニューラルネットワークでのレート
   double nnrate; // ニューラルネットワークでのレート
   std::atomic<double> value;
   bool flag;   // Progressive Wideningのフラグ

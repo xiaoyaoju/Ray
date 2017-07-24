@@ -176,6 +176,7 @@ int my_color;
 static bool live_best_sequence = false;
 
 double policy_temperature = 1;
+double policy_temperature_inc = 0.0;
 double c_puct = 1;
 double value_scale = 0.5;
 int custom_expand_threshold = -1;
@@ -1756,6 +1757,34 @@ RateComp( const void *a, const void *b )
   }
 }
 
+static void
+UpdatePolicyRate( int current )
+{
+  const int move_count = uct_node[current].move_count;
+  child_node_t *uct_child = uct_node[current].child;
+  const int child_num = uct_node[current].child_num;
+  double t = policy_temperature + log(move_count + 1) * policy_temperature_inc;
+
+  double max_nn0 = 0;
+  for (int i = 1; i < child_num; i++) {
+    max_nn0 = max(uct_child[i].nnrate0 / t, max_nn0);
+  }
+  double offset = 10 - max_nn0;
+  double sum = 0;
+  double max_rate = 0;
+  for (int i = 1; i < child_num; i++) {
+    double rate = exp(uct_child[i].nnrate0 / t + offset);
+    if (rate > max_rate)
+      max_rate = rate;
+    sum += rate;
+  }
+
+  for (int i = 1; i < child_num; i++) {
+    double rate = exp(uct_child[i].nnrate0 / t + offset) / sum;
+    uct_child[i].nnrate = max(rate, 0.0);
+  }
+}
+
 
 /////////////////////////////////////////////////////
 //  UCBが最大となる子ノードのインデックスを返す関数  //
@@ -1806,6 +1835,9 @@ SelectMaxUcbChild( const game_info_t *game, int current, int color )
       for (int i = 0; i < width; i++) {
 	uct_child[order[i].index].flag = true;
       }
+
+      if (evaled && policy_temperature_inc > 0)
+        UpdatePolicyRate(current);
     }
 
     // Progressive Wideningの閾値を超えたら, 
@@ -2413,23 +2445,6 @@ EvalPolicy(const std::vector<std::shared_ptr<policy_eval_req>>& requests,
     child_node_t *uct_child = uct_node[index].child;
     const int ofs = pure_board_max * j;
 
-    float sum = 0;
-#if 0
-    for (int i = 0; i < pure_board_max; i++) {
-      moves[i + ofs] = exp(moves[i + ofs]);
-      sum += moves[i + ofs];
-    }
-#else
-    for (int i = 1; i < child_num; i++) {
-      int pos = RevTransformMove(uct_child[i].pos, req->trans);
-
-      int x = X(pos) - OB_SIZE;
-      int y = Y(pos) - OB_SIZE;
-      int n = x + y * pure_board_size;
-      moves[n + ofs] = exp(moves[n + ofs] / policy_temperature);
-      sum += moves[n + ofs];
-    }
-#endif
     LOCK_NODE(index);
 
     int depth = req->depth;
@@ -2443,27 +2458,22 @@ EvalPolicy(const std::vector<std::shared_ptr<policy_eval_req>>& requests,
     }
 #endif
 
-    vector<int> cs;
     for (int i = 1; i < child_num; i++) {
       int pos = RevTransformMove(uct_child[i].pos, req->trans);
 
       int x = X(pos) - OB_SIZE;
       int y = Y(pos) - OB_SIZE;
       int n = x + y * pure_board_size;
-      double score = moves[n + ofs] / sum;
+      double score = moves[n + ofs];
       //if (depth == 1) cerr << "RAW POLICY " << uct_child[i].pos << " " << req->trans << " " << FormatMove(pos) << " " << x << "," << y << " " << ofs << " -> " << score << endl;
       if (uct_child[i].ladder) {
-	score /= 100;
+        score -= 4; // ~= 1.83%
       }
-      /*if (uct_child[i].rate < 0.0) {
-	uct_child[i].nnrate = uct_child[i].rate;
-      }
-      else */{
-	//if (score > 0)
-	//uct_child[i].flag = true;
-	uct_child[i].nnrate = max(score, 0.0);
-      }
+
+      uct_child[i].nnrate0 = score;
     }
+
+    UpdatePolicyRate(index);
     uct_node[index].evaled = true;
 
     UNLOCK_NODE(index);

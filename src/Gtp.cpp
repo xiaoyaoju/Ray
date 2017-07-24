@@ -893,6 +893,8 @@ GTP_ray_param()
     custom_expand_threshold = value;
   } else if (name == "policy_temperature") {
     policy_temperature = value;
+  } else if (name == "policy_temperature_inc") {
+    policy_temperature_inc = value;
   } else if (name == "tgr1_rate") {
     tgr1_rate = round(value);
   } else if (name == "lgrf1_rate") {
