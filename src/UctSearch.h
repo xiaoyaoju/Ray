@@ -37,7 +37,7 @@ const double PROGRESSIVE_WIDENING = 1.8;
 const int EXPAND_THRESHOLD_9  = 20;
 const int EXPAND_THRESHOLD_13 = 25;
 //const int EXPAND_THRESHOLD_19 = 40;
-const int EXPAND_THRESHOLD_19 = 10;
+const int EXPAND_THRESHOLD_19 = 15;
 extern int custom_expand_threshold;
 
 

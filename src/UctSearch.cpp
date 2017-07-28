@@ -175,10 +175,10 @@ int my_color;
 //
 static bool live_best_sequence = false;
 
-double policy_temperature = 1;
-double policy_temperature_inc = 0.0;
-double c_puct = 1;
-double value_scale = 0.5;
+double policy_temperature = 0.49;
+double policy_temperature_inc = 0.056;
+double c_puct = 2;
+double value_scale = 0.8;
 int custom_expand_threshold = -1;
 
 const double pass_po_limit = 0.5;
