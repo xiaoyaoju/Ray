@@ -157,25 +157,22 @@ IsLadderCaptured( int depth, const game_info_t *game, int ren_xy, int turn_color
 bool
 CheckLadderExtension( const game_info_t *game, int color, int pos )
 {
-  lock_guard<mutex> lock(mutex_ladder);
   const char *board = game->board;
   const string_t *string = game->string;
   const int *string_id = game->string_id;
-  int ladder = PASS;
-  game_info_t *shicho_game = AllocateGame();
-  bool flag = false;
-  int id;
 
   if (board[pos] != color){
-    FreeGame(shicho_game);
     return false;
   }
 
-  id = string_id[pos];
+  int id = string_id[pos];
 
-  ladder = string[id].lib[0];
+  int ladder = string[id].lib[0];
 
   if (string[id].libs == 1 && IsLegal(game, ladder, color)){
+    lock_guard<mutex> lock(mutex_ladder);
+    game_info_t *shicho_game = AllocateGame();
+    bool flag = false;
     CopyGame(shicho_game, game);
     PutStone(shicho_game, ladder, color);
     if (IsLadderCaptured(0, shicho_game, ladder, FLIP_COLOR(color)) == DEAD) {
@@ -183,9 +180,10 @@ CheckLadderExtension( const game_info_t *game, int color, int pos )
     } else {
       flag = false;
     }
+
+    FreeGame(shicho_game);
+    return flag;
   }
 
-  FreeGame(shicho_game);
-
-  return flag;
+  return false;
 }
