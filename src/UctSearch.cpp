@@ -181,6 +181,9 @@ double c_puct = 2;
 double value_scale = 0.8;
 int custom_expand_threshold = -1;
 
+double policy_top_rate_max = 0.90;
+double seach_threshold_policy_rate = 0.005;
+
 const double pass_po_limit = 0.5;
 const int policy_batch_size = 16;
 const int value_batch_size = 64;
@@ -1758,29 +1761,48 @@ RateComp( const void *a, const void *b )
 }
 
 static void
-UpdatePolicyRate( int current )
+UpdatePolicyRate(int current)
 {
   const int move_count = uct_node[current].move_count;
   child_node_t *uct_child = uct_node[current].child;
   const int child_num = uct_node[current].child_num;
   double t = policy_temperature + log(move_count + 1) * policy_temperature_inc;
 
-  double max_nn0 = 0;
+  double sum;
+  double rate;
+  int n = 0;
+
+  double max_nnrate0 = numeric_limits<double>::min();
   for (int i = 1; i < child_num; i++) {
-    max_nn0 = max(uct_child[i].nnrate0 / t, max_nn0);
+    max_nnrate0 = max(uct_child[i].nnrate0, max_nnrate0);
   }
-  double offset = 10 - max_nn0;
-  double sum = 0;
-  double max_rate = 0;
-  for (int i = 1; i < child_num; i++) {
-    double rate = exp(uct_child[i].nnrate0 / t + offset);
-    if (rate > max_rate)
-      max_rate = rate;
-    sum += rate;
-  }
+  double offset = 10 - max_nnrate0;
+
+  // TODO cleanup
+  do {
+    double max_rate = 0;
+    double min_rate = numeric_limits<double>::max();
+
+    sum = 0;
+
+    for (int i = 1; i < child_num; i++) {
+      double rate = exp((uct_child[i].nnrate0 + offset) / t);
+      if (rate > max_rate)
+        max_rate = rate;
+      if (rate < min_rate)
+        min_rate = rate;
+      sum += rate;
+    }
+    rate = max_rate / sum;
+
+    //if (n != 0) cerr << "#" << n << " max:" << (max_rate / sum) << " temperature:" << t << " " << tt << endl;
+    if (rate > policy_top_rate_max)
+      t *= 1.05;
+    n++;
+  } while (t > 0 && t < 10 && rate > policy_top_rate_max);
 
   for (int i = 1; i < child_num; i++) {
-    double rate = exp(uct_child[i].nnrate0 / t + offset) / sum;
+    double rate = exp((uct_child[i].nnrate0 + offset) / t) / sum;
     uct_child[i].nnrate = max(rate, 0.0);
   }
 }
@@ -1824,7 +1846,7 @@ SelectMaxUcbChild( const game_info_t *game, int current, int color )
 	dynamic_parameter = uct_owner[o_index[i]] + uct_criticality[c_index[i]];
 	order[i].rate = uct_child[i].rate + dynamic_parameter;
 	order[i].index = i;
-	uct_child[i].flag |= uct_child[i].nnrate > 0.0;
+	uct_child[i].flag |= uct_child[i].nnrate > seach_threshold_policy_rate;
       }
       qsort(order, child_num, sizeof(rate_order_t), RateComp);
 
