@@ -239,7 +239,7 @@ static void CalculateOwner( int color, int count );
 static void CalculateOwnerIndex( uct_node_t *node, statistic_t *node_statistc, int color, int *index );
 
 // ノードの展開
-static int ExpandNode( game_info_t *game, int color, int current );
+static int ExpandNode( game_info_t *game, int color, int current, const std::vector<int>& path );
 
 // ルートの展開
 static int ExpandRoot( game_info_t *game, int color );
