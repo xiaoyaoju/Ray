@@ -1640,7 +1640,17 @@ InputPOGamma( void )
 
   // 3x3とMD2のパターンをまとめる
   for (i = 0; i < MD2_MAX; i++){
-    po_pattern[i] = (float)(po_md2[i] * po_pat3[i & 0xFFFF] * 100.0);
+    float r = po_md2[i] * po_pat3[i & 0xFFFF];
+
+    // 実際に目を潰す手は判定で打たれないので確率を落とさない
+    if (eye_condition[i & 0xFFFF] == E_COMPLETE_ONE_EYE
+      || eye_condition[i & 0xFFFF] == E_HALF_1_EYE) {
+      if (r < 1.0) {
+        r = 1.0;
+      }
+    }
+
+    po_pattern[i] = r * 100.0;
   }
 }
 
