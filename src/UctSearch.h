@@ -67,6 +67,14 @@ extern double value_scale;
 extern double policy_temperature;
 extern double policy_temperature_inc;
 
+extern double policy_top_rate_max;
+extern double seach_threshold_policy_rate;
+
+extern double pass_po_limit;
+extern int policy_batch_size;
+extern int value_batch_size;
+
+
 enum SEARCH_MODE {
   CONST_PLAYOUT_MODE,             // 1手のプレイアウト回数を固定したモード
   CONST_TIME_MODE,                // 1手の思考時間を固定したモード

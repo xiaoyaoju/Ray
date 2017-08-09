@@ -184,9 +184,9 @@ int custom_expand_threshold = -1;
 double policy_top_rate_max = 0.90;
 double seach_threshold_policy_rate = 0.005;
 
-const double pass_po_limit = 0.5;
-const int policy_batch_size = 16;
-const int value_batch_size = 64;
+double pass_po_limit = 0.5;
+int policy_batch_size = 16;
+int value_batch_size = 64;
 
 ray_clock::time_point begin_time;
 
