@@ -9,6 +9,7 @@
 #include <functional>
 #include <string>
 #include <numeric>
+#include <set>
 
 #include "Message.h"
 #include "MoveCache.h"
@@ -68,6 +69,9 @@ double neighbor_bias = NEIGHBOR_BIAS;
 // 着手距離4のγ値の補正
 double jump_bias = JUMP_BIAS;
 double po_bias = PO_BIAS;
+
+// 隅のセキ
+static set<unsigned int> seki_22_set[2];
 
 //////////////////
 //  関数の宣言  //
@@ -138,6 +142,16 @@ InitializeRating( void )
   InputPOGamma();
   // 戦術的特徴をまとめる
   InitializePoTacticalFeaturesSet();
+  // seki in corner
+  {
+    unsigned int seki_22_md2[] = { 3938730, 8133034, 12327338, 4004266, 8198570, 12392874, 4069802, 8264106, 12458410 };
+    for (unsigned int md2 : seki_22_md2) {
+      unsigned int transp[16];
+      MD2Transpose16(md2, transp);
+      for (int i = 0; i < 16; i++)
+        seki_22_set[i / 8].insert(transp[i]);
+    }
+  }
 }
 
 
@@ -1416,6 +1430,32 @@ PoCheckSelfAtari( game_info_t *game, const int color, const int pos )
   } else if (board[SOUTH(pos)] == other &&
 	     string[string_id[SOUTH(pos)]].libs == 1) {
     return true;
+  }
+
+  if (size == 2) {
+    // ooo#
+    // o+@#
+    // o@+#
+    // ####
+    int pos22x = -1;
+    int pos22y = -1;
+    int x = X(pos);
+    int y = Y(pos);
+    if (x == board_start || x == board_start + 1)
+      pos22x = board_start + 1;
+    else if (x == board_end - 1 || x == board_end)
+      pos22x = board_end - 1;
+    if (y == board_start || y == board_start + 1)
+      pos22y = board_start + 1;
+    else if (y == board_end - 1 || y == board_end)
+      pos22y = board_end - 1;
+    if (pos22x > 0 && pos22y > 0) {
+      int pos22 = POS(pos22x, pos22y);
+      int md2 = MD2(game->pat, pos22);
+      if (seki_22_set[color - 1].count(md2) > 0) {
+        return false;
+      }
+    }
   }
 
   // 自己アタリになる連の大きさが2以下,
