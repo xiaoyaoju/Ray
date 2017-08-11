@@ -1465,7 +1465,6 @@ ParallelUctSearch( thread_arg_t *arg )
       CopyGame(game, targ->game);
       memcpy(game->seki, seki, sizeof(bool) * BOARD_MAX);
       // 1回プレイアウトする
-      //double value_result = -1;
       std::vector<int> path;
       UctSearch(game, color, mt[targ->thread_id], lgr, lgr_ctx[targ->thread_id], current_root, &winner, path);
       // 探索を打ち切るか確認
@@ -1491,7 +1490,6 @@ ParallelUctSearch( thread_arg_t *arg )
       CopyGame(game, targ->game);
       memcpy(game->seki, seki, sizeof(bool) * BOARD_MAX);
       // 1回プレイアウトする
-      //double value_result = -1;
 	  std::vector<int> path;
       UctSearch(game, color, mt[targ->thread_id], lgr, lgr_ctx[targ->thread_id], current_root, &winner, path);
       // 探索を打ち切るか確認
@@ -1529,12 +1527,13 @@ ParallelUctSearchPondering( thread_arg_t *arg )
   // 探索回数が閾値を超える, または探索が打ち切られたらループを抜ける
   if (targ->thread_id == 0) {
     do {
+      // Wait if dcnn queue is full
+      WaitForEvaluationQueue();
       // 探索回数を1回増やす	
       atomic_fetch_add(&po_info.count, 1);
       // 盤面のコピー
       CopyGame(game, targ->game);
       // 1回プレイアウトする
-      //double value_result = -1;
       std::vector<int> path;
       UctSearch(game, color, mt[targ->thread_id], lgr, lgr_ctx[targ->thread_id], current_root, &winner, path);
       // ハッシュに余裕があるか確認
@@ -1548,12 +1547,13 @@ ParallelUctSearchPondering( thread_arg_t *arg )
     } while (!pondering_stop && enough_size);
   } else {
     do {
+      // Wait if dcnn queue is full
+      WaitForEvaluationQueue();
       // 探索回数を1回増やす	
       atomic_fetch_add(&po_info.count, 1);
       // 盤面のコピー
       CopyGame(game, targ->game);
       // 1回プレイアウトする
-      //double value_result = -1;
       std::vector<int> path;
       UctSearch(game, color, mt[targ->thread_id], lgr, lgr_ctx[targ->thread_id], current_root, &winner, path);
       // ハッシュに余裕があるか確認
