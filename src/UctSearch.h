@@ -67,6 +67,7 @@ extern double custom_policy_temperature_inc;
 
 extern double policy_top_rate_max;
 extern double seach_threshold_policy_rate;
+extern double root_policy_rate_min;
 
 extern double pass_po_limit;
 extern int policy_batch_size;
@@ -239,5 +240,8 @@ void SetReuseSubtree( bool flag );
 void SetUseNN(bool flag);
 
 void SetDeviceId( const int id );
+
+// Policy networkの手を打つ
+int PolicyNetworkGenmove(game_info_t *game, int color);
 
 #endif
