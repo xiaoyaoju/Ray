@@ -125,6 +125,8 @@ static void GTP_features_store(void);
 static void GTP_stat(void);
 //
 static void GTP_stat_po(void);
+//
+static void GTP_generate_kifu(void);
 
 
 ////////////
@@ -163,6 +165,7 @@ const GTP_command_t gtpcmd[] = {
   { "_store", GTP_features_store },
   { "_dump", GTP_features_planes_file },
   { "_stat", GTP_stat_po },
+  { "_genkifu", GTP_generate_kifu },
 };
 
 
@@ -1314,4 +1317,214 @@ GTP_stat_po(void)
     color = FLIP_COLOR(color);
   }
 #endif
+}
+
+
+static char
+ToSGFPosition(int p)
+{
+  return 'a' + p - OB_SIZE;
+}
+
+
+////////////////////////////////
+//  void GTP_generate_kifu()  //
+////////////////////////////////
+static void
+GTP_generate_kifu(void)
+{
+  static random_device rd;
+  static std::mt19937_64 mt(rd());
+  char *command = STRTOK(input_copy, DELIM, &next_token);
+  auto begin_time = ray_clock::now();
+
+  CHOMP(command);
+
+  player_color = 0;
+  SetHandicapNum(0);
+  FreeGame(game);
+  game = AllocateGame();
+  InitializeBoard(game);
+  InitializeSearchSetting();
+  InitializeUctHash();
+
+  int color = S_BLACK;
+  int replay_turn;
+  int result;
+  vector<string> comments;
+
+  char *arg = STRTOK(NULL, DELIM, &next_token);
+  if (arg == NULL) {
+    // Play to random turn
+    policy_temperature = 1.5;
+    policy_temperature_inc = 0;
+    root_policy_rate_min = 0;
+
+    uniform_int_distribution<int> dist_turn(0, 350);
+    replay_turn = dist_turn(mt);
+    for (int i = 0; i < replay_turn; i++) {
+      int pos = PolicyNetworkGenmove(game, color);
+      PutStone(game, pos, color);
+      comments.push_back("");
+      color = FLIP_COLOR(color);
+      //PrintBoard(game);
+    }
+    result = S_EMPTY;
+  }
+
+  // Pure random play once
+  bool candidates[PURE_BOARD_MAX] = {};
+  int candidates_num = 0;
+  for (int i = 0; i < pure_board_max; i++) {
+    if (game->board[onboard_pos[i]] == S_EMPTY) {
+      candidates[i] = true;
+      candidates_num++;
+    }
+  }
+  int pos = PASS;
+  while (candidates_num > 0 && pos == PASS) {
+    uniform_int_distribution<int> dist(1, candidates_num);
+    int r = dist(mt);
+    cerr << "RANDOM MOVE ";
+    cerr << r;
+    for (int i = 0; i < pure_board_max; i++) {
+      if (candidates[i])
+        r--;
+      if (r > 0)
+        continue;
+      cerr << " " << FormatMove(onboard_pos[i]);
+      if (!IsLegalNotEye(game, onboard_pos[i], color)) {
+        candidates[i] = false;
+        candidates_num--;
+        break;
+      }
+      pos = onboard_pos[i];
+      break;
+    }
+  }
+  cerr << endl;
+
+  if (pos == PASS) {
+    cerr << "NO VALID MOVE" << endl;
+    GTP_response(err_command, false);
+    return;
+  }
+  PutStone(game, pos, color);
+  comments.push_back("");
+  color = FLIP_COLOR(color);
+
+  double t_rand = GetSpendTime(begin_time);
+
+  // Play rest
+
+  int win_color = 0;
+  if (false) {
+    // Speedup
+    policy_temperature = 0.5;
+    policy_temperature_inc = 0;
+
+    while (game->moves < 250) {
+      player_color = color;
+      int pos = PolicyNetworkGenmove(game, color);
+      if (pos == PASS)
+        break;
+      PutStone(game, pos, color);
+      color = FLIP_COLOR(color);
+      //PrintBoard(game);
+    }
+  }
+
+  //seach_threshold_policy_rate = 0.05;
+  policy_temperature = 0.49;
+  policy_temperature_inc = 0.056;
+  root_policy_rate_min = 0.01;
+  komi[S_BLACK] = dynamic_komi[S_BLACK] = komi[0];
+  komi[S_WHITE] = dynamic_komi[S_WHITE] = komi[0];
+
+  while (true) {
+    player_color = color;
+    int point;
+    if (sim_move)
+      point = SimulationGenmove(game, color);
+    else
+      point = UctSearchGenmove(game, color);
+
+    // Dump move rate
+    const uct_node_t *root = &uct_node[current_root];
+    std::vector<float> data_rate;
+    data_rate.resize(19 * 19 * 1);
+    for (int i = 1; i < root->child_num; i++) {
+      auto& c = root->child[i];
+      int pos = c.pos;
+      float r = static_cast<float>(c.move_count) / root->move_count;
+      r = round(r * 1000) / 1000;
+
+      int n = PureBoardPos(pos);
+      data_rate[n] = r;
+    }
+    stringstream ss;
+    for (int i = 0; i < pure_board_max; i++) {
+      ss << data_rate[i] << " ";
+    }
+    comments.push_back(ss.str());
+
+    //
+    if (point == RESIGN) {
+      win_color = FLIP_COLOR(color);
+      PutStone(game, PASS, color);
+      break;
+    } else if (point == PASS && game->record[game->moves - 1].pos == PASS) {
+      cerr << "END OF GAME" << endl;
+      GTP_response(err_command, false);
+      return;
+    } else {
+      PutStone(game, point, color);
+    }
+
+    color = FLIP_COLOR(color);
+  }
+
+  stringstream out;
+  out << "(;GM[1]FF[4]CA[UTF-8]"
+    "RU[Chinese]SZ[19]KM[7.5]"
+    "PW[Rn]PB[Rn]GN["
+    << replay_turn;
+  switch (result) {
+  case S_BLACK:
+    out << " B+";
+    break;
+  case S_WHITE:
+    out << " W+";
+    break;
+  }
+  out << "]" << "RE["
+    << (win_color == S_BLACK ? "B+" : "W+")
+    << "]";
+  //out << "C[" << replay_turn << "];" << endl;
+  for (int i = 1; i < game->moves; i++) {
+    if (game->record[i].color == S_BLACK) {
+      out << ";B[";
+    } else {
+      out << ";W[";
+    }
+    if (game->record[i].pos == PASS) {
+      out << "tt";
+    } else {
+      out << ToSGFPosition(X(game->record[i].pos)) << ToSGFPosition(Y(game->record[i].pos));
+    }
+    out << "]";
+    if (i == replay_turn + 1) {
+      out << "C[RAND]";
+    } else {
+      if (!comments[i - 1].empty())
+        out << "C[" << comments[i - 1] << "]";
+    }
+  }
+  out << ")";
+
+  GTP_response(out.str().c_str(), true);
+
+  double t_all = GetSpendTime(begin_time);
+
+  cerr << "Random play: " << t_rand << " All: " << t_all << endl;
 }

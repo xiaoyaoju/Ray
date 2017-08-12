@@ -49,29 +49,6 @@ using namespace std;
 #define LOCK_EXPAND mutex_expand.lock();
 #define UNLOCK_EXPAND mutex_expand.unlock();
 
-typedef std::pair<std::wstring, std::vector<float>*> MapEntry;
-typedef std::map<std::wstring, std::vector<float>*> Layer;
-
-struct value_eval_req {
-  child_node_t *uct_child;
-  int color;
-  int trans;
-  std::vector<int> path;
-  std::vector<float> data_basic;
-  std::vector<float> data_features;
-  std::vector<float> data_history;
-};
-
-struct policy_eval_req {
-  int index;
-  int depth;
-  int color;
-  int trans;
-  std::vector<float> data_basic;
-  std::vector<float> data_features;
-  std::vector<float> data_history;
-};
-
 void ReadWeights();
 void EvalNode();
 //void EvalUctNode(std::vector<int>& indices, std::vector<int>& color, std::vector<int>& trans, std::vector<float>& data, std::vector<int>& path);
@@ -187,6 +164,7 @@ int custom_expand_threshold = -1;
 
 double policy_top_rate_max = 0.90;
 double seach_threshold_policy_rate = 0.005;
+double root_policy_rate_min = 0.0;
 
 double pass_po_limit = 0.5;
 int policy_batch_size = 16;
@@ -1823,7 +1801,7 @@ UpdatePolicyRate(int current)
 
   for (int i = 1; i < child_num; i++) {
     double rate = exp((uct_child[i].nnrate0 + offset) / t) / sum;
-    uct_child[i].nnrate = max(rate, 0.0);
+    uct_child[i].nnrate = max(rate, root_policy_rate_min);
   }
 }
 
@@ -2771,4 +2749,87 @@ void EvalNode() {
     }
   }
 #endif
+}
+
+
+/////////////////////////////////////
+// Policy networkの手を打つ
+/////////////////////////////////////
+int
+PolicyNetworkGenmove( game_info_t *game, int color )
+{
+
+  // 探索情報をクリア
+  if (reuse_subtree) {
+    DeleteOldHash(game);
+  } else {
+    ClearUctHash();
+  }
+
+  // 探索開始時刻の記録
+  begin_time = ray_clock::now();
+
+  // UCTの初期化
+  current_root = ExpandRoot(game, color);
+
+  uct_node_t *root = &uct_node[current_root];
+
+  // Prepare input features for policy network
+  double drate[PURE_BOARD_MAX];
+  AnalyzePoRating(game, color, drate);
+
+  auto req = make_shared<policy_eval_req>();
+  req->color = color;
+  req->depth = 0;
+  req->index = current_root;
+  req->trans = rand() / (RAND_MAX / 8 + 1);
+  //req.path.swap(path);
+  WritePlanes(req->data_basic, req->data_features, req->data_history, nullptr,
+    game, root, color, req->trans);
+
+  // Eval policy network
+  vector<float> data_color;
+  vector<float> data_komi;
+  data_color.push_back(req->color - 1);
+  data_komi.push_back(komi[0]);
+
+  auto org_policy_temperature = policy_temperature;
+  policy_temperature = 1.0;
+  std::vector<std::shared_ptr<policy_eval_req>> requests;
+  requests.push_back(req);
+  EvalPolicy(requests, req->data_basic, req->data_features, req->data_history, data_color, data_komi);
+  policy_temperature = org_policy_temperature;
+
+  // Select move
+  int64_t rate[UCT_CHILD_MAX] = {};
+  int64_t rate_sum = 0;
+  const int child_num = uct_node[current_root].child_num;
+  const child_node_t *uct_child = uct_node[current_root].child;
+  for (int i = 1; i < child_num; i++) {
+    int pos = uct_child[i].pos;
+    int64_t r = static_cast<int64_t>(uct_child[i].nnrate * 100000);
+    if (r < 1)
+      r = 1;
+    rate[i] = r;
+    rate_sum += r;
+  }
+  while (rate_sum > 0) {
+    uniform_int_distribution<int64_t> dist_turn(1, rate_sum);
+    int64_t rand_num = dist_turn(*mt[0]);
+    int pos = PASS;
+    for (int i = 1; i < child_num; i++) {
+      pos = uct_child[i].pos;
+      rand_num -= rate[i];
+      if (rand_num <= 0) {
+        rate_sum -= rate[i];
+        rate[i] = 0;
+        break;
+      }
+    }
+    if (IsLegalNotEye(game, pos, color)) {
+      return pos;
+    }
+  }
+
+  return PASS;
 }

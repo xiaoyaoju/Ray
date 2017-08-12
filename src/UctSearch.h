@@ -3,6 +3,7 @@
 
 #include <atomic>
 #include <random>
+#include <memory>
 
 #include "GoBoard.h"
 #include "ZobristHash.h"
@@ -72,6 +73,7 @@ extern double policy_temperature_inc;
 
 extern double policy_top_rate_max;
 extern double seach_threshold_policy_rate;
+extern double root_policy_rate_min;
 
 extern double pass_po_limit;
 extern int policy_batch_size;
@@ -142,6 +144,26 @@ struct po_info_t {
 struct rate_order_t {
   int index;    // ノードのインデックス
   double rate;  // その手のレート
+};
+
+struct value_eval_req {
+  child_node_t *uct_child;
+  int color;
+  int trans;
+  std::vector<int> path;
+  std::vector<float> data_basic;
+  std::vector<float> data_features;
+  std::vector<float> data_history;
+};
+
+struct policy_eval_req {
+  int index;
+  int depth;
+  int color;
+  int trans;
+  std::vector<float> data_basic;
+  std::vector<float> data_features;
+  std::vector<float> data_history;
 };
 
 
@@ -237,5 +259,16 @@ void SetReuseSubtree( bool flag );
 void SetUseNN(bool flag);
 
 void SetDeviceId(int id);
+
+// Policy networkの手を打つ
+int PolicyNetworkGenmove(game_info_t *game, int color);
+
+void EvalPolicy(const std::vector<std::shared_ptr<policy_eval_req>>& requests,
+  std::vector<float>& data_basic, std::vector<float>& data_features, std::vector<float>& data_history,
+  std::vector<float>& data_color, std::vector<float>& data_komi);
+
+void EvalValue(const std::vector<std::shared_ptr<value_eval_req>>& requests,
+  std::vector<float>& data_basic, std::vector<float>& data_features, std::vector<float>& data_history,
+  std::vector<float>& data_color, std::vector<float>& data_komi, std::vector<float>& data_safety);
 
 #endif
