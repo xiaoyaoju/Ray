@@ -31,4 +31,8 @@ void ExtractKifu( const char *file_name, SGF_record_t *kifu );
 // 着手を抽出
 int GetKifuMove( const SGF_record_t *kifu, int n );
 
+int ParseSGFPosition(char c);
+
+char ToSGFPosition(int p);
+
 #endif

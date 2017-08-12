@@ -10,6 +10,7 @@
 #include <random>
 #include <sstream>
 #include <iomanip>
+#include <algorithm>
 
 #include "DynamicKomi.h"
 #include "Gtp.h"
@@ -26,6 +27,7 @@
 #include "ZobristHash.h"
 #include "MoveCache.h"
 #include "OpeningBook.h"
+#include "SGFExtractor.hpp"
 
 using namespace std;
 
@@ -128,6 +130,8 @@ static void GTP_stat(void);
 static void GTP_stat_po(void);
 //
 static void GTP_generate_kifu(void);
+//
+static void GTP_dupm_kifu_feature(void);
 
 
 ////////////
@@ -164,7 +168,8 @@ const GTP_command_t gtpcmd[] = {
   { "ray-stat", GTP_ray_stat },
   { "_clear", GTP_features_clear },
   { "_store", GTP_features_store },
-  { "_dump", GTP_features_planes_file },
+  //{ "_dump", GTP_features_planes_file },
+  { "_dump", GTP_dupm_kifu_feature },
   { "_stat", GTP_stat_po },
   { "_genkifu", GTP_generate_kifu },
 };
@@ -810,6 +815,7 @@ GTP_kgs_genmove_cleanup( void )
   GTP_response(pos, true);
 }
 
+
 /////////////////////////////////////////
 //  void GTP_gogui_analyze_commands()  //
 /////////////////////////////////////////
@@ -978,7 +984,7 @@ GTP_ray_stat()
  
 static int features_turn_count = 0;
 static int features_turn_next = 1;
-void DumpFeature(const uct_node_t& node, int color, int move, int win);
+void DumpFeature(const uct_node_t* node, int color, int move, int win, game_info_t* game, int t, bool dump_owner);
 
 void GTP_features_planes_file(void)
 {
@@ -1028,7 +1034,10 @@ void GTP_features_planes_file(void)
     return;
   }
 
-  DumpFeature(store_node, color, move, win);
+  double rate[PURE_BOARD_MAX];
+  AnalyzePoRating(game_prev, color, rate);
+
+  DumpFeature(&store_node, color, move, win, game_prev, rand() % 8, true);
 
   GTP_response(brank, true);
 }
@@ -1050,21 +1059,17 @@ static void DumpDense(std::ostream& stream, const std::vector<float> data)
   }
 }
 
-void DumpFeature(const uct_node_t& node, int color, int move, int win)
+void DumpFeature(const uct_node_t* node, int color, int move, int win, game_info_t* game, int t, bool dump_owner)
 {
-  double rate[PURE_BOARD_MAX];
-  AnalyzePoRating(game_prev, color, rate);
-
   std::vector<float> data_basic;
   std::vector<float> data_features;
   std::vector<float> data_history;
   std::vector<float> data_owner;
 
-  int t = rand() / 11 % 8;
-  //static int t = 0; t++;
   int moveT = RevTransformMove(move, t);
-  WritePlanes(data_basic, data_features, data_history, &data_owner,
-    game_prev, &node, color, t);
+  WritePlanes(data_basic, data_features, data_history,
+    dump_owner ? &data_owner : nullptr,
+    game, node, color, t);
 
   int x = CORRECT_X(moveT) - 1;
   int y = CORRECT_Y(moveT) - 1;
@@ -1073,7 +1078,7 @@ void DumpFeature(const uct_node_t& node, int color, int move, int win)
     cerr << "bad label " << x << " " << y << endl;
     abort();
   }
-  if (isnan(data_owner[0])) {
+  if (dump_owner && isnan(data_owner[0])) {
     cerr << "bad stat" << endl;
     return;
   }
@@ -1093,10 +1098,10 @@ void DumpFeature(const uct_node_t& node, int color, int move, int win)
   DumpSparse(stream, data_features);
   stream << "|history ";
   DumpSparse(stream, data_history);
-#if 1
-  stream << "|statistic ";
-  DumpDense(stream, data_owner);
-#endif
+  if (dump_owner) {
+    stream << "|statistic ";
+    DumpDense(stream, data_owner);
+  }
   stream << endl;
 }
 
@@ -1228,10 +1233,130 @@ GTP_stat(void)
   IntegerToString(point, pos);
 
   GTP_response(pos, true);
-
-  //UctSearchPondering(game, FLIP_COLOR(color));
 }
 
+
+////////////////////////////////////
+//  void GTP_dupm_kifu_feature()  //
+////////////////////////////////////
+static void
+GTP_dupm_kifu_feature(void)
+{
+  static random_device rd;
+  static std::mt19937_64 mt(rd());
+  char *command = STRTOK(input_copy, DELIM, &next_token);
+
+  CHOMP(command);
+
+  char *file_name = STRTOK(NULL, DELIM, &next_token);
+  if (file_name == NULL) {
+    GTP_response(err_command, false);
+    return;
+  }
+  CHOMP(file_name);
+
+  SGF_record kifu;
+  ExtractKifu(file_name, &kifu);
+
+  if (kifu.moves == 0) {
+    GTP_response("bad sgf", false);
+    return;
+  }
+
+  /*
+  if (kifu.moves < 100) {
+    GTP_response("too short sgf", false);
+    return;
+  }
+  */
+
+  int win_color;
+  switch (kifu.result) {
+  case R_BLACK:
+    win_color = S_BLACK;
+    break;
+  case R_WHITE:
+    win_color = S_WHITE;
+    break;
+  default:
+    GTP_response("unknown result", false);
+    return;
+  }
+
+  player_color = 0;
+  SetHandicapNum(0);
+  SetKomi(kifu.komi);
+  FreeGame(game);
+  game = AllocateGame();
+  InitializeBoard(game);
+  InitializeSearchSetting();
+  InitializeUctHash();
+
+#if 1
+  {
+    CopyGame(store_game, game);
+
+    int color = S_BLACK;
+
+    for (int i = 0; i < kifu.moves - 1; i++) {
+      int pos = GetKifuMove(&kifu, i);
+      PutStone(store_game, pos, color);
+      color = FLIP_COLOR(color);
+    }
+
+    UctSearchStat(store_game, color, 100);
+
+    const uct_node_t *root = &uct_node[current_root];
+    memcpy(&store_node, root, sizeof(uct_node_t));
+    double winning_percentage = (double)root->win / root->move_count;
+    if (color == S_BLACK) {
+      store_winning_percentage = winning_percentage;
+    } else {
+      store_winning_percentage = 1 - winning_percentage;
+    }
+  }
+#endif
+
+  int color = S_BLACK;
+
+  stringstream out;
+
+  for (int i = 0; i < kifu.moves - 1; i++) {
+    int pos = GetKifuMove(&kifu, i);
+    PutStone(game, pos, color);
+    color = FLIP_COLOR(color);
+
+#if 1
+    if (mt() % 4 > 0)
+      continue;
+#endif
+    int move = GetKifuMove(&kifu, i + 1);
+
+    double rate[PURE_BOARD_MAX];
+    AnalyzePoRating(game, color, rate);
+    if (move != PASS && move != RESIGN) {
+      int ts[] = {0, 1, 2, 3, 4, 5, 6, 7};
+      shuffle(begin(ts), end(ts), mt);
+#if 1
+      DumpFeature(&store_node, color, move, win_color == color ? 1 : -1, game, ts[0], true);
+#else
+      if (i < 10) {
+        for (int t = 0; t < 4; t++) {
+          DumpFeature(nullptr, color, move, win_color == color ? 1 : -1, game, ts[t], false);
+        }
+      } else if (i < 50) {
+        for (int t = 0; t < 2; t++) {
+          DumpFeature(nullptr, color, move, win_color == color ? 1 : -1, game, ts[t], false);
+        }
+      } else {
+        DumpFeature(nullptr, color, move, win_color == color ? 1 : -1, game, ts[0], false);
+      }
+#endif
+    }
+  }
+
+  GTP_response(brank, true);
+}
 
 
 ////////////////////////////////
