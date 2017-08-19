@@ -15,6 +15,7 @@
 #include <thread>
 #include <random>
 #include <queue>
+#include <codecvt>
 
 #include "DynamicKomi.h"
 #include "GoBoard.h"
@@ -40,7 +41,7 @@
 #include <sys/time.h>
 #endif
 
-#include "Eval.h"
+#include "CNTKLibrary.h"
 
 using namespace std;
 
@@ -199,8 +200,8 @@ static std::queue<std::shared_ptr<value_eval_req>> eval_value_queue;
 static int eval_count_policy, eval_count_value;
 static double owner_nn[BOARD_MAX];
 
-static Microsoft::MSR::CNTK::IEvaluateModel<float>* nn_policy = nullptr;
-static Microsoft::MSR::CNTK::IEvaluateModel<float>* nn_value = nullptr;
+static CNTK::FunctionPtr nn_policy = nullptr;
+static CNTK::FunctionPtr nn_value = nullptr;
 
 //template<double>
 double atomic_fetch_add(std::atomic<double> *obj, double arg) {
@@ -2377,62 +2378,71 @@ extern char uct_params_path[1024];
 void
 ReadWeights()
 {
-  cerr << "Init CNTK" << endl;
-  GetEvalF(&nn_policy);
-  if (!nn_policy)
-  {
-    cerr << "Get EvalModel failed\n";
-  } else {
-    // Load model with desired outputs
-    std::string networkConfiguration;
-    // with the ones specified.
-    //networkConfiguration += "outputNodeNames=\"h1.z:ol.z\"\n";
-    networkConfiguration += "deviceId=";
-    networkConfiguration += to_string(device_id);
-    networkConfiguration += "\n";
-    networkConfiguration += "lockGPU=false\n";
-    networkConfiguration += "modelPath=\"";
-    networkConfiguration += uct_params_path;
-    networkConfiguration += "/model2.bin\"";
-    nn_policy->CreateNetwork(networkConfiguration);
-  }
+  typedef std::codecvt_utf8<wchar_t> convert_type;
+  std::wstring_convert<convert_type, wchar_t> converter;
 
-  GetEvalF(&nn_value);
-  if (!nn_value)
+  cerr << "Init CNTK" << endl;
+
+  CNTK::DeviceDescriptor device = CNTK::DeviceDescriptor::GPUDevice(device_id);
+
+  wstring policy_name = converter.from_bytes(uct_params_path);
+  policy_name += L"/model2.bin";
+  nn_policy = CNTK::Function::Load(policy_name, device);
+
+  wstring value_name = converter.from_bytes(uct_params_path);
+  value_name += L"/model3.bin";
+  nn_value = CNTK::Function::Load(value_name, device);
+
+  if (!nn_policy || !nn_value)
   {
     cerr << "Get EvalModel failed\n";
-  } else {
-    // Load model with desired outputs
-    std::string networkConfiguration;
-    // with the ones specified.
-    //networkConfiguration += "outputNodeNames=\"h1.z:ol.z\"\n";
-    networkConfiguration += "deviceId=";
-    networkConfiguration += to_string(device_id);
-    networkConfiguration += "\n";
-    networkConfiguration += "lockGPU=false\n";
-    networkConfiguration += "modelPath=\"";
-    networkConfiguration += uct_params_path;
-    networkConfiguration += "/model3.bin\"";
-    nn_value->CreateNetwork(networkConfiguration);
   }
 
 #if 0
-  std::map<std::wstring, size_t> inDims;
-  std::map<std::wstring, size_t> outDims;
-
-  nn_model->GetNodeDimensions(inDims, Microsoft::MSR::CNTK::NodeGroup::nodeInput);
-  nn_model->GetNodeDimensions(outDims, Microsoft::MSR::CNTK::NodeGroup::nodeOutput);
-  cerr << "Input" << endl;
-  for (auto p : inDims) {
-    wcerr << p.first << ":" << p.second << endl;
+  wcerr << L"***POLICY" << endl;
+  for (auto var : nn_policy->Inputs()) {
+    wcerr << var.AsString() << endl;
   }
-  cerr << "Output" << endl;
-  for (auto p : outDims) {
-    wcerr << p.first << ":" << p.second << endl;
+  for (auto var : nn_policy->Outputs()) {
+    wcerr << var.AsString() << endl;
+  }
+  wcerr << L"***VALUE" << endl;
+  for (auto var : nn_value->Inputs()) {
+    wcerr << var.AsString() << endl;
+  }
+  for (auto var : nn_value->Outputs()) {
+    wcerr << var.AsString() << endl;
   }
 #endif
 
   cerr << "ok" << endl;
+}
+
+
+bool
+GetVariableByName(vector<CNTK::Variable> variableLists, wstring varName, CNTK::Variable& var)
+{
+  for (vector<CNTK::Variable>::iterator it = variableLists.begin(); it != variableLists.end(); ++it)
+  {
+    if (it->Name().compare(varName) == 0)
+    {
+      var = *it;
+      return true;
+    }
+  }
+  return false;
+}
+
+inline bool
+GetInputVariableByName(CNTK::FunctionPtr evalFunc, wstring varName, CNTK::Variable& var)
+{
+  return GetVariableByName(evalFunc->Arguments(), varName, var);
+}
+
+inline bool
+GetOutputVaraiableByName(CNTK::FunctionPtr evalFunc, wstring varName, CNTK::Variable& var)
+{
+  return GetVariableByName(evalFunc->Outputs(), varName, var);
 }
 
 void
@@ -2440,31 +2450,65 @@ EvalPolicy(const std::vector<std::shared_ptr<policy_eval_req>>& requests,
   std::vector<float>& data_basic, std::vector<float>& data_features, std::vector<float>& data_history,
   std::vector<float>& data_color, std::vector<float>& data_komi)
 {
-  Layer inputLayer;
-  inputLayer.insert(MapEntry(L"basic", &data_basic));
-  inputLayer.insert(MapEntry(L"features", &data_features));
-  inputLayer.insert(MapEntry(L"history", &data_history));
-  inputLayer.insert(MapEntry(L"color", &data_color));
-  inputLayer.insert(MapEntry(L"komi", &data_komi));
-  Layer outputLayer;
-  //std::vector<float> ownern;
-  std::vector<float> moves;
-  //ownern.reserve(pure_board_max * indices.size());
-  moves.reserve(pure_board_max * requests.size());
-  //outputLayer.insert(MapEntry(L"owner", &ownern));
-  outputLayer.insert(MapEntry(L"ol", &moves));
+  if (requests.size() == 0)
+    return;
 
-  nn_policy->Evaluate(inputLayer, outputLayer);
+  CNTK::Variable var_basic, var_features, var_history, var_color, var_komi;
+  GetInputVariableByName(nn_policy, L"basic", var_basic);
+  GetInputVariableByName(nn_policy, L"features", var_features);
+  GetInputVariableByName(nn_policy, L"history", var_history);
+  GetInputVariableByName(nn_policy, L"color", var_color);
+  GetInputVariableByName(nn_policy, L"komi", var_komi);
 
-  if (moves.size() != pure_board_max * requests.size()) {
+  CNTK::Variable var_ol;
+  GetOutputVaraiableByName(nn_policy, L"ol", var_ol);
+
+  size_t num_req = requests.size();
+
+  CNTK::NDShape shape_basic = var_basic.Shape().AppendShape({ 1, num_req });
+  CNTK::ValuePtr value_basic = CNTK::MakeSharedObject<CNTK::Value>(CNTK::MakeSharedObject<CNTK::NDArrayView>(shape_basic, data_basic, true));
+  CNTK::NDShape shape_features = var_features.Shape().AppendShape({ 1, num_req });
+  CNTK::ValuePtr value_features = CNTK::MakeSharedObject<CNTK::Value>(CNTK::MakeSharedObject<CNTK::NDArrayView>(shape_features, data_features, true));
+  CNTK::NDShape shape_history = var_history.Shape().AppendShape({ 1, num_req });
+  CNTK::ValuePtr value_history = CNTK::MakeSharedObject<CNTK::Value>(CNTK::MakeSharedObject<CNTK::NDArrayView>(shape_history, data_history, true));
+  CNTK::NDShape shape_color = var_color.Shape().AppendShape({ 1, num_req });
+  CNTK::ValuePtr value_color = CNTK::MakeSharedObject<CNTK::Value>(CNTK::MakeSharedObject<CNTK::NDArrayView>(shape_color, data_color, true));
+  //CNTK::NDShape shape_komi = var_komi.Shape().AppendShape({ 1, num_req });
+  //CNTK::ValuePtr value_komi = CNTK::MakeSharedObject<CNTK::Value>(CNTK::MakeSharedObject<CNTK::NDArrayView>(shape_komi, data_komi, true));
+
+  CNTK::ValuePtr value_ol;
+
+  CNTK::DeviceDescriptor device = CNTK::DeviceDescriptor::GPUDevice(device_id);
+  std::unordered_map<CNTK::Variable, CNTK::ValuePtr> inputs = {
+    { var_basic, value_basic },
+    { var_features, value_features },
+    { var_history, value_history },
+    //{ var_color, value_color },
+    //{ var_komi, value_komi },
+  };
+  std::unordered_map<CNTK::Variable, CNTK::ValuePtr> outputs = { { var_ol, value_ol } };
+
+  try {
+    nn_policy->Forward(inputs, outputs, device);
+  } catch (const std::exception& err) {
+    fprintf(stderr, "Evaluation failed. EXCEPTION occurred: %s\n", err.what());
+    abort();
+  } catch (...) {
+    fprintf(stderr, "Evaluation failed. Unknown ERROR occurred.\n");
+    abort();
+  }
+
+  value_ol = outputs[var_ol];
+  CNTK::NDShape shape_ol = var_ol.Shape().AppendShape({ 1, num_req });
+  vector<float> moves(shape_ol.TotalSize());
+  CNTK::NDArrayViewPtr cpu_moves = CNTK::MakeSharedObject<CNTK::NDArrayView>(shape_ol, moves, false);
+  cpu_moves->CopyFrom(*value_ol->Data());
+
+  if (moves.size() != pure_board_max * num_req) {
     cerr << "Eval move error " << moves.size() << endl;
     return;
   }
-  //if (ownern.size() != pure_board_max * indices.size()) {
-  //  cerr << "Eval owner error " << ownern.size() << endl;
-  //  return;
-  //}
-  //cerr << "Eval " << indices.size() << " " << path.size() << endl;
+
   for (int j = 0; j < requests.size(); j++) {
     const auto req = requests[j];
     const int index = req->index;
@@ -2514,20 +2558,50 @@ EvalValue(const std::vector<std::shared_ptr<value_eval_req>>& requests,
   std::vector<float>& data_basic, std::vector<float>& data_features, std::vector<float>& data_history,
   std::vector<float>& data_color, std::vector<float>& data_komi, std::vector<float>& data_safety)
 {
-  Layer inputLayer;
-  inputLayer.insert(MapEntry(L"basic", &data_basic));
-  inputLayer.insert(MapEntry(L"features", &data_features));
-  inputLayer.insert(MapEntry(L"history", &data_history));
-  inputLayer.insert(MapEntry(L"color", &data_color));
-  inputLayer.insert(MapEntry(L"komi", &data_komi));
-  inputLayer.insert(MapEntry(L"safety", &data_safety));
-  Layer outputLayer;
-  std::vector<float> win;
-  win.reserve(requests.size());
-  outputLayer.insert(MapEntry(L"p", &win));
+  if (requests.size() == 0)
+    return;
+
+  CNTK::Variable var_basic, var_features, var_history, var_color, var_komi, var_safety;
+  GetInputVariableByName(nn_value, L"basic", var_basic);
+  GetInputVariableByName(nn_value, L"features", var_features);
+  GetInputVariableByName(nn_value, L"history", var_history);
+  GetInputVariableByName(nn_value, L"color", var_color);
+  GetInputVariableByName(nn_value, L"komi", var_komi);
+  GetInputVariableByName(nn_value, L"safety", var_safety);
+
+  CNTK::Variable var_p;
+  GetOutputVaraiableByName(nn_value, L"p", var_p);
+
+  size_t num_req = requests.size();
+
+  CNTK::NDShape shape_basic = var_basic.Shape().AppendShape({ 1, num_req });
+  CNTK::ValuePtr value_basic = CNTK::MakeSharedObject<CNTK::Value>(CNTK::MakeSharedObject<CNTK::NDArrayView>(shape_basic, data_basic, true));
+  CNTK::NDShape shape_features = var_features.Shape().AppendShape({ 1, num_req });
+  CNTK::ValuePtr value_features = CNTK::MakeSharedObject<CNTK::Value>(CNTK::MakeSharedObject<CNTK::NDArrayView>(shape_features, data_features, true));
+  CNTK::NDShape shape_history = var_history.Shape().AppendShape({ 1, num_req });
+  CNTK::ValuePtr value_history = CNTK::MakeSharedObject<CNTK::Value>(CNTK::MakeSharedObject<CNTK::NDArrayView>(shape_history, data_history, true));
+  CNTK::NDShape shape_color = var_color.Shape().AppendShape({ 1, num_req });
+  CNTK::ValuePtr value_color = CNTK::MakeSharedObject<CNTK::Value>(CNTK::MakeSharedObject<CNTK::NDArrayView>(shape_color, data_color, true));
+  CNTK::NDShape shape_komi = var_komi.Shape().AppendShape({ 1, num_req });
+  CNTK::ValuePtr value_komi = CNTK::MakeSharedObject<CNTK::Value>(CNTK::MakeSharedObject<CNTK::NDArrayView>(shape_komi, data_komi, true));
+  CNTK::NDShape shape_safety = var_safety.Shape().AppendShape({ 1, num_req });
+  CNTK::ValuePtr value_safety = CNTK::MakeSharedObject<CNTK::Value>(CNTK::MakeSharedObject<CNTK::NDArrayView>(shape_safety, data_safety, true));
+
+  CNTK::ValuePtr value_p;
+
+  CNTK::DeviceDescriptor device = CNTK::DeviceDescriptor::GPUDevice(device_id);
+  std::unordered_map<CNTK::Variable, CNTK::ValuePtr> inputs = {
+    { var_basic, value_basic },
+    { var_features, value_features },
+    { var_history, value_history },
+    { var_color, value_color },
+    { var_komi, value_komi },
+    { var_safety, value_safety },
+  };
+  std::unordered_map<CNTK::Variable, CNTK::ValuePtr> outputs = { { var_p, value_p } };
 
   try {
-    nn_value->Evaluate(inputLayer, outputLayer);
+    nn_value->Forward(inputs, outputs, device);
   } catch (const std::exception& err) {
     fprintf(stderr, "Evaluation failed. EXCEPTION occurred: %s\n", err.what());
     abort();
@@ -2535,6 +2609,12 @@ EvalValue(const std::vector<std::shared_ptr<value_eval_req>>& requests,
     fprintf(stderr, "Evaluation failed. Unknown ERROR occurred.\n");
     abort();
   }
+
+  value_p = outputs[var_p];
+  CNTK::NDShape shape_p = var_p.Shape().AppendShape({ 1, num_req });
+  vector<float> win(shape_p.TotalSize());
+  CNTK::NDArrayViewPtr cpu_p = CNTK::MakeSharedObject<CNTK::NDArrayView>(shape_p, win, false);
+  cpu_p->CopyFrom(*value_p->Data());
 
   if (win.size() != requests.size()) {
     cerr << "Eval win error " << win.size() << endl;
