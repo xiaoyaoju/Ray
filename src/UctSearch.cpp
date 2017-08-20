@@ -108,6 +108,8 @@ int current_root; // 現在のルートのインデックス
 mutex mutex_nodes[MAX_NODES];
 mutex mutex_expand;       // ノード展開を排他処理するためのmutex
 
+mutex mutex_queue;
+
 // 探索の設定
 enum SEARCH_MODE mode = CONST_TIME_MODE;
 // 使用するスレッド数
@@ -214,10 +216,12 @@ double atomic_fetch_add(std::atomic<double> *obj, double arg) {
 static void
 ClearEvalQueue()
 {
+  mutex_queue.lock();
   queue<shared_ptr<value_eval_req>> empty_value;
   eval_value_queue.swap(empty_value);
   queue<shared_ptr<policy_eval_req>> empty_policy;
   eval_policy_queue.swap(empty_policy);
+  mutex_queue.unlock();
 }
 
 ////////////
@@ -1254,7 +1258,9 @@ RatingNode( game_info_t *game, int color, int index, int depth )
     WritePlanes(req->data_basic, req->data_features, req->data_history, nullptr,
       game, root, color, req->trans);
 #if 1
+    mutex_queue.lock();
     eval_policy_queue.push(req);
+    mutex_queue.unlock();
     //push_back(u);
 #else
     std::vector<int> indices;
@@ -1428,18 +1434,18 @@ WaitForEvaluationQueue()
   value_evaluation_threshold = max(0.0, value_evaluation_threshold - 0.01);
 
   // Wait if dcnn queue is full
-  LOCK_EXPAND;
+  mutex_queue.lock();
   while (eval_value_queue.size() > value_batch_size * 3 || eval_policy_queue.size() > policy_batch_size * 3) {
     if (GetSpendTime(begin_time) > time_limit) break;
     std::atomic_fetch_add(&queue_full, 1);
     value_evaluation_threshold = min(0.5, value_evaluation_threshold + 0.01);
-    UNLOCK_EXPAND;
+    mutex_queue.unlock();
     this_thread::sleep_for(chrono::milliseconds(10));
     if (queue_full % 1000 == 0)
       cerr << "EVAL QUEUE FULL" << endl;
-    LOCK_EXPAND;
+    mutex_queue.lock();
   }
-  UNLOCK_EXPAND;
+  mutex_queue.unlock();
 }
 
 /////////////////////////////////
@@ -1649,9 +1655,9 @@ UctSearch(game_info_t *game, int color, mt19937_64 *mt, LGR& lgrf, LGRContext& l
       req->path.swap(path);
       WritePlanes(req->data_basic, req->data_features, req->data_history, nullptr,
         game, root, color, req->trans);
-      LOCK_EXPAND;
+      mutex_queue.lock();
       eval_value_queue.push(req);
-      UNLOCK_EXPAND;
+      mutex_queue.unlock();
     }
 
     // 終局まで対局のシミュレーション
@@ -2657,17 +2663,17 @@ static std::vector<float> eval_input_data_safety;
 void EvalNode() {
 #if 1
   while (true) {
-    LOCK_EXPAND;
+    mutex_queue.lock();
     bool running = handle[0] != nullptr;
     if (!running
       && ((!reuse_subtree && !ponder) || (eval_policy_queue.empty() && eval_value_queue.empty()))) {
-      UNLOCK_EXPAND;
+      mutex_queue.unlock();
       break;
     }
 
     if (eval_policy_queue.empty() && eval_value_queue.empty()) {
       value_evaluation_threshold = max(0.0, value_evaluation_threshold - 0.01);
-      UNLOCK_EXPAND;
+      mutex_queue.unlock();
       this_thread::sleep_for(chrono::milliseconds(1));
       //cerr << "EMPTY QUEUE" << endl;
       continue;
@@ -2678,11 +2684,11 @@ void EvalNode() {
       std::vector<std::shared_ptr<policy_eval_req>> requests;
 
       for (int i = 0; i < policy_batch_size && !eval_policy_queue.empty(); i++) {
-	auto req = eval_policy_queue.front();
-	requests.push_back(req);
-	eval_policy_queue.pop();
+        auto req = eval_policy_queue.front();
+        requests.push_back(req);
+        eval_policy_queue.pop();
       }
-      UNLOCK_EXPAND;
+      mutex_queue.unlock();
 
       eval_input_data_basic.resize(0);
       eval_input_data_features.resize(0);
@@ -2697,20 +2703,20 @@ void EvalNode() {
         eval_input_data_komi.push_back(komi[0]);
       }
       EvalPolicy(requests, eval_input_data_basic, eval_input_data_features, eval_input_data_history, eval_input_data_color, eval_input_data_komi);
-      LOCK_EXPAND;
+      mutex_queue.lock();
     }
 
     if (running && eval_value_queue.size() == 0) {
-      UNLOCK_EXPAND;
+      mutex_queue.unlock();
     } else {
       std::vector<std::shared_ptr<value_eval_req>> requests;
 
       for (int i = 0; i < value_batch_size && !eval_value_queue.empty(); i++) {
-	auto req = eval_value_queue.front();
-	requests.push_back(req);
-	eval_value_queue.pop();
+        auto req = eval_value_queue.front();
+        requests.push_back(req);
+        eval_value_queue.pop();
       }
-      UNLOCK_EXPAND;
+      mutex_queue.unlock();
 
       eval_input_data_basic.resize(0);
       eval_input_data_features.resize(0);
