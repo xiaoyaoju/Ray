@@ -1645,12 +1645,12 @@ InputPOGamma( void )
     // 実際に目を潰す手は判定で打たれないので確率を落とさない
     if (eye_condition[i & 0xFFFF] == E_COMPLETE_ONE_EYE
       || eye_condition[i & 0xFFFF] == E_HALF_1_EYE) {
-      if (r < 1.0) {
-        r = 1.0;
+      if (r < 1.0f) {
+        r = 1.0f;
       }
     }
 
-    po_pattern[i] = r * 100.0;
+    po_pattern[i] = r * 100.0f;
   }
 }
 

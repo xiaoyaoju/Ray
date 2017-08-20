@@ -342,7 +342,7 @@ PrintOwnerNN(int color, double *own)
     cerr << setw(2) << (pure_board_size + 1 - i) << ":|";
     for (int x = board_start; x <= board_end; x++) {
       int pos = POS(x, y);
-      float owner = own[pos];
+      double owner = own[pos];
       if (owner > 0.5) {
 	player++;
       } else {
@@ -631,7 +631,7 @@ PrintMoveStat( std::ostream& out, const game_info_t *game, const uct_node_t *uct
   out << "|Move|Count|Simulation|Policy    |Value     |Win       |Best Sequence" << endl;
   // UCB値最大の手を求める  
   for (int j = 0; j < std::min(10, child_num); j++) {
-    int i = idx[j];
+    size_t i = idx[j];
     if (uct_child[i].move_count == 0)
       continue;
     if (!uct_child[i].flag && !uct_child[i].open)

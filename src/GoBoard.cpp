@@ -2071,7 +2071,7 @@ WritePlanes(
           int pos = TransformMove(POS(x, y), tran);
           // int pos = POS(x, y);
           double owner = (double)statistic[pos].colors[color] / root->move_count;
-          float o = round(owner * 100) / 100;
+          double o = round(owner * 100) / 100;
           /*
           if (owner > 0.5) {
           player++;

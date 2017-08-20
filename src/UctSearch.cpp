@@ -2195,7 +2195,7 @@ UctAnalyze( game_info_t *game, int color )
     pos = onboard_pos[i];
   }
 
-  double org_use_nn = use_nn;
+  bool org_use_nn = use_nn;
   use_nn = false;
 
   po_info.halt = 10000;

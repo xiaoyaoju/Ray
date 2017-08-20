@@ -1174,7 +1174,6 @@ AnalyzeUctRating( const game_info_t *game, int color, double rate[] )
   int i;
   int pos;
   int moves = game->moves;
-  float gamma;
   pattern_hash_t hash_pat;
   int pat_index[3];
   uct_features_t uct_features;
@@ -1209,7 +1208,7 @@ AnalyzeUctRating( const game_info_t *game, int color, double rate[] )
     pat_index[1] = SearchIndex(md4_index, hash_pat.list[MD_4]);
     pat_index[2] = SearchIndex(md5_index, hash_pat.list[MD_5 + MD_MAX]);
 
-    gamma = CalculateLFRScore(game, pos, pat_index, &uct_features);
+    double gamma = CalculateLFRScore(game, pos, pat_index, &uct_features);
 
     rate[i] = gamma;
   }

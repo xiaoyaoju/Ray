@@ -551,7 +551,7 @@ GTP_timesettings( void )
 
   cerr << main_time << "," << byoyomi << "," << stone << endl;
 
-  SetTimeSettings(main_time, byoyomi, stone);
+  SetTimeSettings((int)main_time, (int)byoyomi, (int)stone);
   InitializeSearchSetting();
   
   GTP_response(brank, true);
@@ -826,7 +826,6 @@ GTP_ray_best_sequence()
 {
   char *command;
   char c;
-  char pos[10];
   int color;
   int point = PASS;
 
@@ -890,15 +889,15 @@ GTP_ray_param()
   } else if (name == "value_scale") {
     value_scale = value;
   } else if (name == "expand_threshold") {
-    custom_expand_threshold = value;
+    custom_expand_threshold = (int)round(value);
   } else if (name == "policy_temperature") {
     policy_temperature = value;
   } else if (name == "policy_temperature_inc") {
     policy_temperature_inc = value;
   } else if (name == "tgr1_rate") {
-    tgr1_rate = round(value);
+    tgr1_rate = (int)round(value);
   } else if (name == "lgrf1_rate") {
-    lgrf1_rate = round(value);
+    lgrf1_rate = (int)round(value);
   } else if (name == "resign_threshold") {
     resign_threshold = value;
   } else if (name == "policy_top_rate_max") {
@@ -908,9 +907,9 @@ GTP_ray_param()
   } else if (name == "pass_po_limit") {
     pass_po_limit = value;
   } else if (name == "policy_batch_sizee") {
-    policy_batch_size = value;
+    policy_batch_size = (int)round(value);
   } else if (name == "value_batch_size") {
-    value_batch_size = value;
+    value_batch_size = (int)round(value);
   } else {
     GTP_response("unknown param", false);
     return;
@@ -927,7 +926,6 @@ GTP_ray_stat()
 {
   char *command;
   char c;
-  char pos[10];
   int color;
   int point = PASS;
 
@@ -1096,8 +1094,6 @@ void GTP_features_clear(void)
 
 void GTP_features_store(void)
 {
-  char *command;
-
   int color = FLIP_COLOR(game->record[game->moves - 1].color);
 
   CopyGame(store_game, game);
@@ -1259,12 +1255,7 @@ GTP_stat_po(void)
 
   int color = game->record[game->moves - 1].color;
   int move = game->record[game->moves - 1].pos;
-  //void
-  //Simulation(game_info_t *game, int starting_color, std::mt19937_64 *mt)
-  //{
-    //int color = starting_color;
   int pos = -1;
-  int length;
   int pass_count;
 
   // レートの初期化  
