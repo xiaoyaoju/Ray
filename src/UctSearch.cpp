@@ -15,7 +15,6 @@
 #include <thread>
 #include <random>
 #include <queue>
-#include <codecvt>
 
 #include "DynamicKomi.h"
 #include "GoBoard.h"
@@ -2396,18 +2395,22 @@ extern char uct_params_path[1024];
 void
 ReadWeights()
 {
-  typedef std::codecvt_utf8<wchar_t> convert_type;
-  std::wstring_convert<convert_type, wchar_t> converter;
+  wchar_t name[MAX_PATH];
+  mbstate_t ps;
+  memset(&ps, 0, sizeof(ps));
+  const char * src = uct_params_path;
+  mbsrtowcs(name, &src, 0x1000, &ps);
+  wstring path = name;
 
   cerr << "Init CNTK" << endl;
 
   CNTK::DeviceDescriptor device = CNTK::DeviceDescriptor::GPUDevice(device_id);
 
-  wstring policy_name = converter.from_bytes(uct_params_path);
+  wstring policy_name = path;
   policy_name += L"/model2.bin";
   nn_policy = CNTK::Function::Load(policy_name, device);
 
-  wstring value_name = converter.from_bytes(uct_params_path);
+  wstring value_name = path;
   value_name += L"/model3.bin";
   nn_value = CNTK::Function::Load(value_name, device);
 

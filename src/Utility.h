@@ -2,6 +2,7 @@
 #define _UTILITY_H_
 
 #include <chrono>
+#include <memory>
 
 typedef std::chrono::high_resolution_clock ray_clock;
 
@@ -15,5 +16,15 @@ void InputTxtFLT( const char *filename, float *ap, const int array_size );
 
 // データ読み込み(double)
 void InputTxtDBL( const char *filename, double *ap, const int array_size );
+
+#if !defined(_MSC_VER) && !defined(__INTEL_COMPILER)
+#if __cplusplus < 201402L
+template<typename T, typename ...Args>
+std::unique_ptr<T> make_unique(Args&& ...args)
+{
+  return std::unique_ptr<T>(new T(std::forward<Args>(args)...));
+}
+#endif
+#endif
 
 #endif
