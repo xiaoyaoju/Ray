@@ -710,6 +710,23 @@ Rating( game_info_t *game, int color, long long *sum_rate, long long *sum_rate_r
     PoCheckCaptureAfterKo(game, color, update_pos, &update_num);
   }
 
+  // Update semeai features
+  for (i = 0; i < pure_board_max; i++) {
+    pos = onboard_pos[i];
+
+    if (game->board[pos] == color) {
+      int id = game->string_id[pos];
+      update_num = 0;
+      if (game->string[id].libs == 1) {
+        PoCheckFeaturesLib1(game, color, id, update_pos, &update_num);
+      } else if (game->string[id].libs == 2) {
+        PoCheckFeaturesLib2(game, color, id, update_pos, &update_num);
+      } else if (game->string[id].libs == 3) {
+        PoCheckFeaturesLib3(game, color, id, update_pos, &update_num);
+      }
+    }
+  }
+
   for (i = 0; i < pure_board_max; i++) {
     pos = onboard_pos[i];
     if (game->candidates[pos] && IsLegalNotEye(game, pos, color)) {
