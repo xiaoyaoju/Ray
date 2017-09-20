@@ -171,6 +171,7 @@
     <ClCompile Include="..\..\src\Point.cpp" />
     <ClCompile Include="..\..\src\Rating.cpp" />
     <ClCompile Include="..\..\src\RayMain.cpp" />
+    <ClCompile Include="..\..\src\SearchBoard.cpp" />
     <ClCompile Include="..\..\src\Seki.cpp" />
     <ClCompile Include="..\..\src\Semeai.cpp" />
     <ClCompile Include="..\..\src\Simulation.cpp" />
@@ -192,6 +193,7 @@
     <ClInclude Include="..\..\src\PatternHash.h" />
     <ClInclude Include="..\..\src\Point.h" />
     <ClInclude Include="..\..\src\Rating.h" />
+    <ClInclude Include="..\..\src\SearchBoard.h" />
     <ClInclude Include="..\..\src\Seki.h" />
     <ClInclude Include="..\..\src\Semeai.h" />
     <ClInclude Include="..\..\src\Simulation.h" />

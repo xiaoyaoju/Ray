@@ -10,6 +10,10 @@
 class LGR;
 class LGRContext;
 
+////////////
+//  定数  //
+////////////
+
 const int MAX_NODES = 1000000;          // UCTのノードの配列のサイズ
 const double ALL_THINKING_TIME = 90.0;  // 持ち時間(デフォルト)
 const int CONST_PLAYOUT = 10000;        // 1手あたりのプレイアウト回数(デフォルト)
@@ -82,6 +86,9 @@ enum SEARCH_MODE {
 };
 
 
+//////////////
+//  構造体  //
+//////////////
 struct thread_arg_t {
   game_info_t *game; // 探索対象の局面
   int thread_id;   // スレッド識別番号
@@ -138,6 +145,10 @@ struct rate_order_t {
 };
 
 
+//////////////////////
+//  グローバル変数  //
+//////////////////////
+
 // 残り時間
 extern double remaining_time[S_MAX];
 // UCTのノード
@@ -149,6 +160,10 @@ extern int current_root;
 // 各座標のCriticality
 extern double criticality[BOARD_MAX]; 
 
+
+////////////
+//  関数  //
+////////////
 
 // 予測読みを止める
 void StopPondering( void );
@@ -191,9 +206,6 @@ void InitializeUctSearch( void );
 
 // 探索設定の初期化
 void InitializeSearchSetting( void );
-
-// UCT探索の終了処理
-void FinalizeUctSearch( void );
 
 // UCT探索による着手生成
 int UctSearchGenmove( game_info_t *game, int color );

@@ -1,35 +1,35 @@
 #include <iostream>
-#include <mutex>
+#include <memory>
 
 #include "Message.h"
 #include "Ladder.h"
+#include "SearchBoard.h"
 #include "Point.h"
 
 using namespace std;
 
-
 #define ALIVE true
 #define DEAD  false
 
+// シチョウ探索
+static bool IsLadderCaptured( const int depth, search_game_info_t *game, const int ren_xy, const int turn_color );
 
-// IsLadderCaptured関数用
-static game_info_t search_game[100];
-
-static mutex mutex_ladder;
-
-
+////////////////////////////////
+//  現在の局面のシチョウ探索  //
+////////////////////////////////
 void
 LadderExtension( const game_info_t *game, int color, bool *ladder_pos )
 {
-  lock_guard<mutex> lock(mutex_ladder);
   const string_t *string = game->string;
-  int i, ladder = PASS;
-  static game_info_t *shicho_game = AllocateGame();
+  std::unique_ptr<search_game_info_t> search_game(new search_game_info_t());
+  search_game_info_t *ladder_game = search_game.get();
   bool checked[BOARD_MAX] = { false };  
-  int neighbor;
+  int neighbor, ladder = PASS;
   bool flag;
 
-  for (i = 0; i < MAX_STRING; i++) {
+  CopyGameForSearch(ladder_game, game);
+  
+  for (int i = 0; i < MAX_STRING; i++) {
     if (!string[i].flag ||
 	string[i].color != color) {
       continue;
@@ -43,18 +43,19 @@ LadderExtension( const game_info_t *game, int color, bool *ladder_pos )
     if (!checked[ladder] && string[i].libs == 1) {
       // 隣接する敵連を取って助かるかを確認
       neighbor = string[i].neighbor[0];
-      while (neighbor != NEIGHBOR_END) {
+      while (neighbor != NEIGHBOR_END && !flag) {
 	if (string[neighbor].libs == 1) {
-	  CopyGame(shicho_game, game);
-	  PutStone(shicho_game, string[neighbor].lib[0], color);
-	  if (IsLadderCaptured(0, shicho_game, string[i].origin, FLIP_COLOR(color)) == DEAD) {
-	    if (string[i].size >= 2) { 
-	      ladder_pos[string[neighbor].lib[0]] = true;
+	  if (IsLegal(game, string[neighbor].lib[0], color)) {
+	    PutStoneForSearch(ladder_game, string[neighbor].lib[0], color);
+	    if (IsLadderCaptured(0, ladder_game, string[i].origin, FLIP_COLOR(color)) == DEAD) {
+	      if (string[i].size >= 2) {
+		  ladder_pos[string[neighbor].lib[0]] = true;
+		}
+	      } else {
+		flag = true;
+	      }
+	      Undo(ladder_game);
 	    }
-	  } else {
-	    flag = true;
-	    break;
-	  }
 	}
 	neighbor = string[i].neighbor[neighbor];
       }
@@ -62,32 +63,34 @@ LadderExtension( const game_info_t *game, int color, bool *ladder_pos )
       // 取って助からない時は逃げてみる
       if (!flag) {
 	if (IsLegal(game, ladder, color)) {
-	  CopyGame(shicho_game, game);
-	  PutStone(shicho_game, ladder, color);
-	  if (string[i].size >= 2 && 
-	      IsLadderCaptured(0, shicho_game, ladder, FLIP_COLOR(color)) == DEAD){
-	      ladder_pos[ladder] = true;
+	  PutStoneForSearch(ladder_game, ladder, color);
+	  if (string[i].size >= 2 &&
+	      IsLadderCaptured(0, ladder_game, ladder, FLIP_COLOR(color)) == DEAD) {
+	    ladder_pos[ladder] = true;
 	  }
+	  Undo(ladder_game);
 	}
       }
       checked[ladder] = true;
     }
   }
-  
-  //FreeGame(shicho_game);
 }
 
 
-bool
-IsLadderCaptured( int depth, const game_info_t *game, int ren_xy, int turn_color )
+////////////////////
+//  シチョウ探索  //
+////////////////////
+static bool
+IsLadderCaptured( const int depth, search_game_info_t *game, const int ren_xy, const int turn_color )
 {
+  const char *board = game->board;
   const string_t *string = game->string;
-  int str = game->string_id[ren_xy];
+  const int str = game->string_id[ren_xy];
   int escape_color, capture_color;
   int escape_xy, capture_xy;
-  const char *board = game->board;
   int neighbor;
-
+  bool result;
+  
   if (depth >= 100) {
     return ALIVE;
   }
@@ -107,24 +110,26 @@ IsLadderCaptured( int depth, const game_info_t *game, int ren_xy, int turn_color
     neighbor = string[str].neighbor[0];
     while (neighbor != NEIGHBOR_END) {
       if (string[neighbor].libs == 1) {
-	if (IsLegal(game, string[neighbor].lib[0], escape_color)) {
-	  CopyGame(&search_game[depth], game);
-	  PutStone(&search_game[depth], string[neighbor].lib[0], escape_color);
-	  if (IsLadderCaptured(depth + 1, &search_game[depth], ren_xy, FLIP_COLOR(turn_color)) == ALIVE) {
+	if (IsLegalForSearch(game, string[neighbor].lib[0], escape_color)) {
+	  PutStoneForSearch(game, string[neighbor].lib[0], escape_color);
+	  result = IsLadderCaptured(depth + 1, game, ren_xy, FLIP_COLOR(turn_color));
+	  Undo(game);
+	  if (result == ALIVE) {
 	    return ALIVE;
 	  }
 	}
       }
       neighbor = string[str].neighbor[neighbor];
     }
-
+    
     // 逃げる手を打ってみて探索を続ける
     escape_xy = string[str].lib[0];
     while (escape_xy != LIBERTY_END) {
-      if (IsLegal(game, escape_xy, escape_color)) {
-	CopyGame(&search_game[depth], game);
-	PutStone(&search_game[depth], escape_xy, escape_color);
-	if (IsLadderCaptured(depth + 1, &search_game[depth], ren_xy, FLIP_COLOR(turn_color)) == ALIVE) {
+      if (IsLegalForSearch(game, escape_xy, escape_color)) {
+	PutStoneForSearch(game, escape_xy, escape_color);
+	result = IsLadderCaptured(depth + 1, game, ren_xy, FLIP_COLOR(turn_color));
+	Undo(game);
+	if (result == ALIVE) {
 	  return ALIVE;
 	}
       }
@@ -132,14 +137,17 @@ IsLadderCaptured( int depth, const game_info_t *game, int ren_xy, int turn_color
     }
     return DEAD;
   } else {
-    if (string[str].libs == 1) return DEAD;
+    if (string[str].libs == 1) {
+      return DEAD;
+    }
     // 追いかける側なのでアタリにする手を打ってみる
     capture_xy = string[str].lib[0];
     while (capture_xy != LIBERTY_END) {
-      if (IsLegal(game, capture_xy, capture_color)) {
-	CopyGame(&search_game[depth], game);
-	PutStone(&search_game[depth], capture_xy, capture_color);
-	if (IsLadderCaptured(depth + 1, &search_game[depth], ren_xy, FLIP_COLOR(turn_color)) == DEAD) {
+      if (IsLegalForSearch(game, capture_xy, capture_color)) {
+	PutStoneForSearch(game, capture_xy, capture_color);
+	result = IsLadderCaptured(depth + 1, game, ren_xy, FLIP_COLOR(turn_color));
+	Undo(game);
+	if (result == DEAD) {
 	  return DEAD;
 	}
       }
@@ -160,30 +168,30 @@ CheckLadderExtension( const game_info_t *game, int color, int pos )
   const char *board = game->board;
   const string_t *string = game->string;
   const int *string_id = game->string_id;
+  int ladder = PASS;
+  std::unique_ptr<search_game_info_t> search_game(new search_game_info_t());
+  search_game_info_t *ladder_game = search_game.get();
+  bool flag = false;
+  int id;
 
   if (board[pos] != color){
     return false;
   }
 
-  int id = string_id[pos];
+  id = string_id[pos];
 
-  int ladder = string[id].lib[0];
+  ladder = string[id].lib[0];
 
-  if (string[id].libs == 1 && IsLegal(game, ladder, color)){
-    lock_guard<mutex> lock(mutex_ladder);
-    game_info_t *shicho_game = AllocateGame();
-    bool flag = false;
-    CopyGame(shicho_game, game);
-    PutStone(shicho_game, ladder, color);
-    if (IsLadderCaptured(0, shicho_game, ladder, FLIP_COLOR(color)) == DEAD) {
+  if (string[id].libs == 1 &&
+      IsLegal(game, ladder, color)) {
+    CopyGameForSearch(ladder_game, game);
+    PutStoneForSearch(ladder_game, ladder, color);
+    if (IsLadderCaptured(0, ladder_game, ladder, FLIP_COLOR(color)) == DEAD) {
       flag = true;
     } else {
       flag = false;
     }
-
-    FreeGame(shicho_game);
-    return flag;
   }
 
-  return false;
+  return flag;
 }

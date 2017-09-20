@@ -59,7 +59,6 @@ const double KOMI = 6.5; // デフォルトのコミの値
 
 #define FLIP_COLOR(col) ((col) ^ 0x3) // 色の反転
 
-
 #define DX(pos1, pos2)  (abs(board_x[(pos1)] - board_x[(pos2)]))     // x方向の距離
 #define DY(pos1, pos2)  (abs(board_y[(pos1)] - board_y[(pos2)]))     // y方向の距離
 #define DIS(pos1, pos2) (move_dis[DX(pos1, pos2)][DY(pos1, pos2)])   // 着手距離
@@ -72,7 +71,7 @@ enum stone {
   S_MAX     // 番兵
 };
 
-enum eye_condition {
+enum eye_condition_t : unsigned char {
   E_NOT_EYE,           // 眼でない
   E_COMPLETE_HALF_EYE, // 完全に欠け眼(8近傍に打って1眼にできない)
   E_HALF_3_EYE,        // 欠け眼であるが, 3手で1眼にできる
@@ -83,10 +82,10 @@ enum eye_condition {
 };
 
 // 着手を記録する構造体
-struct move {
+struct record_t {
   int color;                // 着手した石の色
   int pos;                  // 着手箇所の座標
-  unsigned long long hash;  //
+  unsigned long long hash;  // 局面のハッシュ値
 };
 
 // 連を表す構造体 (19x19 : 1987bytes)
@@ -104,7 +103,7 @@ struct string_t {
 
 // 局面を表す構造体
 struct game_info_t {
-  move record[MAX_RECORDS];  // 着手箇所と色の記録
+  record_t record[MAX_RECORDS];  // 着手箇所と色の記録
   int moves;                        // 着手数の記録
   int prisoner[S_MAX];              // アゲハマ
   int ko_pos;                       // 劫となっている箇所
@@ -147,19 +146,25 @@ struct game_info_t {
 //    変数    //
 ////////////////
 
-
+// 碁盤の大きさ
 extern int pure_board_size;
 
+// 碁盤の交点の個数
 extern int pure_board_max;
 
+// 碁盤の大きさ(盤外込み)
 extern int board_size;
 
+// 碁盤の交点の個数(盤外込み)
 extern int board_max;
 
+// 碁盤の右端(上端)
 extern int board_start;
 
+// 碁盤の左端(下端)
 extern int board_end;
 
+// 初手の候補手の個数
 extern int first_move_candidates;
 
 // コミ
@@ -187,7 +192,7 @@ extern unsigned char territory[PAT3_MAX];
 extern unsigned char nb4_empty[PAT3_MAX];
 
 // 眼の状態
-extern unsigned char eye_condition[PAT3_MAX];
+extern eye_condition_t eye_condition[PAT3_MAX];
 
 // x方向の距離
 extern int border_dis_x[BOARD_MAX]; 

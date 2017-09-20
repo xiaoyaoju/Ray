@@ -1,5 +1,4 @@
 #include <cstdlib>
-#include <cmath>
 #include <iostream>
 #include <random>
 
@@ -8,18 +7,33 @@
 
 using namespace std;
 
-// bit列
-unsigned long long hash_bit[BOARD_MAX][HASH_KO + 1];  
 
+////////////
+//  変数  //
+////////////
+
+// 局面を表すためのビット列
+unsigned long long hash_bit[BOARD_MAX][HASH_KO + 1];
+
+// ナカデの形を判断するためのビット列
 unsigned long long shape_bit[BOARD_MAX];  
 
+// ハッシュ表
 node_hash_t *node_hash;
+
+// ハッシュのエントリ数
 static unsigned int used;
+
+// ハッシュ表にある最も古いデータが持つ手数
 static int oldest_move;
 
+// ハッシュ表のサイズ
 unsigned int uct_hash_size = UCT_HASH_SIZE;
+
+// 探索停止するハッシュ表のエントリ数
 unsigned int uct_hash_limit = UCT_HASH_SIZE * 9 / 10;
 
+// ハッシュ表に余裕があるかどうかを表すフラグ
 bool enough_size;
 
 
@@ -70,7 +84,7 @@ InitializeHash( void )
     shape_bit[i] = mt();
   }
 
-  node_hash = (node_hash_t *)malloc(sizeof(node_hash_t) * uct_hash_size);
+  node_hash = new node_hash_t[uct_hash_size];
 
   if (node_hash == NULL) {
     cerr << "Cannot allocate memory" << endl;
@@ -100,7 +114,7 @@ InitializeUctHash( void )
 }
 
 
-//////////////////////////////////////
+/////////////////////////////////////
 //  UCTノードのハッシュ情報のクリア  //
 /////////////////////////////////////
 void
@@ -193,6 +207,9 @@ FindSameHashIndex( const unsigned long long hash, const int color, const int mov
 }
 
 
+////////////////////////////////////////////////
+//  ハッシュテーブルに余裕があるかどうかの判定  //
+////////////////////////////////////////////////
 bool
 CheckRemainingHashSize( void )
 {

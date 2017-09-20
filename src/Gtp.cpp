@@ -28,47 +28,82 @@
 
 using namespace std;
 
-// gtpの出力用関数
+
+////////////
+//  変数  //
+////////////
+
+//  コマンドの処理用のバッファ
+char input[BUF_SIZE], input_copy[BUF_SIZE];
+char *next_token;
+
+//  応答用の文字列
+char brank[] = "";
+char err_command[] = "? unknown command";
+char err_genmove[] = "gemmove color";
+char err_play[] = "play color point";
+char err_komi[] = "komi float";
+
+//  自分の石の色
+int player_color = 0;
+
+//  盤面の情報
+game_info_t *game;
+
+static game_info_t *game_prev;
+static game_info_t *store_game;
+static uct_node_t store_node;
+static double store_winning_percentage;
+
+static unique_ptr<ofstream> stream_ptr;
+static bool sim_move = false;
+
+
+////////////
+//  関数  //
+////////////
+
+//  gtpの出力用関数
 static void GTP_response( const char *res, bool success );
-// boardsizeコマンドを処理
+//  boardsizeコマンドを処理
 static void GTP_boardsize( void );
-// clearboardコマンドを処理
+//  clearboardコマンドを処理
 static void GTP_clearboard( void );
-// nameコマンドを処理
+//  nameコマンドを処理
 static void GTP_name( void );
-// protocolversionコマンドを処理
+//  protocolversionコマンドを処理
 static void GTP_protocolversion( void );
-// genmoveコマンドを処理
+//  genmoveコマンドを処理
 static void GTP_genmove( void );
-// playコマンドを処理
+//  playコマンドを処理
 static void GTP_play( void );
-// knowncommandコマンドを処理
+//  knowncommandコマンドを処理
 static void GTP_knowncommand( void );
-// listcommandsコマンドを処理
+//  listcommandsコマンドを処理
 static void GTP_listcommands( void );
-// quitコマンドを処理
+//  quitコマンドを処理
 static void GTP_quit( void );
-// komiコマンドを処理
+//  komiコマンドを処理
 static void GTP_komi( void );
-// getkomiコマンドを処理
+//  getkomiコマンドを処理
 static void GTP_getkomi( void );
-// finalscoreコマンドを処理
+//  finalscoreコマンドを処理
 static void GTP_finalscore( void );
-// timesettingsコマンドを処理
+//  timesettingsコマンドを処理
 static void GTP_timesettings( void );
-// timeleftコマンドを処理
+//  timeleftコマンドを処理
 static void GTP_timeleft( void );
-// versionコマンドを処理
+//  versionコマンドを処理
 static void GTP_version( void );
-// showboardコマンドを処理
+//  showboardコマンドを処理
 static void GTP_showboard( void );
-// kgs-genmove_cleanupコマンドを処理
+//  kgs-genmove_cleanupコマンドを処理
 static void GTP_kgs_genmove_cleanup( void );
-// final_status_listコマンドを処理
+//  final_status_listコマンドを処理
 static void GTP_final_status_list( void );
-// set_free_handicapコマンドを処理
+//  set_free_handicapコマンドを処理
 static void GTP_set_free_handicap( void );
-// fixed_handicapコマンドを処理
+//  fixed_handicapコマンドを処理
 static void GTP_fixed_handicap( void );
 // GOGUI
 static void GTP_gogui_analyze_commands( void );
@@ -92,31 +127,32 @@ static void GTP_stat(void);
 static void GTP_stat_po(void);
 
 
-const GTP_command_t gtpcmd[GTP_COMMAND_NUM] = {
-  { "boardsize",           GTP_boardsize           },
-  { "clear_board",         GTP_clearboard          },
-  { "name",                GTP_name                },
-  { "protocol_version",    GTP_protocolversion     },
-  { "genmove",             GTP_genmove             }, 
-  { "play",                GTP_play                },
-  { "known_command",       GTP_knowncommand        },
-  { "list_commands",       GTP_listcommands        },
-  { "quit",                GTP_quit                },
-  { "komi",                GTP_komi                },
-  { "get_komi",            GTP_getkomi             },
-  { "final_score",         GTP_finalscore          },
-  { "time_settings",       GTP_timesettings        },
-  { "time_left",           GTP_timeleft            },
-  { "version",             GTP_version             },
-  { "genmove_black",       GTP_genmove             },
-  { "genmove_white",       GTP_genmove             },
-  { "black",               GTP_play                },
-  { "white",               GTP_play                },
-  { "showboard",           GTP_showboard           },
-  { "final_status_list",   GTP_final_status_list   },
-  { "fixed_handicap",      GTP_fixed_handicap      },
-  { "place_free_handicap", GTP_fixed_handicap      },
-  { "set_free_handicap",   GTP_set_free_handicap   },
+////////////
+//  定数  //
+////////////
+
+//  GTPコマンド
+const GTP_command_t gtpcmd[GTP_COMMANDS] = {
+  { "quit",                GTP_quit },
+  { "protocol_version",    GTP_protocolversion },
+  { "name",                GTP_name },
+  { "version",             GTP_version },
+  { "boardsize",           GTP_boardsize },
+  { "clear_board",         GTP_clearboard },
+  { "komi",                GTP_komi },
+  { "get_komi",            GTP_getkomi },
+  { "play",                GTP_play },
+  { "fixed_handicap",      GTP_fixed_handicap },
+  { "place_free_handicap", GTP_fixed_handicap },
+  { "set_free_handicap",   GTP_set_free_handicap },
+  { "genmove",             GTP_genmove },
+  { "time_settings",       GTP_timesettings },
+  { "time_left",           GTP_timeleft },
+  { "final_score",         GTP_finalscore },
+  { "final_status_list",   GTP_final_status_list },
+  { "showboard",           GTP_showboard },
+  { "list_commands",       GTP_listcommands },
+  { "known_command",       GTP_knowncommand },
   { "kgs-genmove_cleanup", GTP_kgs_genmove_cleanup },
   { "gogui-analyze_commands", GTP_gogui_analyze_commands },
   { "ray-toggle_live_best_sequence", GTP_ray_toggle_live_best_sequence },
@@ -129,27 +165,6 @@ const GTP_command_t gtpcmd[GTP_COMMAND_NUM] = {
   { "_stat", GTP_stat_po },
 };
 
-static char input[BUF_SIZE], input_copy[BUF_SIZE];
-static char *next_token;
-
-char brank[] = "";
-char err_command[] = "? unknown command";
-char err_genmove[] = "gemmove color";
-char err_play[] = "play color point";
-char err_komi[] = "komi float";
-
-static int player_color = 0;
-
-static game_info_t *game;
-
-static game_info_t *game_prev;
-static game_info_t *store_game;
-static uct_node_t store_node;
-static double store_winning_percentage;
-
-static unique_ptr<ofstream> stream_ptr;
-static bool sim_move = false;
-
 
 ////////////////////////
 //  void SetSimMove() //
@@ -159,6 +174,7 @@ SetSimMove( bool flag )
 {
   sim_move = flag;
 }
+
 
 ///////////////////////
 //  void GTP_main()  //
@@ -187,7 +203,7 @@ GTP_main( void )
     command = STRTOK(input, DELIM, &next_token);
     CHOMP(command);
 
-    for (int i = 0; i < GTP_COMMAND_NUM; i++) {
+    for (int i = 0; i < GTP_COMMANDS; i++) {
       if (!strcmp(command, gtpcmd[i].command)) {
 	StopPondering();
 	(*gtpcmd[i].function)();
@@ -315,26 +331,21 @@ GTP_genmove( void )
   command = STRTOK(input_copy, DELIM, &next_token);
   
   CHOMP(command);
-  if (!strcmp("genmove_black", command)) {
-    color = S_BLACK;
-  } else if (!strcmp("genmove_white", command)) {
+
+  command = STRTOK(NULL, DELIM, &next_token);
+  if (command == NULL){
+    GTP_response(err_genmove, true);
+    return;
+  }
+  CHOMP(command);
+  c = (char)tolower((int)command[0]);
+  if (c == 'w') {
     color = S_WHITE;
+  } else if (c == 'b') {
+    color = S_BLACK;
   } else {
-    command = STRTOK(NULL, DELIM, &next_token);
-    if (command == NULL){
-      GTP_response(err_genmove, true);
-      return;
-    }
-    CHOMP(command);
-    c = (char)tolower((int)command[0]);
-    if (c == 'w') {
-      color = S_WHITE;
-    } else if (c == 'b') {
-      color = S_BLACK;
-    } else {
-      GTP_response(err_genmove, true);
-      return;
-    }
+    GTP_response(err_genmove, true);
+    return;
   }
 
   player_color = color;
@@ -367,23 +378,17 @@ GTP_play( void )
   
   command = STRTOK(input_copy, DELIM, &next_token);
 
-  if (!strcmp("black", command)){
-    color = S_BLACK;
-  } else if (!strcmp("white", command)){
+  command = STRTOK(NULL, DELIM, &next_token);
+  if (command == NULL){
+    GTP_response(err_play, false);
+    return;
+  }
+  CHOMP(command);
+  c = (char)tolower((int)command[0]);
+  if (c == 'w') {
     color = S_WHITE;
   } else{
-    command = STRTOK(NULL, DELIM, &next_token);
-    if (command == NULL){
-      GTP_response(err_play, false);
-      return;
-    }
-    CHOMP(command);
-    c = (char)tolower((int)command[0]);
-    if (c == 'w') {
-      color = S_WHITE;
-    } else{
-      color = S_BLACK;
-    }
+    color = S_BLACK;
   }
 
   command = STRTOK(NULL, DELIM, &next_token);
@@ -421,8 +426,8 @@ GTP_knowncommand( void )
     return;
   }
   CHOMP(command);
-  for (int i = 0; i < GTP_COMMAND_NUM; i++){
-    if (!strcmp(command, gtpcmd[i].command)) {
+  for (const auto& cmd : gtpcmd) {
+    if (!strcmp(command, cmd.command)) {
       GTP_response("true", true);
       return;
     }
@@ -442,9 +447,9 @@ GTP_listcommands( void )
 
   i = 0;
   list[i++] = '\n';
-  for (int j = 0; j < GTP_COMMAND_NUM; j++) {
-    for (unsigned int k = 0; k < strlen(gtpcmd[j].command); k++){
-      list[i++] = gtpcmd[j].command[k];
+  for (const auto& cmd : gtpcmd) {
+    for (unsigned int k = 0; k < strlen(cmd.command); k++){
+      list[i++] = cmd.command[k];
     }
     list[i++] = '\n';
   }
@@ -460,7 +465,6 @@ GTP_listcommands( void )
 static void
 GTP_quit( void )
 {
-  FinalizeUctSearch();
   GTP_response(brank, true);
   exit(0);
 }

@@ -43,7 +43,7 @@ unsigned char false_eye[PAT3_MAX];
 unsigned char falsy_eye[PAT3_MAX];
 unsigned char territory[PAT3_MAX];  // 領地のパターン
 unsigned char nb4_empty[PAT3_MAX];  // 上下左右の空点の数
-unsigned char eye_condition[PAT3_MAX];
+eye_condition_t eye_condition[PAT3_MAX];
 
 int border_dis_x[BOARD_MAX];                     // x方向の距離   
 int border_dis_y[BOARD_MAX];                     // y方向の距離   
@@ -238,7 +238,7 @@ game_info_t *
 AllocateGame( void )
 {
   game_info_t *game;
-  game = (game_info_t*)malloc(sizeof(game_info_t));
+  game = new game_info_t();
   memset(game, 0, sizeof(game_info_t));
 
   return game;
@@ -251,7 +251,7 @@ AllocateGame( void )
 void
 FreeGame( game_info_t *game )
 {
-  if (game) free(game);
+  if (game) delete game;
 }
 
 
@@ -261,14 +261,14 @@ FreeGame( game_info_t *game )
 void
 InitializeBoard( game_info_t *game )
 {
-  memset(game->record, 0, sizeof(struct move) * MAX_RECORDS);
+  memset(game->record, 0, sizeof(record_t) * MAX_RECORDS);
   memset(game->pat,    0, sizeof(pattern_t) * board_max);
 
   fill_n(game->board, board_max, 0);              
   fill_n(game->tactical_features1, board_max, 0);
   fill_n(game->tactical_features2, board_max, 0);
-  fill_n(game->update_num,  static_cast<int>(S_OB), 0);
-  fill_n(game->capture_num, static_cast<int>(S_OB), 0);
+  fill_n(game->update_num,  (int)S_OB, 0);
+  fill_n(game->capture_num, (int)S_OB, 0);
   fill(game->update_pos[0],  game->update_pos[S_OB], 0);
   fill(game->capture_pos[0], game->capture_pos[S_OB], 0);
   
@@ -366,7 +366,7 @@ ClearBoard( game_info_t *game )
 void
 CopyGame( game_info_t *dst, const game_info_t *src )
 {
-  memcpy(dst->record,             src->record,             sizeof(struct move) * src->moves);
+  memcpy(dst->record,             src->record,             sizeof(record_t) * MAX_RECORDS);
   memcpy(dst->prisoner,           src->prisoner,           sizeof(int) * S_MAX);
   memcpy(dst->board,              src->board,              sizeof(char) * board_max);  
   memcpy(dst->pat,                src->pat,                sizeof(pattern_t) * board_max); 
@@ -602,7 +602,7 @@ InitializeEye( void )
     0x5555, 0x5554, 0x5556, 0xFD55, 0xFF75,
   };
 
-  fill_n(eye_condition, PAT3_MAX, static_cast<unsigned char>(E_NOT_EYE));
+  fill_n(eye_condition, PAT3_MAX, E_NOT_EYE);
   
   for (int i = 0; i < 12; i++) {
     Pat3Transpose16(complete_half_eye[i], pat3_transp16);

@@ -552,17 +552,6 @@ InitializeSearchSetting( void )
 }
 
 
-////////////
-//  終了  //
-////////////
-void
-FinalizeUctSearch( void )
-{
-  
-}
-
-
-
 void
 StopPondering( void )
 {
@@ -1464,12 +1453,9 @@ ParallelUctSearch( thread_arg_t *arg )
   bool enough_size = true;
   int winner = 0;
   int interval = CRITICALITY_INTERVAL;
-  bool seki[BOARD_MAX] = {false};
   
   game = AllocateGame();
 
-  CheckSeki(targ->game, seki);
-  
   // スレッドIDが0のスレッドだけ別の処理をする
   // 探索回数が閾値を超える, または探索が打ち切られたらループを抜ける
   if (targ->thread_id == 0) {
@@ -1480,7 +1466,6 @@ ParallelUctSearch( thread_arg_t *arg )
       atomic_fetch_add(&po_info.count, 1);
       // 盤面のコピー
       CopyGame(game, targ->game);
-      memcpy(game->seki, seki, sizeof(bool) * BOARD_MAX);
       // 1回プレイアウトする
       std::vector<int> path;
       UctSearch(game, color, mt[targ->thread_id].get(), lgr, lgr_ctx[targ->thread_id], current_root, &winner, path);
@@ -1506,7 +1491,6 @@ ParallelUctSearch( thread_arg_t *arg )
       atomic_fetch_add(&po_info.count, 1);
       // 盤面のコピー
       CopyGame(game, targ->game);
-      memcpy(game->seki, seki, sizeof(bool) * BOARD_MAX);
       // 1回プレイアウトする
 	  std::vector<int> path;
       UctSearch(game, color, mt[targ->thread_id].get(), lgr, lgr_ctx[targ->thread_id], current_root, &winner, path);
@@ -1671,14 +1655,23 @@ UctSearch(game_info_t *game, int color, mt19937_64 *mt, LGR& lgrf, LGRContext& l
     score = (double)CalculateScore(game);
     
     // コミを考慮した勝敗
-    if (score - dynamic_komi[my_color] > 0) {
-      result = (color == S_BLACK ? 0 : 1);
-      *winner = S_BLACK;
-    } else if (score - dynamic_komi[my_color] < 0){
-      result = (color == S_WHITE ? 0 : 1);
-      *winner = S_WHITE;
+    if (my_color == S_BLACK) {
+      if (score - dynamic_komi[my_color] >= 0) {
+	result = (color == S_BLACK ? 0 : 1);
+	*winner = S_BLACK;
+      } else {
+	result = (color == S_WHITE ? 0 : 1);
+	*winner = S_WHITE;
+      }
+    } else {
+      if (score - dynamic_komi[my_color] > 0) {
+	result = (color == S_BLACK ? 0 : 1);
+	*winner = S_BLACK;
+      } else {
+	result = (color == S_WHITE ? 0 : 1);
+	*winner = S_WHITE;
+      }
     }
-    
     // 統計情報の記録
     Statistic(game, *winner);
 
