@@ -132,7 +132,7 @@ static void GTP_stat_po(void);
 ////////////
 
 //  GTPコマンド
-const GTP_command_t gtpcmd[GTP_COMMANDS] = {
+const GTP_command_t gtpcmd[] = {
   { "quit",                GTP_quit },
   { "protocol_version",    GTP_protocolversion },
   { "name",                GTP_name },
@@ -203,6 +203,7 @@ GTP_main( void )
     command = STRTOK(input, DELIM, &next_token);
     CHOMP(command);
 
+    const int GTP_COMMANDS = std::extent<decltype(gtpcmd)>::value;
     for (int i = 0; i < GTP_COMMANDS; i++) {
       if (!strcmp(command, gtpcmd[i].command)) {
 	StopPondering();
