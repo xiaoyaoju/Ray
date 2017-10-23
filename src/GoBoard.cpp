@@ -1994,7 +1994,7 @@ WritePlanes(
   LadderExtension(game, opp, ladder[1]);
 
   {
-    const int koT = RevTransformMove(game->ko_pos, tran);
+    const int ko = game->ko_pos;
 
 #define OUTPUT(block) \
 		for (int y = board_start; y <= board_end; y++) { \
@@ -2013,7 +2013,7 @@ WritePlanes(
     OUTPUT({ OUTPUT_FEATURE(data_basic, color == S_BLACK); });
     OUTPUT({ OUTPUT_FEATURE(data_basic, true); });
 
-    OUTPUT({ OUTPUT_FEATURE(data_basic, p == koT); });
+    OUTPUT({ OUTPUT_FEATURE(data_basic, p == ko); });
 
     OUTPUT({ int l = GetLibs(game, p); data_basic.push_back((c == color) ? (std::min(l, 10) / 10.0f) : 0.0f); });
     OUTPUT({ int l = GetLibs(game, p); data_basic.push_back((c == opp) ? (std::min(l, 10) / 10.0f) : 0.0f); });
