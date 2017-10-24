@@ -2417,11 +2417,11 @@ extern char uct_params_path[1024];
 void
 ReadWeights()
 {
-  wchar_t name[MAX_PATH];
+  wchar_t name[1024];
   mbstate_t ps;
   memset(&ps, 0, sizeof(ps));
   const char * src = uct_params_path;
-  mbsrtowcs(name, &src, 0x1000, &ps);
+  mbsrtowcs(name, &src, 1024, &ps);
   wstring path = name;
 
   cerr << "Init CNTK" << endl;
