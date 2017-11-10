@@ -1704,6 +1704,7 @@ InputMD2( const char *filename, float *ap )
     ap[index] = rate;
   }
 #endif
+  fclose(fp);
 }
 
 
