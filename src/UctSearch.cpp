@@ -2457,12 +2457,16 @@ ReadWeights()
   auto device = GetDevice();
 
   wstring policy_name = path;
-  policy_name += L"/model2.bin";
+  policy_name += L"/model7.bin";
   nn_policy = CNTK::Function::Load(policy_name, device);
 
+#if 0
   wstring value_name = path;
-  value_name += L"/model3.bin";
+  value_name += L"/model6.bin";
   nn_value = CNTK::Function::Load(value_name, device);
+#else
+  nn_value = nn_policy;
+#endif
 
   if (!nn_policy || !nn_value)
   {
@@ -2502,6 +2506,7 @@ GetVariableByName(vector<CNTK::Variable> variableLists, wstring varName, CNTK::V
       return true;
     }
   }
+  wcerr << L"Not found " << varName << endl;
   return false;
 }
 
@@ -2533,7 +2538,7 @@ EvalPolicy(
   GetInputVariableByName(nn_policy, L"features", var_features);
   GetInputVariableByName(nn_policy, L"history", var_history);
   GetInputVariableByName(nn_policy, L"color", var_color);
-  GetInputVariableByName(nn_policy, L"komi", var_komi);
+  //GetInputVariableByName(nn_policy, L"komi", var_komi);
 
   CNTK::Variable var_ol;
   GetOutputVaraiableByName(nn_policy, L"ol", var_ol);
@@ -2557,7 +2562,7 @@ EvalPolicy(
     { var_basic, value_basic },
     { var_features, value_features },
     { var_history, value_history },
-    //{ var_color, value_color },
+    { var_color, value_color },
     //{ var_komi, value_komi },
   };
   std::unordered_map<CNTK::Variable, CNTK::ValuePtr> outputs = { { var_ol, value_ol } };
@@ -2638,16 +2643,15 @@ EvalValue(
 
   auto device = GetDevice();
 
-  CNTK::Variable var_basic, var_features, var_history, var_color, var_komi, var_safety;
+  CNTK::Variable var_basic, var_features, var_history, var_color, var_komi;
   GetInputVariableByName(nn_value, L"basic", var_basic);
   GetInputVariableByName(nn_value, L"features", var_features);
   GetInputVariableByName(nn_value, L"history", var_history);
   GetInputVariableByName(nn_value, L"color", var_color);
   GetInputVariableByName(nn_value, L"komi", var_komi);
-  GetInputVariableByName(nn_value, L"safety", var_safety);
 
   CNTK::Variable var_p;
-  GetOutputVaraiableByName(nn_value, L"p", var_p);
+  GetOutputVaraiableByName(nn_value, L"p2", var_p);
 
   size_t num_req = requests.size();
 
@@ -2661,8 +2665,6 @@ EvalValue(
   CNTK::ValuePtr value_color = CNTK::MakeSharedObject<CNTK::Value>(CNTK::MakeSharedObject<CNTK::NDArrayView>(shape_color, data_color, true));
   CNTK::NDShape shape_komi = var_komi.Shape().AppendShape({ 1, num_req });
   CNTK::ValuePtr value_komi = CNTK::MakeSharedObject<CNTK::Value>(CNTK::MakeSharedObject<CNTK::NDArrayView>(shape_komi, data_komi, true));
-  CNTK::NDShape shape_safety = var_safety.Shape().AppendShape({ 1, num_req });
-  CNTK::ValuePtr value_safety = CNTK::MakeSharedObject<CNTK::Value>(CNTK::MakeSharedObject<CNTK::NDArrayView>(shape_safety, data_safety, true));
 
   CNTK::ValuePtr value_p;
 
@@ -2672,7 +2674,6 @@ EvalValue(
     { var_history, value_history },
     { var_color, value_color },
     { var_komi, value_komi },
-    { var_safety, value_safety },
   };
   std::unordered_map<CNTK::Variable, CNTK::ValuePtr> outputs = { { var_p, value_p } };
 
@@ -2855,7 +2856,7 @@ PolicyNetworkGenmove( game_info_t *game, int color )
   policy_temperature = 1.0;
   std::vector<std::shared_ptr<policy_eval_req>> requests;
   requests.push_back(req);
-  EvalPolicy(0, requests, req->data_basic, req->data_features, req->data_history, data_color, data_komi);
+  EvalPolicy(requests, req->data_basic, req->data_features, req->data_history, data_color, data_komi);
   policy_temperature = org_policy_temperature;
 
   // Select move
