@@ -2428,13 +2428,18 @@ ReadWeights()
 
   CNTK::DeviceDescriptor device = CNTK::DeviceDescriptor::GPUDevice(device_id);
 
-  wstring policy_name = path;
-  policy_name += L"/model2.bin";
-  nn_policy = CNTK::Function::Load(policy_name, device);
+  try {
+    wstring policy_name = path;
+    policy_name += L"/model2.bin";
+    nn_policy = CNTK::Function::Load(policy_name, device);
 
-  wstring value_name = path;
-  value_name += L"/model3.bin";
-  nn_value = CNTK::Function::Load(value_name, device);
+    wstring value_name = path;
+    value_name += L"/model6.bin";
+    nn_value = CNTK::Function::Load(value_name, device);
+  } catch (const std::exception& err) {
+    fprintf(stderr, "Evaluation failed. EXCEPTION occurred: %s\n", err.what());
+    abort();
+  }
 
   if (!nn_policy || !nn_value)
   {
@@ -2473,6 +2478,7 @@ GetVariableByName(vector<CNTK::Variable> variableLists, wstring varName, CNTK::V
       return true;
     }
   }
+  wcerr << L"Not found " << varName << endl;
   return false;
 }
 
@@ -2604,16 +2610,15 @@ EvalValue(const std::vector<std::shared_ptr<value_eval_req>>& requests,
   if (requests.size() == 0)
     return;
 
-  CNTK::Variable var_basic, var_features, var_history, var_color, var_komi, var_safety;
+  CNTK::Variable var_basic, var_features, var_history, var_color, var_komi;
   GetInputVariableByName(nn_value, L"basic", var_basic);
   GetInputVariableByName(nn_value, L"features", var_features);
   GetInputVariableByName(nn_value, L"history", var_history);
   GetInputVariableByName(nn_value, L"color", var_color);
-  GetInputVariableByName(nn_value, L"komi", var_komi);
-  GetInputVariableByName(nn_value, L"safety", var_safety);
+  //GetInputVariableByName(nn_value, L"komi", var_komi);
 
   CNTK::Variable var_p;
-  GetOutputVaraiableByName(nn_value, L"p", var_p);
+  GetOutputVaraiableByName(nn_value, L"p2_L2", var_p);
 
   size_t num_req = requests.size();
 
@@ -2625,10 +2630,8 @@ EvalValue(const std::vector<std::shared_ptr<value_eval_req>>& requests,
   CNTK::ValuePtr value_history = CNTK::MakeSharedObject<CNTK::Value>(CNTK::MakeSharedObject<CNTK::NDArrayView>(shape_history, data_history, true));
   CNTK::NDShape shape_color = var_color.Shape().AppendShape({ 1, num_req });
   CNTK::ValuePtr value_color = CNTK::MakeSharedObject<CNTK::Value>(CNTK::MakeSharedObject<CNTK::NDArrayView>(shape_color, data_color, true));
-  CNTK::NDShape shape_komi = var_komi.Shape().AppendShape({ 1, num_req });
-  CNTK::ValuePtr value_komi = CNTK::MakeSharedObject<CNTK::Value>(CNTK::MakeSharedObject<CNTK::NDArrayView>(shape_komi, data_komi, true));
-  CNTK::NDShape shape_safety = var_safety.Shape().AppendShape({ 1, num_req });
-  CNTK::ValuePtr value_safety = CNTK::MakeSharedObject<CNTK::Value>(CNTK::MakeSharedObject<CNTK::NDArrayView>(shape_safety, data_safety, true));
+  //CNTK::NDShape shape_komi = var_komi.Shape().AppendShape({ 1, num_req });
+  //CNTK::ValuePtr value_komi = CNTK::MakeSharedObject<CNTK::Value>(CNTK::MakeSharedObject<CNTK::NDArrayView>(shape_komi, data_komi, true));
 
   CNTK::ValuePtr value_p;
 
@@ -2638,8 +2641,7 @@ EvalValue(const std::vector<std::shared_ptr<value_eval_req>>& requests,
     { var_features, value_features },
     { var_history, value_history },
     { var_color, value_color },
-    { var_komi, value_komi },
-    { var_safety, value_safety },
+    //{ var_komi, value_komi },
   };
   std::unordered_map<CNTK::Variable, CNTK::ValuePtr> outputs = { { var_p, value_p } };
 
