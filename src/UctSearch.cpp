@@ -2640,16 +2640,16 @@ ReadWeights()
 
   auto device = GetDevice();
 
-  wstring policy_name = path;
+  wstring model_name = path;
   if (pure_board_size == 19) {
-    policy_name += L"/model7a.bin";
+    model_name += L"/model7a.bin";
   } else if (pure_board_size == 9) {
-    policy_name += L"/model7a_9.bin";
+    model_name += L"/model7a_9.bin";
   } else {
     cerr << "Unsupported board size " << pure_board_size << endl;
     abort();
   }
-  nn_model = CNTK::Function::Load(policy_name, device);
+  nn_model = CNTK::Function::Load(model_name, device);
 
   if (!nn_model)
   {
@@ -2954,7 +2954,7 @@ PolicyNetworkGenmove( game_info_t *game, int color )
   policy_temperature = 1.0;
   std::vector<std::shared_ptr<policy_eval_req>> requests;
   requests.push_back(req);
-  EvalPolicy(0, requests, req->data_basic, req->data_features, req->data_history, data_color, data_komi);
+  EvalPolicy(requests, req->data_basic, req->data_features, req->data_history, data_color, data_komi);
   policy_temperature = org_policy_temperature;
 
   // Select move
