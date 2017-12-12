@@ -197,7 +197,7 @@ ray_clock::time_point begin_time;
 static bool early_pass = true;
 
 static bool use_nn = true;
-static int device_id = 0;
+static int device_id = -2;
 static std::queue<std::shared_ptr<policy_eval_req>> eval_policy_queue;
 static std::queue<std::shared_ptr<value_eval_req>> eval_value_queue;
 static int eval_count_policy, eval_count_value;
@@ -2414,6 +2414,16 @@ CorrectDescendentNodes(vector<int> &indexes, int index)
 
 extern char uct_params_path[1024];
 
+static CNTK::DeviceDescriptor
+GetDevice()
+{
+  if (device_id == -1)
+    return CNTK::DeviceDescriptor::CPUDevice();
+  if (device_id == -2)
+    return CNTK::DeviceDescriptor::UseDefaultDevice();
+  return CNTK::DeviceDescriptor::GPUDevice(device_id);
+}
+
 void
 ReadWeights()
 {
@@ -2426,7 +2436,7 @@ ReadWeights()
 
   cerr << "Init CNTK" << endl;
 
-  CNTK::DeviceDescriptor device = CNTK::DeviceDescriptor::GPUDevice(device_id);
+  CNTK::DeviceDescriptor device = GetDevice();
 
   wstring policy_name = path;
   policy_name += L"/model2.bin";
@@ -2521,7 +2531,7 @@ EvalPolicy(const std::vector<std::shared_ptr<policy_eval_req>>& requests,
 
   CNTK::ValuePtr value_ol;
 
-  CNTK::DeviceDescriptor device = CNTK::DeviceDescriptor::GPUDevice(device_id);
+  CNTK::DeviceDescriptor device = GetDevice();
   std::unordered_map<CNTK::Variable, CNTK::ValuePtr> inputs = {
     { var_basic, value_basic },
     { var_features, value_features },
@@ -2632,7 +2642,7 @@ EvalValue(const std::vector<std::shared_ptr<value_eval_req>>& requests,
 
   CNTK::ValuePtr value_p;
 
-  CNTK::DeviceDescriptor device = CNTK::DeviceDescriptor::GPUDevice(device_id);
+  CNTK::DeviceDescriptor device = GetDevice();
   std::unordered_map<CNTK::Variable, CNTK::ValuePtr> inputs = {
     { var_basic, value_basic },
     { var_features, value_features },
