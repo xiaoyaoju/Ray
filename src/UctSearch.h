@@ -236,6 +236,6 @@ void SetReuseSubtree( bool flag );
 
 void SetUseNN(bool flag);
 
-void SetDeviceId(int id);
+void SetDeviceIds( const std::vector<int>& ids );
 
 #endif
