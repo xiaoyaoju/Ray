@@ -1932,6 +1932,7 @@ int TransformMove(int p, int i)
 
   return POS(x, y);
 }
+
 int RevTransformMove(int p, int i)
 {
   if (p == PASS || p == RESIGN)
@@ -2021,7 +2022,7 @@ WritePlanes(
     OUTPUT({ OUTPUT_FEATURE(data_basic, ladder[0][p]); });
     OUTPUT({ OUTPUT_FEATURE(data_basic, ladder[1][p]); });
 
-    data_features.reserve(19 * 19 * (F_MAX1 + F_MAX2));
+    data_features.reserve(pure_board_max * (F_MAX1 + F_MAX2));
     for (int i = 0; i < F_MAX1; i++) {
       OUTPUT({
         bool flg = (game->tactical_features1[p] & po_tactical_features_mask[i]) != 0;
@@ -2048,7 +2049,7 @@ WritePlanes(
       }
     }*/
 
-    data_move.reserve(19 * 19 * 1);
+    data_move.reserve(pure_board_max * 1);
     OUTPUT({ data_move.push_back(0.0); });
     for (int i = 0; i < game->moves; i++) {
       int p = RevTransformMove(game->record[game->moves - i - 1].pos, tran);
@@ -2057,7 +2058,7 @@ WritePlanes(
       int x = X(p) - OB_SIZE;
       int y = Y(p) - OB_SIZE;
       int n = x + y * pure_board_size;
-      if (n < 0 || n >= 19 * 19) {
+      if (n < 0 || n >= pure_board_max) {
         cerr << "bad pos " << n << endl;
       }
       //if (i == 0 && pos == move) cerr << "bad pos2 " << n << endl;
@@ -2066,7 +2067,7 @@ WritePlanes(
     }
 
     if (data_owner) {
-      data_owner->reserve(19 * 19 * 1);
+      data_owner->reserve(pure_board_max * 1);
       const statistic_t *statistic = root->statistic;
       for (int i = 1, y = board_start; y <= board_end; y++, i++) {
         // cerr << setw(2) << (pure_board_size + 1 - i) << ":|";

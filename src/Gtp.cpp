@@ -267,6 +267,8 @@ GTP_boardsize( void )
     SetParameter();
     SetNeighbor();
     InitializeNakadeHash();
+
+    ReadWeights();
   }
 
   FreeGame(game);

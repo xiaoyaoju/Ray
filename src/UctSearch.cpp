@@ -493,7 +493,7 @@ InitializeUctSearch( void )
     exit(1);
   }
 
-  if (use_nn && nn_policy_list.size() == 0)
+  if (nn_policy_list.size() == 0)
     ReadWeights();
 }
 
@@ -2438,6 +2438,9 @@ GetDevice(int no)
 void
 ReadWeights()
 {
+  if (!use_nn)
+    return;
+
   wchar_t name[1024];
   mbstate_t ps;
   memset(&ps, 0, sizeof(ps));
@@ -2447,11 +2450,22 @@ ReadWeights()
 
   cerr << "Init CNTK" << endl;
 
+  nn_policy_list.clear();
+  nn_value_list.clear();
+
   for (int i = 0; i < device_ids.size(); i++) {
     auto device = GetDevice(i);
 
     wstring policy_name = path;
-    policy_name += L"/model6.bin";
+    if (pure_board_size == 19)
+      policy_name += L"/model6.bin";
+    else if (pure_board_size == 9)
+      policy_name += L"/model6_9.bin";
+    else {
+      cerr << "Unsupported size " << pure_board_size << endl;
+      abort();
+    }
+    wcerr << "Load " << policy_name << endl;
     auto nn_policy = CNTK::Function::Load(policy_name, device);
 
 #if 0

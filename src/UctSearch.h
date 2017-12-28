@@ -238,4 +238,6 @@ void SetUseNN(bool flag);
 
 void SetDeviceIds( const std::vector<int>& ids );
 
+void ReadWeights();
+
 #endif
