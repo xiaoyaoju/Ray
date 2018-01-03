@@ -25,7 +25,13 @@ enum COMMAND {
   COMMAND_DEVICE_ID,
   COMMAND_VERBOSE,
   COMMAND_KIFU_DIR,
+  COMMAND_TRAIN,
   COMMAND_MAX,
+};
+
+enum class RUN_MODE {
+  GTP,
+  TRAIN,
 };
 
 
@@ -35,5 +41,7 @@ enum COMMAND {
 
 // コマンドライン引数のコマンドの解析
 void AnalyzeCommand( int argc, char **argv );
+
+RUN_MODE GetRunMode();
 
 #endif

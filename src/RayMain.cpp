@@ -67,12 +67,15 @@ main( int argc, char **argv )
   SetNeighbor();
   LoadOpeningBook(pure_board_size);
 
-#if 0
-  // GTP
-  GTP_main();
-#else
-  Train();
-#endif
+  switch (GetRunMode()) {
+  case RUN_MODE::GTP:
+    // GTP
+    GTP_main();
+    break;
+  case RUN_MODE::TRAIN:
+    Train();
+    break;
+  }
 
   return 0;
 }

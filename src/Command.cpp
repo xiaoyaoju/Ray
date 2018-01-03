@@ -41,6 +41,7 @@ const string command[COMMAND_MAX] = {
   "--device-id",
   "--verbose",
   "--kifu-dir",
+  "--train",
 };
 
 //  コマンドの説明
@@ -65,7 +66,10 @@ const string errmessage[COMMAND_MAX] = {
   "Set GPU to use",
   "Verbose log mode",
   "Set directory to store kifu files",
+  "Train parameters",
 };
+
+static RUN_MODE run_mode = RUN_MODE::GTP;
 
 
 //////////////////////
@@ -167,6 +171,9 @@ AnalyzeCommand( int argc, char **argv )
       case COMMAND_KIFU_DIR:
         SetKifuDirectory(argv[++i]);
         break;
+      case COMMAND_TRAIN:
+        run_mode = RUN_MODE::TRAIN;
+        break;
       default:
 	for (int j = 0; j < COMMAND_MAX; j++){
 	  fprintf(stderr, "%-22s : %s\n", command[j].c_str(), errmessage[j].c_str());
@@ -175,4 +182,11 @@ AnalyzeCommand( int argc, char **argv )
     }
   }
 
+}
+
+
+RUN_MODE
+GetRunMode()
+{
+  return run_mode;
 }
