@@ -44,6 +44,8 @@ unsigned char falsy_eye[PAT3_MAX];
 unsigned char territory[PAT3_MAX];  // 領地のパターン
 unsigned char nb4_empty[PAT3_MAX];  // 上下左右の空点の数
 eye_condition_t eye_condition[PAT3_MAX];
+unsigned char bad_move[PAT3_MAX];
+unsigned char replace_move[PAT3_MAX];
 
 int border_dis_x[BOARD_MAX];                     // x方向の距離   
 int border_dis_y[BOARD_MAX];                     // y方向の距離   
@@ -685,6 +687,80 @@ InitializeEye( void )
     }
   }
 
+  const int replace_pat3[] = {
+    // ++O     +++     O+O
+    // O*O     O*O     O*O
+    // OOO     OOO     OOO
+    0x5550, 0x5540, 0x5551,
+
+    // ++O
+    // O*O
+    // OO+
+    0x1550,
+
+    // O+O
+    // O*O
+    // ###
+    0xFD51,
+
+    // ++#     O+#
+    // O*#     O*#
+    // ###     ###
+    0xFF70, 0xFF71,
+
+    // +++
+    // O*O
+    // +O+
+    0x1140,
+
+    // X+O
+    // O*O
+    // OOO
+    0x5552,
+  };
+
+  for (int p : replace_pat3) {
+    Pat3Transpose8(p, transp);
+    for (int j = 0; j < 8; j++) {
+      replace_move[transp[j]] = S_BLACK;
+      replace_move[Pat3Reverse(transp[j])] = S_WHITE;
+    }
+  }
+
+  const int bad_pat3[] = {
+    // X++
+    // O*O
+    // OOO
+    0x5542,
+
+    // X+O     +++     X++
+    // O*O     O*O     O*O
+    // OO+     OO+     OO+
+    0x1552, 0x1540, 0x1542,
+
+    // ++X     X++     ++O
+    // O*O     O*O     O*O
+    // OO+     +O+     ###
+    0x1560, 0x1142, 0xFD50,
+
+    // X++
+    // O*O
+    // +O+
+    0x1142,
+
+    // O+X     ++#
+    // O*O     +*#
+    // +OO     ###
+    0x5161, 0xFF30,
+  };
+
+  for (int p : bad_pat3) {
+    Pat3Transpose8(p, transp);
+    for (int j = 0; j < 8; j++) {
+      bad_move[transp[j]] = S_BLACK;
+      bad_move[Pat3Reverse(transp[j])] = S_WHITE;
+    }
+  }
 }
 
 
@@ -978,6 +1054,19 @@ IsLegalNotEye( game_info_t *game, const int pos, const int color )
 }
 
 
+////////////////////////////////////
+//  合法手でかつ目でないかを判定  //
+////////////////////////////////////
+bool
+IsBadMove( game_info_t *game, const int pos, const int color )
+{
+  if (bad_move[Pat3(game->pat, pos)] == color)
+    return true;
+
+  return false;
+}
+
+
 bool
 ReplaceMove( game_info_t *game, const int pos, const int color, int* replace, int* replace_num )
 {
@@ -1058,6 +1147,18 @@ ReplaceMove( game_info_t *game, const int pos, const int color, int* replace, in
     }
 
     return (*replace_num) > 0;
+  }
+
+  if (replace_move[Pat3(game->pat, pos)] != 0) {
+    if (game->board[NORTH(pos)] == S_EMPTY)
+      replace[(*replace_num)++] = NORTH(pos);
+    if (game->board[WEST(pos)] == S_EMPTY)
+      replace[(*replace_num)++] = WEST(pos);
+    if (game->board[EAST(pos)] == S_EMPTY)
+      replace[(*replace_num)++] = EAST(pos);
+    if (game->board[SOUTH(pos)] == S_EMPTY)
+      replace[(*replace_num)++] = SOUTH(pos);
+    return true;
   }
 
   return false;

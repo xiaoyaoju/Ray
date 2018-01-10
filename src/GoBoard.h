@@ -246,6 +246,9 @@ bool IsLegal( const game_info_t *game, const int pos, const int color );
 // 合法手かつ眼でなければtrueを返す
 bool IsLegalNotEye( game_info_t *game, const int pos, const int color );
 
+// 愚形
+bool IsBadMove( game_info_t *game, const int pos, const int color );
+
 // 自殺手判定
 // 自殺手ならばtrueを返す
 bool IsSuicide( const game_info_t *game, const string_t *string, const int color, const int pos );

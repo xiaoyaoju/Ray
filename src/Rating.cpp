@@ -285,6 +285,7 @@ RatingMove(game_info_t *game, int color, std::mt19937_64 *mt, LGR& lgr)
   long long *sum_rate = &game->sum_rate[color - 1];
   int y, pos;
   long long rand_num;
+  static char stone[] = { '+', 'B', 'W', '#' };
 
   // レートの部分更新
   PartialRating(game, color, sum_rate, sum_rate_row, rate);
@@ -367,13 +368,25 @@ RatingMove(game_info_t *game, int color, std::mt19937_64 *mt, LGR& lgr)
     // 選ばれた手が合法手ならループを抜け出し
     // そうでなければその箇所のレートを0にし, 手を選びなおす
     if (IsLegalNotEye(game, pos, color)) {
+#if 0
+      if (IsBadMove(game, pos, color) && rate[pos] > 1) {
+        long long r = rate[pos];
+        *sum_rate -= rate[pos];
+        sum_rate_row[y] -= rate[pos];
+        rate[pos] = 1;
+        *sum_rate += rate[pos];
+        sum_rate_row[board_y[pos]] += rate[pos];
+        //if (game->moves < 250) { PrintBoard(game); cerr << "RETRY " << stone[color] << " " << r << " " << FormatMove(pos) << endl; }
+        continue;
+      }
+#endif
       int replace_num = 0;
       int replace[8];
       if (ReplaceMove(game, pos, color, replace, &replace_num)) {
         if (replace_num > 0) {
           int rep = replace[(*mt)() % replace_num];
           if (IsLegalNotEye(game, rep, color)) {
-            //PrintBoard(game); cerr << "REPLACE " << FormatMove(pos) << " -> " << FormatMove(rep) << endl;
+            //if (game->moves < 300) { PrintBoard(game); cerr << "REPLACE " << stone[color] << " " << FormatMove(pos) << " -> " << FormatMove(rep) << endl; }
             return rep;
           }
         }
