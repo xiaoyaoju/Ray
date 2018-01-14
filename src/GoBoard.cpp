@@ -985,19 +985,17 @@ ReplaceMove( game_info_t *game, const int pos, const int color, int* replace, in
   const string_t *string = game->string;
   int other = FLIP_COLOR(color);
 
-  // 眼
-  if (eye[Pat3(game->pat, pos)] != color ||
-    string[string_id[NORTH(pos)]].libs == 1 ||
-    string[string_id[EAST(pos)]].libs == 1 ||
-    string[string_id[SOUTH(pos)]].libs == 1 ||
-    string[string_id[WEST(pos)]].libs == 1) {
+  // 欠け眼に見える眼
+  if (falsy_eye[Pat3(game->pat, pos)] == color) {
+    const int lib_north = string[string_id[NORTH(pos)]].libs;
+    const int lib_east  = string[string_id[EAST(pos)]].libs;
+    const int lib_west  = string[string_id[WEST(pos)]].libs;
+    const int lib_south = string[string_id[SOUTH(pos)]].libs;
 
-    // 欠け眼に見える眼
-    if (falsy_eye[Pat3(game->pat, pos)] == color &&
-      string[string_id[NORTH(pos)]].libs > 1 &&
-      string[string_id[EAST(pos)]].libs > 1 &&
-      string[string_id[SOUTH(pos)]].libs > 1 &&
-      string[string_id[WEST(pos)]].libs > 1) {
+    if (lib_north > 1 &&
+      lib_east > 1 &&
+      lib_south > 1 &&
+      lib_west > 1) {
       int check[] = {
         NORTH_WEST(pos),
         NORTH_EAST(pos),
@@ -1010,22 +1008,57 @@ ReplaceMove( game_info_t *game, const int pos, const int color, int* replace, in
         const string_t *s = &string[string_id[p]];
         if (s->libs == 1) {
           int lib = s->lib[0];
-          replace[(*replace_num)++] = lib;
+          if (!IsSelfAtari(game, color, lib))
+            replace[(*replace_num)++] = lib;
         } else if (s->libs <= 2) {
           int lib = s->lib[0];
           while (lib != LIBERTY_END) {
             //int neighbor = string[id].neighbor[0];
-            if (IsCapturableAtariForSimulation(game, lib, color, string_id[p])) {
+            if (!IsSelfAtari(game, color, lib)
+              && IsCapturableAtariForSimulation(game, lib, color, string_id[p])) {
               replace[(*replace_num)++] = lib;
             }
             lib = s->lib[lib];
           }
         }
       }
-      return true;
     }
-  }
 
+    // Capture opponent liberty-1 stone
+    int check[] = {
+      -1,
+      -1,
+    };
+    if (lib_north == 1 && lib_east > 1 && lib_south > 1 && lib_west > 1) {
+      check[0] = NORTH_WEST(pos);
+      check[1] = NORTH_EAST(pos);
+    }
+    if (lib_north > 1 && lib_east == 1 && lib_south > 1 && lib_west > 1) {
+      check[0] = NORTH_EAST(pos);
+      check[1] = SOUTH_EAST(pos);
+    }
+    if (lib_north > 1 && lib_east > 1 && lib_south == 1 && lib_west > 1) {
+      check[0] = SOUTH_WEST(pos);
+      check[1] = SOUTH_EAST(pos);
+    }
+    if (lib_north > 1 && lib_east > 1 && lib_south > 1 && lib_west == 1) {
+      check[0] = NORTH_WEST(pos);
+      check[1] = SOUTH_WEST(pos);
+    }
+
+    for (int p : check) {
+      if (p < 0 || game->board[p] != other)
+        continue;
+      const string_t *s = &string[string_id[p]];
+      if (s->libs == 1) {
+        int lib = s->lib[0];
+        if (!IsSelfAtari(game, color, lib))
+          replace[(*replace_num)++] = lib;
+      }
+    }
+
+    return (*replace_num) > 0;
+  }
 
   return false;
 }
