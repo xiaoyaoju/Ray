@@ -1385,6 +1385,8 @@ GTP_generate_kifu(void)
   int result;
   vector<string> comments;
 
+  SetKomi(0.5 + mt() % 10);
+
   // Random opening
   uniform_int_distribution<int> dist_open(0, 4);
   int random_turn = dist_open(mt);
@@ -1414,8 +1416,7 @@ GTP_generate_kifu(void)
   policy_temperature_inc = 0;
   root_policy_rate_min = 0;
 
-  //uniform_int_distribution<int> dist_turn(0, 350);
-  uniform_int_distribution<int> dist_turn(0, 200);
+  uniform_int_distribution<int> dist_turn(0, pure_board_max * 0.6);
   int replay_turn = dist_turn(mt);
   for (int i = 0; i < replay_turn; i++) {
     int pos = PolicyNetworkGenmove(game, color);
@@ -1478,7 +1479,7 @@ GTP_generate_kifu(void)
     // Dump move rate
     const uct_node_t *root = &uct_node[current_root];
     std::vector<float> data_rate;
-    data_rate.resize(19 * 19 * 1);
+    data_rate.resize(pure_board_max * 1);
     for (int i = 1; i < root->child_num; i++) {
       auto& c = root->child[i];
       int pos = c.pos;
@@ -1512,7 +1513,8 @@ GTP_generate_kifu(void)
 
   stringstream out;
   out << "(;GM[1]FF[4]CA[UTF-8]"
-    "RU[Chinese]SZ[19]KM[7.5]"
+    "RU[Chinese]SZ[19]KM["
+    << komi[0] << "]"
     "PW[Rn]PB[Rn]GN["
     << replay_turn + random_turn;
   switch (result) {
