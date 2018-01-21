@@ -1390,7 +1390,7 @@ GTP_generate_kifu(void)
   int result;
   vector<string> comments;
 
-  SetKomi(0.5 + mt() % 10);
+  SetKomi(0.5 + mt() % 15);
 
   // Random opening
   uniform_int_distribution<int> dist_open(0, 4);
@@ -1507,8 +1507,16 @@ GTP_generate_kifu(void)
       break;
     } else if (point == PASS && game->record[game->moves - 1].pos == PASS) {
       cerr << "END OF GAME" << endl;
-      GTP_response(err_command, false);
-      return;
+      double score = 0;
+      score = UctAnalyze(game, S_BLACK) - komi[0];
+      if (score > 0) {
+        win_color = S_BLACK;
+        cerr << "B+" << score << endl;
+      } else {
+        win_color = S_WHITE;
+        cerr << "W+" << abs(score) << endl;
+      }
+      break;
     } else {
       PutStone(game, point, color);
     }
@@ -1518,8 +1526,8 @@ GTP_generate_kifu(void)
 
   stringstream out;
   out << "(;GM[1]FF[4]CA[UTF-8]"
-    "RU[Chinese]SZ[19]KM["
-    << komi[0] << "]"
+    "RU[Chinese]SZ[" << pure_board_size << "]"
+    << "KM[" << komi[0] << "]"
     "PW[Rn]PB[Rn]GN["
     << replay_turn + random_turn;
   switch (result) {
