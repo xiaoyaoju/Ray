@@ -309,9 +309,6 @@ InitializeBoard( game_info_t *game )
   }
 
   ClearPattern(game->pat);
-
-  InitializeNeighbor();
-  InitializeEye();
 }
 
 
