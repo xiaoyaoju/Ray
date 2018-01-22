@@ -163,6 +163,7 @@
     <ClCompile Include="..\..\src\GoBoard.cpp" />
     <ClCompile Include="..\..\src\Gtp.cpp" />
     <ClCompile Include="..\..\src\Ladder.cpp" />
+    <ClCompile Include="..\..\src\Train.cpp" />
     <ClCompile Include="..\..\src\Message.cpp" />
     <ClCompile Include="..\..\src\MoveCache.cpp" />
     <ClCompile Include="..\..\src\Nakade.cpp" />
@@ -187,6 +188,7 @@
     <ClInclude Include="..\..\src\GoBoard.h" />
     <ClInclude Include="..\..\src\Gtp.h" />
     <ClInclude Include="..\..\src\Ladder.h" />
+    <ClInclude Include="..\..\src\Train.h" />
     <ClInclude Include="..\..\src\Message.h" />
     <ClInclude Include="..\..\src\MoveCache.h" />
     <ClInclude Include="..\..\src\Nakade.h" />

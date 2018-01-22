@@ -2616,7 +2616,7 @@ CorrectDescendentNodes(vector<int> &indexes, int index)
 
 extern char uct_params_path[1024];
 
-static CNTK::DeviceDescriptor
+CNTK::DeviceDescriptor
 GetDevice()
 {
   if (device_id == -1)
@@ -2624,6 +2624,12 @@ GetDevice()
   if (device_id == -2)
     return CNTK::DeviceDescriptor::UseDefaultDevice();
   return CNTK::DeviceDescriptor::GPUDevice(device_id);
+}
+
+
+CNTK::FunctionPtr GetPolicyNetwork()
+{
+  return nn_policy;
 }
 
 void

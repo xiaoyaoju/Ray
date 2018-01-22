@@ -3,6 +3,7 @@
 
 #include <atomic>
 #include <random>
+#include <string>
 
 #include "GoBoard.h"
 #include "ZobristHash.h"
@@ -243,5 +244,19 @@ void SetDeviceId( const int id );
 
 // Policy networkの手を打つ
 int PolicyNetworkGenmove(game_info_t *game, int color);
+
+void ReadWeights();
+
+#include "CNTKLibrary.h"
+
+CNTK::DeviceDescriptor GetDevice();
+
+CNTK::FunctionPtr GetPolicyNetwork();
+
+bool GetVariableByName(std::vector<CNTK::Variable> variableLists, std::wstring varName, CNTK::Variable& var);
+
+bool GetInputVariableByName(CNTK::FunctionPtr evalFunc, std::wstring varName, CNTK::Variable& var);
+
+bool GetOutputVaraiableByName(CNTK::FunctionPtr evalFunc, std::wstring varName, CNTK::Variable& var);
 
 #endif

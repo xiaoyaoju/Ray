@@ -7,6 +7,7 @@
 #include "Command.h"
 #include "GoBoard.h"
 #include "Gtp.h"
+#include "Train.h"
 #include "PatternHash.h"
 #include "Rating.h"
 #include "Semeai.h"
@@ -66,8 +67,12 @@ main( int argc, char **argv )
   SetNeighbor();
   LoadOpeningBook(pure_board_size);
 
+#if 0
   // GTP
   GTP_main();
+#else
+  Train();
+#endif
 
   return 0;
 }
