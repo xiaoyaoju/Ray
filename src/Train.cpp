@@ -431,6 +431,10 @@ Train()
 #endif
 
       auto begin_time = ray_clock::now();
+      double mb = 0;
+      double trainLossValue = 0;
+      double evaluationValue = 0;
+
       for (size_t i = 0; i < trainingCheckpointFrequency * 2; ++i) {
         mutex_queue.lock();
         while (data_queue.empty()) {
@@ -447,13 +451,21 @@ Train()
         trainer->TrainMinibatch(arguments, false, outputsToFetch, device);
         PrintTrainingProgress(trainer, i, outputFrequencyInMinibatches);
 
+        mb += 1;
+        trainLossValue += trainer->PreviousMinibatchLossAverage();
+        evaluationValue += trainer->PreviousMinibatchEvaluationAverage();
+
         if ((i % trainingCheckpointFrequency) == (trainingCheckpointFrequency - 1))
         {
           double finish_time = GetSpendTime(begin_time);
           wcerr << finish_time << " " << finish_time / (minibatch_size * trainingCheckpointFrequency) << " per sample" << endl;
+          fprintf(stderr, "CrossEntropy loss = %.8g, Evaluation criterion = %.8g\n", trainLossValue / mb, evaluationValue / mb);
           const wstring ckpName = L"feedForward.net." + to_wstring(alt) + L"." + to_wstring(i);
           trainer->SaveCheckpoint(ckpName);
           trainer->RestoreFromCheckpoint(ckpName);
+          mb = 0;
+          trainLossValue = 0;
+          evaluationValue = 0;
           begin_time = ray_clock::now();
         }
       }
