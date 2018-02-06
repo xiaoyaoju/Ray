@@ -21,6 +21,14 @@ using namespace CNTK;
 namespace fs = std::experimental::filesystem;
 #endif
 
+static string kifu_dir = "kifu";
+
+void
+SetKifuDirectory(const std::string dir)
+{
+  kifu_dir = dir;
+}
+
 
 inline void PrintTrainingProgress(const TrainerPtr trainer, size_t minibatchIdx, size_t outputFrequencyInMinibatches)
 {
@@ -51,8 +59,8 @@ static vector<shared_ptr<SGF_record>> records;
 extern int threads;
 
 static void
-ReadFile(std::string dir) {
-  for (auto entry : fs::recursive_directory_iterator(dir)) {
+ReadFile() {
+  for (auto entry : fs::recursive_directory_iterator(kifu_dir)) {
     if (fs::is_regular_file(entry) && entry.path().extension() == ".sgf") {
       //cerr << "Read " << entry.path().string() << endl;
 
@@ -340,7 +348,7 @@ Train()
     auto device = GetDevice();
     auto net = GetPolicyNetwork();
 
-    ReadFile("kifu");
+    ReadFile();
 
     minibatch_size = 128;
 

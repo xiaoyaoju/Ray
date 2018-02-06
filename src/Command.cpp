@@ -7,6 +7,7 @@
 #include "DynamicKomi.h"
 #include "GoBoard.h"
 #include "Gtp.h"
+#include "Train.h"
 #include "Message.h"
 #include "UctSearch.h"
 #include "ZobristHash.h"
@@ -39,6 +40,7 @@ const string command[COMMAND_MAX] = {
   "--no-expand",
   "--device-id",
   "--verbose",
+  "--kifu-dir",
 };
 
 //  コマンドの説明
@@ -62,6 +64,7 @@ const string errmessage[COMMAND_MAX] = {
   "No MCTS",
   "Set GPU to use",
   "Verbose log mode",
+  "Set directory to store kifu files",
 };
 
 
@@ -160,6 +163,9 @@ AnalyzeCommand( int argc, char **argv )
         break;
       case COMMAND_VERBOSE:
         SetVerbose(true);
+        break;
+      case COMMAND_KIFU_DIR:
+        SetKifuDirectory(argv[++i]);
         break;
       default:
 	for (int j = 0; j < COMMAND_MAX; j++){
