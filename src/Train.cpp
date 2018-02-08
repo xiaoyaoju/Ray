@@ -58,25 +58,36 @@ struct DataSet {
   std::vector<float> statistic;
 };
 
-static vector<shared_ptr<SGF_record>> records;
+static vector<string> filenames;
+static mutex mutex_records;
+static vector<shared_ptr<SGF_record>> records_next;
+static vector<shared_ptr<SGF_record>> records_current;
 static map<SGF_record*, shared_ptr<float[]>> statistic;
 extern int threads;
 
 static void
-ReadFile() {
+ListFiles()
+{
   for (auto entry : fs::recursive_directory_iterator(kifu_dir)) {
-    if (fs::is_regular_file(entry) && entry.path().extension() == ".sgf") {
+    if (entry.path().extension() == ".sgf") {
+      filenames.push_back(entry.path().string());
       //cerr << "Read " << entry.path().string() << endl;
-
-      auto kifu = make_shared<SGF_record>();
-      ExtractKifu(entry.path().string().c_str(), kifu.get());
-
-      records.push_back(kifu);
       //if (records.size() > 1000) break;
     }
   }
 
-  cerr << "OK " << records.size() << endl;
+  cerr << "OK " << filenames.size() << endl;
+}
+
+static void
+ReadFiles(size_t offset, size_t size)
+{
+  for (size_t i = 0; i < size; i++) {
+    auto kifu = make_shared<SGF_record>();
+    ExtractKifu(filenames[(i + offset) % filenames.size()].c_str(), kifu.get());
+    lock_guard<mutex> lock(mutex_records);
+    records_next.push_back(kifu);
+  }
 }
 
 class Reader {
@@ -265,7 +276,7 @@ public:
   }
 
   void ReadOne(DataSet& data) {
-    auto r = records[(current_rec * threads + offset) % records.size()];
+    auto r = records_current[(current_rec * threads + offset) % records_current.size()];
     Play(data, *r);
 
     current_rec++;
@@ -387,12 +398,36 @@ Train()
     auto device = GetDevice();
     auto net = GetPolicyNetwork();
 
-    ReadFile();
+    ListFiles();
+    shuffle(begin(filenames), end(filenames), mt);
 
+    size_t outputFrequencyInMinibatches = 50;
+    size_t trainingCheckpointFrequency = 500;
+
+    size_t loop_size = trainingCheckpointFrequency * 2;
     minibatch_size = 128;
 
+    vector<unique_ptr<thread>> reader_handles;
     for (int alt = 0;; alt++) {
-      shuffle(begin(records), end(records), mt);
+      for (auto& t : reader_handles)
+        t->join();
+      reader_handles.clear();
+      //auto finish_time = GetSpendTime(begin_time) * 1000;
+      //cerr << "read sgf " << finish_time << endl;
+
+      records_current = records_next;
+      shuffle(begin(records_current), end(records_current), mt);
+
+      //auto begin_time = ray_clock::now();
+      size_t step = minibatch_size * loop_size / 2 / threads;
+
+      records_next.clear();
+      for (int i = 0; i < threads; i++) {
+        reader_handles.push_back(make_unique<thread>(ReadFiles, (alt * threads + i) * step, step));
+      }
+
+      if (records_current.size() == 0)
+        continue;
 
       running = true;
       vector<unique_ptr<thread>> handles;
@@ -466,8 +501,6 @@ Train()
       option.l2RegularizationWeight = 0.0001;
       //auto minibatchSource = TextFormatMinibatchSource(L"SimpleDataTrain_cntk_text.txt", { { L"features", inputDim }, { L"labels", numOutputClasses } });
       auto trainer = CreateTrainer(net, trainingLoss, prediction, { SGDLearner(parameters, learningRatePerSample, option) });
-      size_t outputFrequencyInMinibatches = 50;
-      size_t trainingCheckpointFrequency = 500;
 
 #if 0
       {
@@ -481,7 +514,7 @@ Train()
       double trainLossValue = 0;
       double evaluationValue = 0;
 
-      for (size_t i = 0; i < trainingCheckpointFrequency * 2; ++i) {
+      for (size_t i = 0; i < loop_size; ++i) {
         mutex_queue.lock();
         while (data_queue.empty()) {
           mutex_queue.unlock();
