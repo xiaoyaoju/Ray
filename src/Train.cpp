@@ -4,6 +4,8 @@
 #include "DynamicKomi.h"
 #include "Rating.h"
 #include "Message.h"
+#include "MoveCache.h"
+#include "Simulation.h"
 #include "Utility.h"
 
 #include <filesystem>
@@ -132,6 +134,8 @@ public:
 
     int color = S_BLACK;
     double rate[PURE_BOARD_MAX];
+    LGR lgr;
+    LGRContext ctx;
     for (int i = 0; i < kifu.moves - 1; i++) {
       int pos = GetKifuMove(&kifu, i);
       //PrintBoard(game);
@@ -170,6 +174,7 @@ public:
           //dump_turn += 3;
           trans++;
           */
+          int my_color = color;
           int trans = mt() % 8;
           WritePlanes(data.basic, data.features, data.history,
             nullptr, game, nullptr, color, trans);
@@ -177,7 +182,7 @@ public:
           data.komi.push_back(kifu.komi);
           int moveT = RevTransformMove(move, trans);
 
-#if 1
+#if 0
           int ofs = data.move.size();
           data.move.resize(ofs + pure_board_max);
           if (kifu.comment[i + 1].size() > 0) {
@@ -224,14 +229,16 @@ public:
           }
 #endif
           data.win.push_back(win_color == color ? 1 : -1);
-          int my_color = color;
           i++;
           for (; i < kifu.moves - 1; i++) {
             int pos = GetKifuMove(&kifu, i);
             PutStone(game, pos, color);
             color = FLIP_COLOR(color);
           }
+          Simulation(game, color, &mt, lgr, ctx);
+
           //PrintBoard(game);
+          float sum = 0;
           for (int j = 0; j < pure_board_max; j++) {
             int pos = TransformMove(onboard_pos[j], trans);
             int c = game->board[pos];
@@ -244,8 +251,10 @@ public:
               o = 1;
             else
               o = -1;
+            sum += o;
             data.statistic.push_back(o);
           }
+          //cerr << "RE:" << kifu.result << " color:" << my_color << " RAND:" << kifu.random_move << " sum:" << sum << endl;
           data.num_req++;
           return true;
         }
@@ -434,10 +443,17 @@ Train()
       //Variable classifierOutputVar;
       //FunctionPtr classifierOutput = classifierOutputVar;
       Variable prediction;
-      if (alt % 2 == 0)
+      switch (alt % 3) {
+      case 0:
         GetOutputVaraiableByName(net, L"errs_move_L2", prediction);
-      else
+        break;
+      case 1:
         GetOutputVaraiableByName(net, L"err_value2_L2", prediction);
+        break;
+      case 2:
+        GetOutputVaraiableByName(net, L"err_owner_L2", prediction);
+        break;
+      }
       wcerr << prediction.AsString() << endl;
 
       int stepsize = 100;
