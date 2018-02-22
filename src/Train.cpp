@@ -167,6 +167,8 @@ public:
       int pos = GetKifuMove(&kifu, i);
       //PrintBoard(game);
       //cerr << "#" << i << " " << FormatMove(pos) << " " << color << endl;
+      if (!IsLegal(game, pos, color))
+        return false;
       PutStone(game, pos, color);
       color = FLIP_COLOR(color);
       //PrintBoard(game);
@@ -259,6 +261,8 @@ public:
           i++;
           for (; i < kifu.moves - 1; i++) {
             int pos = GetKifuMove(&kifu, i);
+            if (!IsLegal(game, pos, color))
+              return false;
             PutStone(game, pos, color);
             color = FLIP_COLOR(color);
           }
@@ -496,7 +500,7 @@ Train()
       int learn_count = 0;
       std::vector<Parameter> parameters;
       for (auto p : net->Parameters()) {
-        if (alt == 0)
+        if (alt < 2)
           wcerr << p.AsString() << " " << p.NeedsGradient();
         auto& name = p.AsString();
         total_count++;
@@ -508,12 +512,12 @@ Train()
           //&& name.find(L"core.core2") == wstring::npos
           //name.find(L"core.p2_L2.p2_L2.scale") != wstring::npos
           ) {
-          if (alt == 0)
+          if (alt < 2)
             wcerr << " LEARN";
           parameters.push_back(p);
           learn_count++;
         }
-        if (alt == 0)
+        if (alt < 2)
           wcerr << endl;
       }
 
