@@ -60,8 +60,10 @@ struct DataSet {
 
 static vector<string> filenames;
 static mutex mutex_records;
-static vector<shared_ptr<SGF_record>> records_next;
-static vector<shared_ptr<SGF_record>> records_current;
+//static vector<SGF_record> *records_next;
+static vector<SGF_record> *records_current;
+static vector<SGF_record> records_a;
+static vector<SGF_record> records_b;
 static map<SGF_record*, shared_ptr<float[]>> statistic;
 extern int threads;
 
@@ -80,13 +82,20 @@ ListFiles()
 }
 
 static void
-ReadFiles(size_t offset, size_t size)
+ReadFiles(int thread_no, size_t offset, size_t size, vector<SGF_record> *records)
 {
+  vector<string> files;
+  files.reserve(size);
+  for (size_t i = 0; i < size; i++) {
+    files.push_back(filenames[(i + offset) % filenames.size()]);
+  }
+  random_device rd;
+  std::mt19937_64 mt{ rd() };
+  shuffle(begin(files), end(files), mt);
+
   for (size_t i = 0; i < size; i++) {
     auto kifu = make_shared<SGF_record>();
-    ExtractKifu(filenames[(i + offset) % filenames.size()].c_str(), kifu.get());
-    lock_guard<mutex> lock(mutex_records);
-    records_next.push_back(kifu);
+    ExtractKifu(files[i].c_str(), &(*records)[i * threads + thread_no]);
   }
 }
 
@@ -276,8 +285,8 @@ public:
   }
 
   void ReadOne(DataSet& data) {
-    auto r = records_current[(current_rec * threads + offset) % records_current.size()];
-    Play(data, *r);
+    auto& r = (*records_current)[(current_rec * threads + offset) % records_current->size()];
+    Play(data, r);
 
     current_rec++;
   }
@@ -406,6 +415,10 @@ Train()
 
     size_t loop_size = trainingCheckpointFrequency * 2;
     minibatch_size = 128;
+    size_t step = minibatch_size * loop_size / 2 / threads;
+
+    records_a.resize(step * threads);
+    records_b.resize(step * threads);
 
     vector<unique_ptr<thread>> reader_handles;
     for (int alt = 0;; alt++) {
@@ -415,18 +428,20 @@ Train()
       //auto finish_time = GetSpendTime(begin_time) * 1000;
       //cerr << "read sgf " << finish_time << endl;
 
-      records_current = records_next;
-      shuffle(begin(records_current), end(records_current), mt);
-
-      //auto begin_time = ray_clock::now();
-      size_t step = minibatch_size * loop_size / 2 / threads;
-
-      records_next.clear();
-      for (int i = 0; i < threads; i++) {
-        reader_handles.push_back(make_unique<thread>(ReadFiles, (alt * threads + i) * step, step));
+      vector<SGF_record> *records_next;
+      if (alt % 2 == 0) {
+        records_current = &records_a;
+        records_next = &records_b;
+      } else {
+        records_current = &records_b;
+        records_next = &records_a;
       }
 
-      if (records_current.size() == 0)
+      for (int i = 0; i < threads; i++) {
+        reader_handles.push_back(make_unique<thread>(ReadFiles, i, (alt * threads + i) * step, step, records_next));
+      }
+
+      if (alt == 0)
         continue;
 
       running = true;
@@ -552,6 +567,7 @@ Train()
       for (auto& t : handles)
         t->join();
     }
+
   } catch (const std::exception& err) {
     fprintf(stderr, "EXCEPTION occurred: %s\n", err.what());
     abort();
