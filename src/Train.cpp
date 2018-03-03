@@ -160,8 +160,8 @@ public:
       if (move != PASS && move != RESIGN) {
         int ts[] = { 0, 1, 2, 3, 4, 5, 6, 7 };
         shuffle(begin(ts), end(ts), mt);
-#if 0
         AnalyzePoRating(game, color, rate);
+#if 0
         DumpFeature(&store_node, color, move, win_color == color ? 1 : -1, game, ts[0], true);
 #elif 0
         if (i < 10) {
