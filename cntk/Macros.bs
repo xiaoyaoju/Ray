@@ -1,4 +1,6 @@
 # assembly components
+Swish (x) = x .* Sigmoid(x)
+
 ## Convolution + Batch Normalization
 ConvBNLayer {outChannels, kernel, stride, bnTimeConst} = Sequential(
     ConvolutionalLayer {outChannels, kernel, init = "heNormal", stride = stride, pad = true, bias = false} :
@@ -16,6 +18,11 @@ ConvBNSigmoidLayer {outChannels, kernelSize, stride, bnTimeConst} = Sequential(
     Sigmoid
 )
 
+ConvBNSwishLayer {outChannels, kernelSize, stride, bnTimeConst} = Sequential(
+    ConvBNLayer {outChannels, kernelSize, stride, bnTimeConst} :
+    Swish
+)
+
 
 BNReLUConvLayer {outChannels, kernel, stride, bnTimeConst} = Sequential(
     BatchNormalizationLayer {spatialRank = 2, normalizationTimeConstant = bnTimeConst, useCntkEngine = false} :
@@ -23,10 +30,26 @@ BNReLUConvLayer {outChannels, kernel, stride, bnTimeConst} = Sequential(
     ConvolutionalLayer {outChannels, kernel, init = "heNormal", stride = stride, pad = true, bias = false}
 )
 
+BNSwishConvLayer {outChannels, kernel, stride, bnTimeConst} = Sequential(
+    BatchNormalizationLayer {spatialRank = 2, normalizationTimeConstant = bnTimeConst, useCntkEngine = false} :
+    Swish :
+    ConvolutionalLayer {outChannels, kernel, init = "heNormal", stride = stride, pad = true, bias = false}
+)
+
+BNConvLayer {outChannels, kernel, stride, bnTimeConst} = Sequential(
+    BatchNormalizationLayer {spatialRank = 2, normalizationTimeConstant = bnTimeConst, useCntkEngine = false} :
+    ConvolutionalLayer {outChannels, kernel, init = "heNormal", stride = stride, pad = true, bias = false}
+)
+
 BNSigmoidConvLayer {outChannels, kernel, stride, bnTimeConst} = Sequential(
     BatchNormalizationLayer {spatialRank = 2, normalizationTimeConstant = bnTimeConst, useCntkEngine = false} :
     Sigmoid :
     ConvolutionalLayer {outChannels, kernel, init = "heNormal", stride = stride, pad = true, bias = false}
+)
+
+ConvReLULayer {outChannels, kernel, stride} = Sequential(
+    ConvolutionalLayer {outChannels, kernel, init = "heNormal", stride = stride, pad = true, bias = true} :
+    ReLU
 )
 
 # Sig
@@ -79,6 +102,107 @@ ResNetBasic3 {outChannels, bnTimeConst} = {
     }.p
 }.apply
 
+ResNetBasic3SE {outChannels, midChannels, bnTimeConst} = {
+    apply (x) = {
+        # Convolution
+        b = Sequential (
+            BNReLUConvLayer {outChannels, (3:3), (1:1), bnTimeConst} : 
+            BNReLUConvLayer {outChannels, (3:3), (1:1), bnTimeConst}) (x) 
+
+		g = ReduceMean(ReduceMean(b, axis=1), axis=2)
+		s = Sequential(
+			ConvolutionalLayer {midChannels, (1:1), init = "heNormal", stride = (1:1), bias = true} :
+			ReLU :
+			ConvolutionalLayer {outChannels, (1:1), init = "heNormal", stride = (1:1), bias = true} :
+			Sigmoid
+		)(g)
+		bs = b .* s
+		
+        p = Plus(bs, x)
+    }.p
+}.apply
+
+ResNetBasic3SER {outChannels, midChannels, bnTimeConst} = {
+    apply (x) = {
+        # Convolution
+        b = Sequential (
+            BNReLUConvLayer {outChannels, (3:3), (1:1), bnTimeConst} : 
+            BNReLUConvLayer {outChannels, (3:3), (1:1), bnTimeConst}) (x) 
+
+		g = AveragePoolingLayer((5:5), stride=(1:1), pad = true) (b)
+		s = Sequential(
+			ConvolutionalLayer {midChannels, (1:1), init = "heNormal", stride = (1:1), bias = true} :
+			ReLU :
+			ConvolutionalLayer {outChannels, (1:1), init = "heNormal", stride = (1:1), bias = true} :
+			Sigmoid
+		)(g)
+		bs = b .* s
+		
+        p = Plus(bs, x)
+    }.p
+}.apply
+
+ResNetBasic3S {outChannels, bnTimeConst} = {
+    apply (x) = {
+        # Convolution
+        b = Sequential (
+            BNSwishConvLayer {outChannels, (3:3), (1:1), bnTimeConst} : 
+            BNSwishConvLayer {outChannels, (3:3), (1:1), bnTimeConst}) (x) 
+
+        p = Plus(b, x)
+    }.p
+}.apply
+
+
+ResNet4Basic3 {outChannels, bnTimeConst} = {
+    apply (x) = {
+        # Convolution
+        b = Sequential (
+            BNReLUConvLayer {outChannels, (3:3), (1:1), bnTimeConst} :
+            BNReLUConvLayer {outChannels, (3:3), (1:1), bnTimeConst} :
+            BNReLUConvLayer {outChannels, (3:3), (1:1), bnTimeConst} :
+            BNReLUConvLayer {outChannels, (3:3), (1:1), bnTimeConst}) (x) 
+
+        p = Plus(b, x)
+    }.p
+}.apply
+
+ResNet4Basic3S {outChannels, bnTimeConst} = {
+    apply (x) = {
+        # Convolution
+        b = Sequential (
+            BNSwishConvLayer {outChannels, (3:3), (1:1), bnTimeConst} :
+            BNSwishConvLayer {outChannels, (3:3), (1:1), bnTimeConst} :
+            BNSwishConvLayer {outChannels, (3:3), (1:1), bnTimeConst} :
+            BNSwishConvLayer {outChannels, (3:3), (1:1), bnTimeConst}) (x) 
+
+        p = Plus(b, x)
+    }.p
+}.apply
+
+LMResNetBasic3S {outChannels, bnTimeConst} = {
+    apply (x) = {
+		k = ParameterTensor {(1), initValue=0.0}
+		r1 = ResNetBasic3S {outChannels, bnTimeConst} (x)
+        r1s = Scale(r1, k)
+		r2 = ResNetBasic3S {outChannels, bnTimeConst} (r1)
+		r2s = Scale(r2, 1 - k)
+		p = Plus(r1s, r2s)
+    }.p
+}.apply
+
+
+ResNetBasic4 {outChannels, bnTimeConst} = {
+    apply (x) = {
+        # Convolution
+        b = Sequential (
+            BNReLUConvLayer {outChannels, (3:3), (1:1), bnTimeConst} : 
+            BNConvLayer {outChannels, (3:3), (1:1), bnTimeConst}) (x) 
+
+        p = Plus(b, x)
+    }.p
+}.apply
+
 
 ResNetSBasic3 {outChannels, bnTimeConst} = {
     apply (x) = {
@@ -91,6 +215,17 @@ ResNetSBasic3 {outChannels, bnTimeConst} = {
     }.p
 }.apply
 
+ResNetBasic5 {outChannels, bnTimeConst} = {
+    apply (x) = {
+        # Convolution
+        b = Sequential (
+            BNReLUConvLayer {outChannels, (3:3), (1:1), bnTimeConst} : 
+            BNReLUConvLayer {outChannels, (1:1), (1:1), bnTimeConst} : 
+            BNReLUConvLayer {outChannels, (1:1), (1:1), bnTimeConst}) (x) 
+
+        p = Plus(b, x)
+    }.p
+}.apply
 
 ResNet1 {outChannels, bnTimeConst} = {
     apply (x) = {

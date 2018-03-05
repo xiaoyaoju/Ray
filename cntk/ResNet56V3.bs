@@ -1,0 +1,81 @@
+include "$configDir$/Macros.bs"
+
+labelDim = 169
+
+bnTimeConst = 4096
+
+# inputs
+win			= Input {1, tag='label'}
+move		= Input {361, tag='label'}
+color		= Input {1, tag='feature'}
+komi		= Input {1, tag='feature'}
+basic		= Input {19:19:24, tag='feature'}
+features	= Input {19:19:41, tag='feature'}
+history		= Input {19:19:1, tag='feature'}
+statistic	= Input {19:19:1, tag='label'}
+
+model = Sequential(
+	ConvBNReLULayer {192, (3:3), (1:1), bnTimeConst} :
+	NLayerStack {20, i => ResNetBasic5 {192, bnTimeConst}}
+)
+
+model_move  = Sequential(
+	ConvolutionalLayer {1, (1:1)}
+)
+
+model_owner = Sequential(
+	ConvolutionalLayer {1, (1:1)} :
+	Tanh
+)
+
+model_value(x, color, komi) = {
+	sum = ReduceSum(x)
+	offset = (color * 2 - 1) * komi
+	t = sum + offset
+	scale1 = ParameterTensor {(1:1), initValue=0.01}
+	p = Tanh(t * scale1)
+}.p
+
+moveLen = Greater(ReduceSum(move), 0.1)
+
+in = Splice ((basic : features : history : color), axis = 3)
+core = model(in)
+
+#MaskCrossEntropyWithSoftmax (y, z, m) =
+MaskMeanAbsoluteError(y, z, m) =
+	ReduceSum(Abs(Softmax(BS.Boolean.If(m, z, Constant(1))) - y))
+#	ReduceSum(BS.Boolean.If(m, Abs(z - y), Constant(1))z))
+
+## move
+sqm_L2 = model_move (core)
+ol_L2 = FlattenDimensions (sqm_L2, 1, 2)
+op_L2 = Softmax(ol_L2)
+#ce_move_L2   = CrossEntropyWithSoftmax     (move, ol_L2)
+#ce_move_L2   = BS.Boolean.If(moveLen, CrossEntropyWithSoftmax(move, ol_L2), moveLen)
+ce_move_L2   = MaskMeanAbsoluteError(move, ol_L2, moveLen)
+errs_move_L2 = ClassificationError         (move, ol_L2)
+top5Errs_L2  = ClassificationError         (move, ol_L2, topN=5)  # only used in Eval action
+
+## value
+owner_L2 = model_owner(core)
+p2_L2 = model_value (owner_L2, color, komi)
+err_value2_L2 = SquareError(win, p2_L2)
+ce_value2_L2  = Scale(err_value2_L2, 0.01)
+
+err_owner_L2 = SquareError(owner_L2, statistic)
+ce_owner_L2 = Scale(err_owner_L2, 0.00001)
+
+# connect to system
+# ce = ce_move + ce_owner
+ce = ce_owner_L2 + ce_move_L2 + ce_value2_L2
+#ce = ce_move_L2 + ce_value2_L2
+
+featureNodes    = (color : komi : basic : features : history)
+labelNodes      = (move : win)
+criterionNodes  = (ce)
+evaluationNodes = (
+	errs_move_L2 : err_value2_L2 : err_owner_L2
+)
+outputNodes     = (
+	p2_L2 : ol_L2 : op_L2 : ce_move_L2 : owner_L2
+)
