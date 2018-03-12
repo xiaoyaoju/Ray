@@ -506,8 +506,8 @@ Train()
       }
       wcerr << prediction.AsString() << endl;
 
-      int stepsize = 100;
-      double rate = 2.0e-7 + 8.0e-6 / stepsize * (stepsize - abs(alt % (stepsize * 2) - stepsize));
+      int stepsize = 400;
+      double rate = 2.0e-8 + 2.0e-6 / stepsize * (stepsize - abs(alt % (stepsize * 2) - stepsize));
       //double rate = 2.0e-7 + 8.0e-6 / 100 * abs(100 - alt % 100);
       cerr << rate << endl;
       LearningRateSchedule learningRatePerSample = TrainingParameterPerSampleSchedule(rate);
