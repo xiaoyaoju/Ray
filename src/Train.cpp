@@ -94,8 +94,11 @@ ReadFiles(int thread_no, size_t offset, size_t size, vector<SGF_record> *records
   shuffle(begin(files), end(files), mt);
 
   for (size_t i = 0; i < size; i++) {
-    auto kifu = make_shared<SGF_record>();
-    ExtractKifu(files[i].c_str(), &(*records)[i * threads + thread_no]);
+    auto kifu = &(*records)[i * threads + thread_no];
+    ExtractKifu(files[i].c_str(), kifu);
+
+    if (kifu->moves > PURE_BOARD_MAX * 0.9)
+      kifu->moves = PURE_BOARD_MAX * 0.9;
   }
 }
 
@@ -451,12 +454,12 @@ Train()
       }
 
       Variable trainingLoss;
-      //GetVariableByName(net->Outputs(), L"ce_2_L2", trainingLoss);
+      //GetVariableByName(net->Outputs(), L"ce_2", trainingLoss);
       GetVariableByName(net->Outputs(), L"ce", trainingLoss);
 
-      Variable errs_move_L2, err_value2_L2;
-      GetVariableByName(net->Outputs(), L"errs_move_L2", errs_move_L2);
-      GetVariableByName(net->Outputs(), L"err_value2_L2", err_value2_L2);
+      Variable err_move, err_value2;
+      GetVariableByName(net->Outputs(), L"errs_move", err_move);
+      GetVariableByName(net->Outputs(), L"err_value2", err_value2);
 
       InitializeSearchSetting();
       InitializeUctHash();
@@ -495,20 +498,20 @@ Train()
       Variable prediction;
       switch (alt % 3) {
       case 0:
-        GetOutputVaraiableByName(net, L"errs_move_L2", prediction);
+        GetOutputVaraiableByName(net, L"errs_move", prediction);
         break;
       case 1:
-        GetOutputVaraiableByName(net, L"err_value2_L2", prediction);
+        GetOutputVaraiableByName(net, L"err_value2", prediction);
         break;
       case 2:
-        GetOutputVaraiableByName(net, L"err_owner_L2", prediction);
+        GetOutputVaraiableByName(net, L"err_owner", prediction);
         break;
       }
       wcerr << prediction.AsString() << endl;
 
-      int stepsize = 400;
-      double rate = 2.0e-8 + 2.0e-6 / stepsize * (stepsize - abs(alt % (stepsize * 2) - stepsize));
-      //double rate = 2.0e-7 + 8.0e-6 / 100 * abs(100 - alt % 100);
+      int stepsize = 200;
+      //double rate = 2.0e-8 + 4.0e-6 / stepsize * (stepsize - abs(alt % (stepsize * 2) - stepsize));
+      double rate = 2.0e-7 + 8.0e-6 / stepsize * (stepsize - abs(alt % (stepsize * 2) - stepsize));
       cerr << rate << endl;
       LearningRateSchedule learningRatePerSample = TrainingParameterPerSampleSchedule(rate);
       //LearningRateSchedule learningRatePerSample = TrainingParameterPerSampleSchedule(4.00e-07);
