@@ -428,7 +428,27 @@ Train()
     records_b.resize(step * threads);
 
     vector<unique_ptr<thread>> reader_handles;
-    for (int alt = 0;; alt++) {
+
+    int start_step = 0;
+
+    while (true) {
+      const wstring ckpName = L"feedForward.net." + to_wstring(start_step + 1) + L"." + to_wstring(999);
+      wcerr << "Try " << ckpName << endl;
+      FILE* fp = _wfopen(ckpName.c_str(), L"r");
+      if (fp) {
+        fclose(fp);
+        start_step++;
+      } else {
+        break;
+      }
+    }
+    if (start_step > 1) {
+      const wstring ckpName = L"feedForward.net." + to_wstring(start_step) + L"." + to_wstring(999);
+      wcerr << "Restrat " << start_step << endl;
+      net = CNTK::Function::Load(ckpName, device);
+    }
+
+    for (int alt = start_step;; alt++) {
       for (auto& t : reader_handles)
         t->join();
       reader_handles.clear();
@@ -448,8 +468,9 @@ Train()
         reader_handles.push_back(make_unique<thread>(ReadFiles, i, (alt * threads + i) * step, step, records_next));
       }
 
-      if (alt == 0)
+      if (alt == start_step) {
         continue;
+      }
 
       running = true;
       vector<unique_ptr<thread>> handles;
