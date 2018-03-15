@@ -417,12 +417,15 @@ Train()
     ListFiles();
     shuffle(begin(filenames), end(filenames), mt);
 
-    size_t outputFrequencyInMinibatches = 50;
-    size_t trainingCheckpointFrequency = 500;
+    const size_t outputFrequencyInMinibatches = 50;
+    const size_t trainingCheckpointFrequency = 500;
+    const int stepsize = 400;
+    const double lr_min = 1.0e-6;
+    const double lr_max = 4.0e-4;
 
-    size_t loop_size = trainingCheckpointFrequency * 2;
+    const size_t loop_size = trainingCheckpointFrequency * 2;
     minibatch_size = 128;
-    size_t step = minibatch_size * loop_size / 2 / threads;
+    const size_t step = minibatch_size * loop_size / 2 / threads;
 
     records_a.resize(step * threads);
     records_b.resize(step * threads);
@@ -534,9 +537,9 @@ Train()
       }
       wcerr << prediction.AsString() << endl;
 
-      int stepsize = 200;
-      //double rate = 2.0e-8 + 4.0e-6 / stepsize * (stepsize - abs(alt % (stepsize * 2) - stepsize));
-      double rate = 2.0e-7 + 8.0e-6 / stepsize * (stepsize - abs(alt % (stepsize * 2) - stepsize));
+      //double rate = 2.0e-8 + 1.0e-3 / stepsize * (stepsize - abs(alt % (stepsize * 2) - stepsize));
+      //double rate = 2.0e-7 + 8.0e-6 / stepsize * (stepsize - abs(alt % (stepsize * 2) - stepsize));
+      double rate = lr_min + (lr_max - lr_min) / stepsize * (stepsize - alt % stepsize);
       cerr << rate << endl;
       LearningRateSchedule learningRatePerSample = TrainingParameterPerSampleSchedule(rate);
       //LearningRateSchedule learningRatePerSample = TrainingParameterPerSampleSchedule(4.00e-07);
