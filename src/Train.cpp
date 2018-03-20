@@ -96,6 +96,8 @@ ReadFiles(int thread_no, size_t offset, size_t size, vector<SGF_record> *records
   for (size_t i = 0; i < size; i++) {
     auto kifu = &(*records)[i * threads + thread_no];
     ExtractKifu(files[i].c_str(), kifu);
+    if (kifu->moves == 0)
+      cerr << "Bad file " << files[i] << endl;
 
     if (kifu->moves > PURE_BOARD_MAX * 0.9)
       kifu->moves = PURE_BOARD_MAX * 0.9;
@@ -126,6 +128,8 @@ public:
 
   bool Play(DataSet& data, const SGF_record& kifu) {
     int win_color;
+    if (kifu.handicaps > 0)
+      return false;
     switch (kifu.result) {
     case R_BLACK:
       win_color = S_BLACK;
