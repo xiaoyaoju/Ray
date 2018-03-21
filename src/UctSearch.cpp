@@ -136,6 +136,8 @@ statistic_t statistic[BOARD_MAX];
 double criticality[BOARD_MAX];
 // 盤上の各点のOwner(0-100%)
 static double owner[BOARD_MAX];
+// Opening
+static bool in_opening = false;
 
 // 現在のオーナーのインデックス
 int owner_index[BOARD_MAX];
@@ -169,6 +171,7 @@ double bonus_weight = BONUS_WEIGHT;
 
 // 乱数生成器
 std::vector<std::unique_ptr<std::mt19937_64>> mt;
+std::mt19937_64 mt_root;
 
 // 探索コンテキスト
 std::vector<uct_search_context_t> ctx;
@@ -502,6 +505,7 @@ InitRand()
   for (int i = 0; i < threads; i++) {
     mt.push_back(make_unique<mt19937_64>(rd()));
   }
+  mt_root.seed(rd());
 }
 
 
@@ -661,6 +665,8 @@ UctSearchGenmove( game_info_t *game, int color )
   ClearEvalQueue();
 
   eval_count = 0;
+
+  in_opening = game->moves < 10;
 
   // 探索開始時刻の記録
   begin_time = ray_clock::now();
@@ -1932,6 +1938,15 @@ UpdatePolicyRate(int current)
       uct_child[0].nnrate = min(0.05, uct_child[i].nnrate);
     }
     uct_child[i].nnrate = max(rate, root_policy_rate_min);
+  }
+
+  if (in_opening && current == current_root) {
+    LOCK_EXPAND;
+    uniform_real_distribution<double> dist(0.1, 20.0);
+    for (int i = 1; i < child_num; i++) {
+      uct_child[i].nnrate *=  dist(mt_root);
+    }
+    UNLOCK_EXPAND;
   }
 }
 
