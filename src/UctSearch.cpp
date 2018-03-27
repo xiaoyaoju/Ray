@@ -73,7 +73,7 @@ struct policy_eval_req {
 };
 
 void ReadWeights();
-void EvalNode(int thread_no);
+void EvalNode();
 //void EvalUctNode(std::vector<int>& indices, std::vector<int>& color, std::vector<int>& trans, std::vector<float>& data, std::vector<int>& path);
 
 ////////////////
@@ -197,14 +197,14 @@ ray_clock::time_point begin_time;
 static bool early_pass = true;
 
 static bool use_nn = true;
-static vector<int> device_ids = { -2 };
+static int device_id = -2;
 static std::queue<std::shared_ptr<policy_eval_req>> eval_policy_queue;
 static std::queue<std::shared_ptr<value_eval_req>> eval_value_queue;
 static int eval_count_policy, eval_count_value;
 static double owner_nn[BOARD_MAX];
 
-static vector<CNTK::FunctionPtr> nn_policy_list;
-static vector<CNTK::FunctionPtr> nn_value_list;
+static CNTK::FunctionPtr nn_policy;
+static CNTK::FunctionPtr nn_value;
 
 //template<double>
 double atomic_fetch_add(std::atomic<double> *obj, double arg) {
@@ -412,9 +412,9 @@ SetUseNN(bool flag)
 }
 
 void
-SetDeviceIds(const vector<int>& id)
+SetDeviceId(const int id)
 {
-  device_ids = id;
+  device_id = id;
 }
 
 void
@@ -493,7 +493,7 @@ InitializeUctSearch( void )
     exit(1);
   }
 
-  if (use_nn && nn_policy_list.size() == 0)
+  if (use_nn && !nn_policy)
     ReadWeights();
 }
 
@@ -650,9 +650,7 @@ UctSearchGenmove( game_info_t *game, int color )
   }
 
   if (use_nn) {
-    for (int i = 0; i < device_ids.size(); i++) {
-      handle.push_back(make_unique<thread>(EvalNode, i));
-    }
+    handle.push_back(make_unique<thread>(EvalNode));
   }
 
   for (auto &t : handle) {
@@ -675,9 +673,7 @@ UctSearchGenmove( game_info_t *game, int color )
     }
 
     if (use_nn) {
-      for (int i = 0; i < device_ids.size(); i++) {
-        handle.push_back(make_unique<thread>(EvalNode, i));
-      }
+      handle.push_back(make_unique<thread>(EvalNode));
     }
 
     for (auto &t : handle) {
@@ -835,9 +831,7 @@ UctSearchPondering(game_info_t *game, int color)
   }
 
   if (use_nn) {
-    for (int i = 0; i < device_ids.size(); i++) {
-      handle.push_back(make_unique<thread>(EvalNode, i));
-    }
+    handle.push_back(make_unique<thread>(EvalNode));
   }
 
   return ;
@@ -2425,9 +2419,8 @@ CorrectDescendentNodes(vector<int> &indexes, int index)
 extern char uct_params_path[1024];
 
 static CNTK::DeviceDescriptor
-GetDevice(int no)
+GetDevice()
 {
-  int device_id = device_ids[no];
   if (device_id == -1)
     return CNTK::DeviceDescriptor::CPUDevice();
   if (device_id == -2)
@@ -2447,43 +2440,38 @@ ReadWeights()
 
   cerr << "Init CNTK" << endl;
 
-  for (int i = 0; i < device_ids.size(); i++) {
-    auto device = GetDevice(i);
+  auto device = GetDevice();
 
-    wstring policy_name = path;
-    policy_name += L"/model2.bin";
-    auto nn_policy = CNTK::Function::Load(policy_name, device);
+  wstring policy_name = path;
+  policy_name += L"/model2.bin";
+  nn_policy = CNTK::Function::Load(policy_name, device);
 
-    wstring value_name = path;
-    value_name += L"/model3.bin";
-    auto nn_value = CNTK::Function::Load(value_name, device);
+  wstring value_name = path;
+  value_name += L"/model3.bin";
+  nn_value = CNTK::Function::Load(value_name, device);
 
-    if (!nn_policy || !nn_value)
-    {
-      cerr << "Get EvalModel failed\n";
-      abort();
-    }
-
-    nn_policy_list.push_back(nn_policy);
-    nn_value_list.push_back(nn_value);
+  if (!nn_policy || !nn_value)
+  {
+    cerr << "Get EvalModel failed\n";
+    abort();
+  }
 
 #if 0
-    wcerr << L"***POLICY" << endl;
-    for (auto var : nn_policy->Inputs()) {
-      wcerr << var.AsString() << endl;
-    }
-    for (auto var : nn_policy->Outputs()) {
-      wcerr << var.AsString() << endl;
-    }
-    wcerr << L"***VALUE" << endl;
-    for (auto var : nn_value->Inputs()) {
-      wcerr << var.AsString() << endl;
-    }
-    for (auto var : nn_value->Outputs()) {
-      wcerr << var.AsString() << endl;
-    }
-#endif
+  wcerr << L"***POLICY" << endl;
+  for (auto var : nn_policy->Inputs()) {
+    wcerr << var.AsString() << endl;
   }
+  for (auto var : nn_policy->Outputs()) {
+    wcerr << var.AsString() << endl;
+  }
+  wcerr << L"***VALUE" << endl;
+  for (auto var : nn_value->Inputs()) {
+    wcerr << var.AsString() << endl;
+  }
+  for (auto var : nn_value->Outputs()) {
+    wcerr << var.AsString() << endl;
+  }
+#endif
 
   cerr << "ok" << endl;
 }
@@ -2516,7 +2504,7 @@ GetOutputVaraiableByName(CNTK::FunctionPtr evalFunc, wstring varName, CNTK::Vari
 }
 
 void
-EvalPolicy(int thread_no,
+EvalPolicy(
   const std::vector<std::shared_ptr<policy_eval_req>>& requests,
   std::vector<float>& data_basic, std::vector<float>& data_features, std::vector<float>& data_history,
   std::vector<float>& data_color, std::vector<float>& data_komi)
@@ -2524,8 +2512,7 @@ EvalPolicy(int thread_no,
   if (requests.size() == 0)
     return;
 
-  auto device = GetDevice(thread_no);
-  auto nn_policy = nn_policy_list[thread_no];
+  auto device = GetDevice();
 
   CNTK::Variable var_basic, var_features, var_history, var_color, var_komi;
   GetInputVariableByName(nn_policy, L"basic", var_basic);
@@ -2627,7 +2614,7 @@ EvalPolicy(int thread_no,
 
 
 void
-EvalValue(int thread_no,
+EvalValue(
   const std::vector<std::shared_ptr<value_eval_req>>& requests,
   std::vector<float>& data_basic, std::vector<float>& data_features, std::vector<float>& data_history,
   std::vector<float>& data_color, std::vector<float>& data_komi, std::vector<float>& data_safety)
@@ -2635,8 +2622,7 @@ EvalValue(int thread_no,
   if (requests.size() == 0)
     return;
 
-  auto device = GetDevice(thread_no);
-  auto nn_value = nn_value_list[thread_no];
+  auto device = GetDevice();
 
   CNTK::Variable var_basic, var_features, var_history, var_color, var_komi, var_safety;
   GetInputVariableByName(nn_value, L"basic", var_basic);
@@ -2723,8 +2709,7 @@ EvalValue(int thread_no,
   eval_count_value += requests.size();
 }
 
-void EvalNode(int thread_no) {
-#if 1
+void EvalNode() {
   std::vector<float> eval_input_data_basic;
   std::vector<float> eval_input_data_features;
   std::vector<float> eval_input_data_history;
@@ -2739,7 +2724,7 @@ void EvalNode(int thread_no) {
     if (!running
       && ((!reuse_subtree && !ponder) || (eval_policy_queue.empty() && eval_value_queue.empty()))) {
       mutex_queue.unlock();
-      cerr << "Eval #" << thread_no << " " << num_eval << endl;
+      cerr << "Eval " << num_eval << endl;
       break;
     }
 
@@ -2775,7 +2760,7 @@ void EvalNode(int thread_no) {
         eval_input_data_komi.push_back(komi[0]);
       }
       num_eval += requests.size();
-      EvalPolicy(thread_no, requests, eval_input_data_basic, eval_input_data_features, eval_input_data_history, eval_input_data_color, eval_input_data_komi);
+      EvalPolicy(requests, eval_input_data_basic, eval_input_data_features, eval_input_data_history, eval_input_data_color, eval_input_data_komi);
       mutex_queue.lock();
     }
 
@@ -2805,8 +2790,7 @@ void EvalNode(int thread_no) {
       }
       eval_input_data_safety.resize(requests.size() * pure_board_max * 8);
       num_eval += requests.size();
-      EvalValue(thread_no, requests, eval_input_data_basic, eval_input_data_features, eval_input_data_history, eval_input_data_color, eval_input_data_komi, eval_input_data_safety);
+      EvalValue(requests, eval_input_data_basic, eval_input_data_features, eval_input_data_history, eval_input_data_color, eval_input_data_komi, eval_input_data_safety);
     }
   }
-#endif
 }
