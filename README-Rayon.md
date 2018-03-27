@@ -1,6 +1,6 @@
 Require
 -------
-- CNTK version 2.3
+- CNTK version 2.4
   https://github.com/Microsoft/CNTK/releases
 - NVIDIA GPU
 
