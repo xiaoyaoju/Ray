@@ -919,6 +919,7 @@ GTP_ray_param()
     GTP_response("unknown param", false);
     return;
   }
+  SetParameter();
 
   GTP_response(brank, true);
 }
