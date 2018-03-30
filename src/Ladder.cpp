@@ -26,6 +26,7 @@ LadderExtension( const game_info_t *game, int color, bool *ladder_pos )
 
   for (int i = 0; i < MAX_STRING; i++) {
     if (!string[i].flag ||
+        string[i].size < 2 ||
 	string[i].color != color) {
       continue;
     }
@@ -42,19 +43,19 @@ LadderExtension( const game_info_t *game, int color, bool *ladder_pos )
       // 隣接する敵連を取って助かるかを確認
       int neighbor = string[i].neighbor[0];
       while (neighbor != NEIGHBOR_END && !flag) {
-	if (string[neighbor].libs == 1) {
-	  if (IsLegal(game, string[neighbor].lib[0], color)) {
-	    PutStoneForSearch(ladder_game, string[neighbor].lib[0], color);
-	    if (IsLadderCaptured(0, ladder_game, string[i].origin, FLIP_COLOR(color)) == DEAD) {
-	      if (string[i].size >= 2) {
-		  ladder_pos[string[neighbor].lib[0]] = true;
-		}
-	      } else {
-		flag = true;
-	      }
-	      Undo(ladder_game);
-	    }
-	}
+        if (string[neighbor].libs == 1) {
+          if (IsLegal(game, string[neighbor].lib[0], color)) {
+            PutStoneForSearch(ladder_game, string[neighbor].lib[0], color);
+            if (IsLadderCaptured(0, ladder_game, string[i].origin, FLIP_COLOR(color)) == DEAD) {
+              if (string[i].size >= 2) {
+                ladder_pos[string[neighbor].lib[0]] = true;
+              }
+            } else {
+              flag = true;
+            }
+            Undo(ladder_game);
+          }
+        }
 	neighbor = string[i].neighbor[neighbor];
       }
 
