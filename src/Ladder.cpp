@@ -12,7 +12,7 @@ using namespace std;
 #define DEAD  false
 
 // シチョウ探索
-static bool IsLadderCaptured( const int depth, search_game_info_t *game, const int ren_xy, const int turn_color );
+static bool IsLadderCaptured( const int depth, search_game_info_t *game, const int ren_xy, const int turn_color, int &max_size );
 
 ////////////////////////////////
 //  現在の局面のシチョウ探索  //
@@ -46,8 +46,9 @@ LadderExtension( const game_info_t *game, int color, bool *ladder_pos )
         if (string[neighbor].libs == 1) {
           if (IsLegal(game, string[neighbor].lib[0], color)) {
             PutStoneForSearch(ladder_game, string[neighbor].lib[0], color);
-            if (IsLadderCaptured(0, ladder_game, string[i].origin, FLIP_COLOR(color)) == DEAD) {
-              if (string[i].size >= 2) {
+            int max_size = string[i].origin;
+            if (IsLadderCaptured(0, ladder_game, string[i].origin, FLIP_COLOR(color), max_size) == DEAD) {
+              if (max_size >= 7) {
                 ladder_pos[string[neighbor].lib[0]] = true;
               }
             } else {
@@ -63,9 +64,11 @@ LadderExtension( const game_info_t *game, int color, bool *ladder_pos )
       if (!flag) {
 	if (IsLegal(game, ladder, color)) {
 	  PutStoneForSearch(ladder_game, ladder, color);
-	  if (string[i].size >= 2 &&
-	      IsLadderCaptured(0, ladder_game, ladder, FLIP_COLOR(color)) == DEAD) {
-	    ladder_pos[ladder] = true;
+          int max_size = string[i].size;
+	  if (IsLadderCaptured(0, ladder_game, ladder, FLIP_COLOR(color), max_size) == DEAD) {
+            if (max_size >= 7) {
+              ladder_pos[ladder] = true;
+            }
 	  }
 	  Undo(ladder_game);
 	}
@@ -80,7 +83,7 @@ LadderExtension( const game_info_t *game, int color, bool *ladder_pos )
 //  シチョウ探索  //
 ////////////////////
 static bool
-IsLadderCaptured( const int depth, search_game_info_t *game, const int ren_xy, const int turn_color )
+IsLadderCaptured( const int depth, search_game_info_t *game, const int ren_xy, const int turn_color, int &max_size )
 {
   const char *board = game->board;
   const string_t *string = game->string;
@@ -107,11 +110,12 @@ IsLadderCaptured( const int depth, search_game_info_t *game, const int ren_xy, c
     // 周囲の敵連が取れるか確認し,
     // 取れるなら取って探索を続ける
     neighbor = string[str].neighbor[0];
+    int local_max = max_size;
     while (neighbor != NEIGHBOR_END) {
       if (string[neighbor].libs == 1) {
 	if (IsLegalForSearch(game, string[neighbor].lib[0], escape_color)) {
 	  PutStoneForSearch(game, string[neighbor].lib[0], escape_color);
-	  result = IsLadderCaptured(depth + 1, game, ren_xy, FLIP_COLOR(turn_color));
+	  result = IsLadderCaptured(depth + 1, game, ren_xy, FLIP_COLOR(turn_color), local_max);
 	  Undo(game);
 	  if (result == ALIVE) {
 	    return ALIVE;
@@ -126,7 +130,7 @@ IsLadderCaptured( const int depth, search_game_info_t *game, const int ren_xy, c
     while (escape_xy != LIBERTY_END) {
       if (IsLegalForSearch(game, escape_xy, escape_color)) {
 	PutStoneForSearch(game, escape_xy, escape_color);
-	result = IsLadderCaptured(depth + 1, game, ren_xy, FLIP_COLOR(turn_color));
+	result = IsLadderCaptured(depth + 1, game, ren_xy, FLIP_COLOR(turn_color), local_max);
 	Undo(game);
 	if (result == ALIVE) {
 	  return ALIVE;
@@ -134,9 +138,13 @@ IsLadderCaptured( const int depth, search_game_info_t *game, const int ren_xy, c
       }
       escape_xy = string[str].lib[escape_xy];
     }
+    if (local_max > max_size)
+      max_size = local_max;
     return DEAD;
   } else {
     if (string[str].libs == 1) {
+      if (string[str].size > max_size)
+        max_size = string[str].size;
       return DEAD;
     }
     // 追いかける側なのでアタリにする手を打ってみる
@@ -144,7 +152,7 @@ IsLadderCaptured( const int depth, search_game_info_t *game, const int ren_xy, c
     while (capture_xy != LIBERTY_END) {
       if (IsLegalForSearch(game, capture_xy, capture_color)) {
 	PutStoneForSearch(game, capture_xy, capture_color);
-	result = IsLadderCaptured(depth + 1, game, ren_xy, FLIP_COLOR(turn_color));
+	result = IsLadderCaptured(depth + 1, game, ren_xy, FLIP_COLOR(turn_color), max_size);
 	Undo(game);
 	if (result == DEAD) {
 	  return DEAD;
@@ -152,9 +160,8 @@ IsLadderCaptured( const int depth, search_game_info_t *game, const int ren_xy, c
       }
       capture_xy = string[str].lib[capture_xy];
     }
+    return ALIVE;
   }
-
-  return ALIVE;
 }
 
 
@@ -182,7 +189,8 @@ CheckLadderExtension( const game_info_t *game, int color, int pos )
     std::unique_ptr<search_game_info_t> search_game(new search_game_info_t(game));
     search_game_info_t *ladder_game = search_game.get();
     PutStoneForSearch(ladder_game, ladder, color);
-    if (IsLadderCaptured(0, ladder_game, ladder, FLIP_COLOR(color)) == DEAD) {
+    int max_size = string[id].size;
+    if (IsLadderCaptured(0, ladder_game, ladder, FLIP_COLOR(color), max_size) == DEAD) {
       flag = true;
     } else {
       flag = false;
