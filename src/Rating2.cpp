@@ -27,7 +27,7 @@ using namespace std;
 extern char po_params_path[1024];
 
 // シチョウ探索
-bool IsLadderCaptured( const int depth, search_game_info_t *game, const int ren_xy, const int turn_color );
+bool IsLadderCaptured( const int depth, search_game_info_t *game, const int ren_xy, const int turn_color, int &max_size );
 
 namespace rating_v2 {
 
@@ -780,7 +780,8 @@ GetLadderState( rating_context_t& ctx, int id, position_t lib, int color )
 
   if (IsLegalForSearch(ctx.search_game, lib, color)) {
     PutStoneForSearch(ctx.search_game, lib, color);
-    if (!IsLadderCaptured(90, ctx.search_game, string[id].origin, FLIP_COLOR(color))) {
+    int max_size = string[id].size;
+    if (!IsLadderCaptured(90, ctx.search_game, string[id].origin, FLIP_COLOR(color), max_size)) {
       ctx.string_captured[id * 2 + ladder_no] = rating_ladder_state_t::DEAD;
       ctx.string_captured_pos[id * 2 + ladder_no] = lib;
     } else {
@@ -1498,7 +1499,8 @@ PoCheckCaptureAndAtari( rating_context_t& ctx, const int color, const position_t
           escapable = true;
         }
         */
-        if (!IsLadderCaptured(90, ctx.search_game, string[id].origin, FLIP_COLOR(color))) {
+        int max_size = string[id].size;
+        if (!IsLadderCaptured(90, ctx.search_game, string[id].origin, FLIP_COLOR(color), max_size)) {
 #if 0
           cerr << "NO ESCAPABLE " << FormatMove(pos) << " " << FormatMove(other_pos) << endl;
           PrintBoard(game);
