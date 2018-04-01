@@ -53,6 +53,7 @@ typedef std::pair<std::wstring, std::vector<float>*> MapEntry;
 typedef std::map<std::wstring, std::vector<float>*> Layer;
 
 struct value_eval_req {
+  int index;
   child_node_t *uct_child;
   int color;
   int trans;
@@ -106,6 +107,7 @@ static bool extend_time = false;
 int current_root; // 現在のルートのインデックス
 mutex mutex_nodes[MAX_NODES];
 mutex mutex_expand;       // ノード展開を排他処理するためのmutex
+mutex mutex_uctrating;
 
 mutex mutex_queue;
 
@@ -251,7 +253,10 @@ static void CalculateOwnerIndex( uct_node_t *node, statistic_t *node_statistc, i
 static void CorrectDescendentNodes( vector<int> &indexes, int index );
 
 // ノードの展開
-static int ExpandNode( game_info_t *game, int color, int current, const std::vector<int>& path );
+static int ExpandNode( game_info_t *game, int color );
+
+// 子ノードの評価
+static void RatingExpandedNode( unsigned int index, game_info_t *game, int color, int current, const std::vector<int>& path );
 
 // ルートの展開
 static int ExpandRoot( game_info_t *game, int color );
@@ -990,7 +995,7 @@ ExpandRoot( game_info_t *game, int color )
   // 2手前の着手の座標を取り出す
   if (moves > 1) pm2 = game->record[moves - 2].pos;
 
-  // 9路盤でなければシチョウを調べる  
+  // 9路盤でなければシチョウを調べる
   if (pure_board_size != 9) {
     LadderExtension(game, color, ladder);
   }
@@ -1112,13 +1117,12 @@ ExpandRoot( game_info_t *game, int color )
 //  ノードの展開  //
 ///////////////////
 static int
-ExpandNode( game_info_t *game, int color, int current, const std::vector<int>& path )
+ExpandNode( game_info_t *game, int color )
 {
   unsigned long long hash = game->move_hash;
   unsigned int index = FindSameHashIndex(hash, color, game->moves);
   child_node_t *uct_child, *uct_sibling;
   int i, pos, child_num = 0;
-  bool ladder[BOARD_MAX] = { false };  
   double max_rate = 0.0;
   int max_pos = PASS, sibling_num;
   int pm1 = PASS, pm2 = PASS;
@@ -1139,11 +1143,6 @@ ExpandNode( game_info_t *game, int color, int current, const std::vector<int>& p
   // 2手前の着手の座標を取り出す
   if (moves > 1) pm2 = game->record[moves - 2].pos;
 
-  // 9路盤でなければシチョウを調べる  
-  if (pure_board_size != 9) {
-    LadderExtension(game, color, ladder);
-  }
-
   // 現在のノードの初期化
   uct_node[index].previous_move1 = pm1;
   uct_node[index].previous_move2 = pm2;
@@ -1159,7 +1158,7 @@ ExpandNode( game_info_t *game, int color, int current, const std::vector<int>& p
   uct_child = uct_node[index].child;
 
   // パスノードの展開
-  InitializeCandidate(&uct_child[PASS_INDEX], PASS, ladder[PASS]);
+  InitializeCandidate(&uct_child[PASS_INDEX], PASS, false);
   child_num++;
 
   // 候補手の展開
@@ -1167,13 +1166,36 @@ ExpandNode( game_info_t *game, int color, int current, const std::vector<int>& p
     pos = onboard_pos[i];
     // 探索候補でなければ除外
     if (candidates[pos] && IsLegal(game, pos, color)) {
-      InitializeCandidate(&uct_child[child_num], pos, ladder[pos]);
+      InitializeCandidate(&uct_child[child_num], pos, false);
       child_num++;
     }
   }
 
   // 子ノードの個数を設定
   uct_node[index].child_num = child_num;
+
+  return index;
+}
+
+
+static void
+RatingExpandedNode( unsigned int index, game_info_t *game, int color, int current, const std::vector<int>& path )
+{
+  int child_num = uct_node[index].child_num;
+  child_node_t *uct_child = uct_node[index].child;
+  bool ladder[BOARD_MAX] = { false };
+
+  // 9路盤でなければシチョウを調べる
+  if (pure_board_size != 9) {
+    LadderExtension(game, color, ladder);
+  }
+
+  // シチョウ判定を設定
+  for (int i = 0; i < child_num; i++) {
+    uct_child[i].ladder = ladder[uct_child[i].pos];
+  }
+
+  lock_guard<mutex> lock(mutex_uctrating);
 
   // 候補手のレーティング
   RatingNode(game, color, index, path.size() + 1);
@@ -1185,28 +1207,29 @@ ExpandNode( game_info_t *game, int color, int current, const std::vector<int>& p
   uct_node[index].width++;
 
   // 兄弟ノードで一番レートの高い手を求める
-  uct_sibling = uct_node[current].child;
-  sibling_num = uct_node[current].child_num;
-  for (i = 0; i < sibling_num; i++) {
+  int pm1 = PASS;
+  double max_rate = 0.0;
+  int max_pos = PASS;
+  child_node_t *uct_sibling = uct_node[current].child;
+  int sibling_num = uct_node[current].child_num;
+  for (int i = 0; i < sibling_num; i++) {
     if (uct_sibling[i].pos != pm1) {
       if (uct_sibling[i].rate > max_rate) {
-	max_rate = uct_sibling[i].rate;
-	max_pos = uct_sibling[i].pos;
+        max_rate = uct_sibling[i].rate;
+        max_pos = uct_sibling[i].pos;
       }
     }
   }
 
   // 兄弟ノードで一番レートの高い手を展開する
-  for (i = 0; i < child_num; i++) {
+  for (int i = 0; i < child_num; i++) {
     if (uct_child[i].pos == max_pos) {
       if (!uct_child[i].flag) {
-	uct_child[i].open = true;
+        uct_child[i].open = true;
       }
       break;
     }
   }
-
-  return index;
 }
 
 
@@ -1251,31 +1274,35 @@ RatingNode( game_info_t *game, int color, int index, int depth )
   max_score = uct_child[0].rate;
 
   if (use_nn) {
-    //int color = game->record[game->moves - 1].color;
+    if (depth > 1 || uct_node[index].evaled) {
+      //cerr << "Skip evaluated node " << index << endl;
+    } else {
+      //int color = game->record[game->moves - 1].color;
 
-    uct_node_t *root = &uct_node[current_root];
+      uct_node_t *root = &uct_node[current_root];
 
-    double rate[PURE_BOARD_MAX];
-    AnalyzePoRating(game, color, rate);
+      double rate[PURE_BOARD_MAX];
+      AnalyzePoRating(game, color, rate);
 
-    auto req = make_shared<policy_eval_req>();
-    req->color = color;
-    req->depth = depth;
-    req->index = index;
-    req->trans = rand() / (RAND_MAX / 8 + 1);
-    //req.path.swap(path);
-    WritePlanes(req->data_basic, req->data_features, req->data_history, nullptr,
-      game, root, color, req->trans);
+      auto req = make_shared<policy_eval_req>();
+      req->color = color;
+      req->depth = depth;
+      req->index = index;
+      req->trans = rand() / (RAND_MAX / 8 + 1);
+      //req.path.swap(path);
+      WritePlanes(req->data_basic, req->data_features, req->data_history, nullptr,
+        game, root, color, req->trans);
 #if 1
-    mutex_queue.lock();
-    eval_policy_queue.push(req);
-    mutex_queue.unlock();
-    //push_back(u);
+      mutex_queue.lock();
+      eval_policy_queue.push(req);
+      mutex_queue.unlock();
+      //push_back(u);
 #else
-    std::vector<int> indices;
-    indices.push_back(index);
-    EvalUctNode(indices, req.data);
+      std::vector<int> indices;
+      indices.push_back(index);
+      EvalUctNode(indices, req.data);
 #endif
+    }
   }
 
   for (int i = 1; i < child_num; i++) {
@@ -1649,18 +1676,22 @@ UctSearch(game_info_t *game, int color, mt19937_64 *mt, LGR& lgrf, LGRContext& l
         || mode == CONST_PLAYOUT_MODE)
       && atomic_compare_exchange_strong(&uct_child[next_index].eval_value, &expected, true)) {
 
-      uct_node_t *root = &uct_node[current_root];
+      LOCK_EXPAND;
+      if (uct_child[next_index].index < 0)
+        uct_child[next_index].index = ExpandNode(game, color);
+      UNLOCK_EXPAND;
 
       double rate[PURE_BOARD_MAX];
       AnalyzePoRating(game, color, rate);
       auto req = make_shared<value_eval_req>();
+      req->index = uct_child[next_index].index;
       req->uct_child = uct_child + next_index;
       req->color = color;
       //req->index = index;
       req->trans = rand() / (RAND_MAX / 8 + 1);
       req->path.swap(path);
       WritePlanes(req->data_basic, req->data_features, req->data_history, nullptr,
-        game, root, color, req->trans);
+        game, nullptr, color, req->trans);
       mutex_queue.lock();
       eval_value_queue.push(req);
       mutex_queue.unlock();
@@ -1703,10 +1734,17 @@ UctSearch(game_info_t *game, int color, mt19937_64 *mt, LGR& lgrf, LGRContext& l
       // ノードの展開中はロック
       LOCK_EXPAND;
       // ノードの展開
-      uct_child[next_index].index = ExpandNode(game, color, current, path);
+      if (uct_child[next_index].index < 0)
+        uct_child[next_index].index = ExpandNode(game, color);
       //cerr << "value evaluated " << result << " " << v << " " << *value_result << endl;
       // ノード展開のロックの解除
       UNLOCK_EXPAND;
+    }
+    if (uct_node[uct_child[next_index].index].width == 0) {
+      if (!uct_child[next_index].eval_value)
+        cerr << "Unevaluated node " << endl;
+      // ノードの評価
+      RatingExpandedNode(uct_child[next_index].index, game, color, current, path);
     }
     // 現在見ているノードのロックを解除
     UNLOCK_NODE(current);
@@ -2708,6 +2746,8 @@ EvalValue(
 
   CNTK::Variable var_p;
   GetOutputVaraiableByName(nn_value, L"p2", var_p);
+  CNTK::Variable var_ol;
+  GetOutputVaraiableByName(nn_policy, L"ol", var_ol);
 
   size_t num_req = requests.size();
 
@@ -2723,6 +2763,7 @@ EvalValue(
   CNTK::ValuePtr value_komi = CNTK::MakeSharedObject<CNTK::Value>(CNTK::MakeSharedObject<CNTK::NDArrayView>(shape_komi, data_komi, true));
 
   CNTK::ValuePtr value_p;
+  CNTK::ValuePtr value_ol;
 
   std::unordered_map<CNTK::Variable, CNTK::ValuePtr> inputs = {
     { var_basic, value_basic },
@@ -2731,7 +2772,10 @@ EvalValue(
     { var_color, value_color },
     { var_komi, value_komi },
   };
-  std::unordered_map<CNTK::Variable, CNTK::ValuePtr> outputs = { { var_p, value_p } };
+  std::unordered_map<CNTK::Variable, CNTK::ValuePtr> outputs = {
+    { var_p, value_p },
+    { var_ol, value_ol },
+  };
 
   try {
     nn_value->Forward(inputs, outputs, device);
@@ -2753,9 +2797,48 @@ EvalValue(
     cerr << "Eval win error " << win.size() << endl;
     return;
   }
+
+  value_ol = outputs[var_ol];
+  CNTK::NDShape shape_ol = var_ol.Shape().AppendShape({ 1, num_req });
+  vector<float> moves(shape_ol.TotalSize());
+  CNTK::NDArrayViewPtr cpu_moves = CNTK::MakeSharedObject<CNTK::NDArrayView>(shape_ol, moves, false);
+  cpu_moves->CopyFrom(*value_ol->Data());
+
+  if (moves.size() != pure_board_max * num_req) {
+    cerr << "Eval move error " << moves.size() << endl;
+    return;
+  }
+
   //cerr << "Eval " << indices.size() << " " << path.size() << endl;
   for (int j = 0; j < requests.size(); j++) {
     auto req = requests[j];
+
+    const int index = req->index;
+    const int child_num = uct_node[index].child_num;
+    child_node_t *uct_child = uct_node[index].child;
+    const int ofs = pure_board_max * j;
+
+    LOCK_NODE(index);
+
+    for (int i = 1; i < child_num; i++) {
+      int pos = RevTransformMove(uct_child[i].pos, req->trans);
+
+      int x = X(pos) - OB_SIZE;
+      int y = Y(pos) - OB_SIZE;
+      int n = x + y * pure_board_size;
+      double score = moves[n + ofs];
+      //if (depth == 1) cerr << "RAW POLICY " << uct_child[i].pos << " " << req->trans << " " << FormatMove(pos) << " " << x << "," << y << " " << ofs << " -> " << score << endl;
+      if (uct_child[i].ladder) {
+        score -= 4; // ~= 1.83%
+      }
+
+      uct_child[i].nnrate0 = score;
+    }
+
+    UpdatePolicyRate(index);
+    uct_node[index].evaled = true;
+
+    UNLOCK_NODE(index);
 
     double p = ((double)win[j] + 1) / 2;
     if (p < 0)
@@ -2770,7 +2853,7 @@ EvalValue(
     for (int i = req->path.size() - 1; i >= 0; i--) {
       int current = req->path[i];
       if (current < 0)
-	break;
+        break;
 
       atomic_fetch_add(&uct_node[current].value_move_count, 1);
       atomic_fetch_add(&uct_node[current].value_win, value);
