@@ -423,9 +423,10 @@ Train()
 
     const size_t outputFrequencyInMinibatches = 50;
     const size_t trainingCheckpointFrequency = 500;
-    const int stepsize = 400;
+    const int stepsize = 100;
     const double lr_min = 1.0e-6;
-    const double lr_max = 2.0e-4;
+    //const double lr_max = 2.0e-4;
+    const double lr_max = 2.0e-3;
 
     const size_t loop_size = trainingCheckpointFrequency * 2;
     minibatch_size = 128;
