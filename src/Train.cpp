@@ -439,6 +439,19 @@ Train()
 
     int start_step = 0;
 
+    for (auto entry : fs::directory_iterator(".")) {
+      if (entry.path().extension() != ".999")
+        continue;
+      auto name = entry.path().filename().string();
+      if (name.find("feedForward.net") == 0) {
+        int pos = name.find('.', 16);
+        auto step = name.substr(16, pos - 16);
+        int istep = stoi(step);
+        cerr << name << " --> " << istep << endl;
+        if (istep > start_step)
+          start_step = istep;
+      }
+    }
     while (true) {
       const wstring ckpName = L"feedForward.net." + to_wstring(start_step + 1) + L"." + to_wstring(999);
       wcerr << "Try " << ckpName << endl;
