@@ -423,7 +423,7 @@ Train()
 
     const size_t outputFrequencyInMinibatches = 50;
     const size_t trainingCheckpointFrequency = 500;
-    const int stepsize = 100;
+    const int stepsize = 200;
     const double lr_min = 1.0e-6;
     //const double lr_max = 2.0e-4;
     const double lr_max = 2.0e-3;
@@ -557,7 +557,9 @@ Train()
 
       //double rate = 2.0e-8 + 1.0e-3 / stepsize * (stepsize - abs(alt % (stepsize * 2) - stepsize));
       //double rate = 2.0e-7 + 8.0e-6 / stepsize * (stepsize - abs(alt % (stepsize * 2) - stepsize));
+      double lr_scale = pow(2, -alt / stepsize / 2.0);
       double rate = lr_min + (lr_max - lr_min) / stepsize * (stepsize - alt % stepsize);
+      rate *= lr_scale;
       cerr << rate << endl;
       LearningRateSchedule learningRatePerSample = TrainingParameterPerSampleSchedule(rate);
       //LearningRateSchedule learningRatePerSample = TrainingParameterPerSampleSchedule(4.00e-07);
