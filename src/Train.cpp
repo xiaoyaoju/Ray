@@ -151,7 +151,7 @@ public:
     // Replay to random turn
     int dump_turn;
     if (kifu.random_move < 0) {
-      uniform_int_distribution<int> dist_turn(1, kifu.moves - 1);
+      uniform_int_distribution<int> dist_turn(1, max(1, kifu.moves - 20));
       dump_turn = dist_turn(mt);
     } else {
       //dump_turn = kifu.random_move - 1;
