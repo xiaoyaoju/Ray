@@ -48,6 +48,11 @@ using namespace std;
 #define LOCK_EXPAND mutex_expand.lock();
 #define UNLOCK_EXPAND mutex_expand.unlock();
 
+struct uct_search_context_t {
+  int move_count;
+  std::vector<int> path;
+};
+
 struct nn_eval_req {
   int index;
   int moves;
@@ -157,6 +162,9 @@ double bonus_weight = BONUS_WEIGHT;
 
 // 乱数生成器
 std::vector<std::unique_ptr<std::mt19937_64>> mt;
+
+// Search context
+std::vector<uct_search_context_t> ctx;
 
 // Criticalityの上限値
 int criticality_max = CRITICALITY_MAX;
@@ -268,7 +276,7 @@ static int SelectMaxUcbChild(const game_info_t *game, int current, int color );
 static void Statistic( game_info_t *game, int winner );
 
 // UCT探索(1回の呼び出しにつき, 1回の探索)
-static int UctSearch( game_info_t *game, int color, mt19937_64 *mt, int current, int *winner, std::vector<int>& path);
+static int UctSearch( uct_search_context_t& ctx, game_info_t *game, int color, mt19937_64 *mt, int current, int *winner );
 
 // 各ノードの統計情報の更新
 static void UpdateNodeStatistic( game_info_t *game, int winner, statistic_t *node_statistic );
@@ -326,6 +334,8 @@ void
 SetThread( int new_thread )
 {
   threads = new_thread;
+
+  ctx.resize(threads);
 
   InitRand();
 }
@@ -499,6 +509,8 @@ InitializeSearchSetting( void )
 
   // 乱数の初期化
   InitRand();
+
+  ctx.resize(threads);
 
   // 持ち時間の初期化
   for (int i = 0; i < 3; i++) {
@@ -1460,7 +1472,8 @@ ParallelUctSearch( thread_arg_t *arg )
   bool enough_size = true;
   int winner = 0;
   int interval = CRITICALITY_INTERVAL;
-  
+  uct_search_context_t& c = ctx[targ->thread_id];
+
   game = AllocateGame();
 
   // スレッドIDが0のスレッドだけ別の処理をする
@@ -1470,12 +1483,12 @@ ParallelUctSearch( thread_arg_t *arg )
       // Wait if dcnn queue is full
       WaitForEvaluationQueue(false);
       // 探索回数を1回増やす
-      atomic_fetch_add(&po_info.count, 1);
+      c.move_count = atomic_fetch_add(&po_info.count, 1);
       // 盤面のコピー
       CopyGame(game, targ->game);
       // 1回プレイアウトする
-      std::vector<int> path;
-      UctSearch(game, color, mt[targ->thread_id].get(), current_root, &winner, path);
+      c.path.clear();
+      UctSearch(c, game, color, mt[targ->thread_id].get(), current_root, &winner);
       // 探索を打ち切るか確認
       interruption = InterruptionCheck();
       // ハッシュに余裕があるか確認
@@ -1495,12 +1508,12 @@ ParallelUctSearch( thread_arg_t *arg )
       // Wait if dcnn queue is full
       WaitForEvaluationQueue(false);
       // 探索回数を1回増やす
-      atomic_fetch_add(&po_info.count, 1);
+      c.move_count = atomic_fetch_add(&po_info.count, 1);
       // 盤面のコピー
       CopyGame(game, targ->game);
       // 1回プレイアウトする
-	  std::vector<int> path;
-      UctSearch(game, color, mt[targ->thread_id].get(), current_root, &winner, path);
+      c.path.clear();
+      UctSearch(c, game, color, mt[targ->thread_id].get(), current_root, &winner);
       // 探索を打ち切るか確認
       interruption = InterruptionCheck();
       // ハッシュに余裕があるか確認
@@ -1529,6 +1542,7 @@ ParallelUctSearchPondering( thread_arg_t *arg )
   bool enough_size = true;
   int winner = 0;
   int interval = CRITICALITY_INTERVAL;
+  uct_search_context_t& c = ctx[targ->thread_id];
 
   game = AllocateGame();
 
@@ -1539,12 +1553,12 @@ ParallelUctSearchPondering( thread_arg_t *arg )
       // Wait if dcnn queue is full
       WaitForEvaluationQueue(true);
       // 探索回数を1回増やす
-      atomic_fetch_add(&po_info.count, 1);
+      c.move_count = atomic_fetch_add(&po_info.count, 1);
       // 盤面のコピー
       CopyGame(game, targ->game);
       // 1回プレイアウトする
-      std::vector<int> path;
-      UctSearch(game, color, mt[targ->thread_id].get(), current_root, &winner, path);
+      c.path.clear();
+      UctSearch(c, game, color, mt[targ->thread_id].get(), current_root, &winner);
       // ハッシュに余裕があるか確認
       enough_size = CheckRemainingHashSize();
       // OwnerとCriticalityを計算する
@@ -1560,12 +1574,12 @@ ParallelUctSearchPondering( thread_arg_t *arg )
       // Wait if dcnn queue is full
       WaitForEvaluationQueue(true);
       // 探索回数を1回増やす
-      atomic_fetch_add(&po_info.count, 1);
+      c.move_count = atomic_fetch_add(&po_info.count, 1);
       // 盤面のコピー
       CopyGame(game, targ->game);
       // 1回プレイアウトする
-      std::vector<int> path;
-      UctSearch(game, color, mt[targ->thread_id].get(), current_root, &winner, path);
+      c.path.clear();
+      UctSearch(c, game, color, mt[targ->thread_id].get(), current_root, &winner);
       // ハッシュに余裕があるか確認
       enough_size = CheckRemainingHashSize();
     } while (!pondering_stop && enough_size);
@@ -1581,8 +1595,8 @@ ParallelUctSearchPondering( thread_arg_t *arg )
 //  UCT探索を行う関数                        //
 //  1回の呼び出しにつき, 1プレイアウトする    //
 //////////////////////////////////////////////
-static int 
-UctSearch( game_info_t *game, int color, mt19937_64 *mt, int current, int *winner, std::vector<int>& path)
+static int
+UctSearch( uct_search_context_t& ctx, game_info_t *game, int color, mt19937_64 *mt, int current, int *winner )
 {
   int result = 0, next_index;
   double score;
@@ -1603,7 +1617,7 @@ UctSearch( game_info_t *game, int color, mt19937_64 *mt, int current, int *winne
 
   if (no_expand || uct_child[next_index].move_count < expand_threshold || end_of_game) {
     int start = game->moves;
-    path.push_back(current);
+    ctx.path.push_back(current);
 
     // Virtual Lossを加算
     int n = AddVirtualLoss(&uct_child[next_index], current);
@@ -1625,7 +1639,7 @@ UctSearch( game_info_t *game, int color, mt19937_64 *mt, int current, int *winne
 
       auto req = make_shared<nn_eval_req>();
       req->index = uct_child[next_index].index;
-      copy(path.begin(), path.end(), back_inserter(req->path));
+      copy(ctx.path.begin(), ctx.path.end(), back_inserter(req->path));
       req->moves = game->moves;
       memcpy(req->record, game->record, sizeof(record_t) * MAX_RECORDS);
 
@@ -1661,7 +1675,7 @@ UctSearch( game_info_t *game, int color, mt19937_64 *mt, int current, int *winne
     // 統計情報の記録
     Statistic(game, *winner);
   } else {
-    path.push_back(current);
+    ctx.path.push_back(current);
     // Virtual Lossを加算
     AddVirtualLoss(&uct_child[next_index], current);
     // ノードの展開の確認
@@ -1669,7 +1683,7 @@ UctSearch( game_info_t *game, int color, mt19937_64 *mt, int current, int *winne
       // ノードの展開中はロック
       LOCK_EXPAND;
       // ノードの展開
-      uct_child[next_index].index = ExpandNode(game, color, current, path);
+      uct_child[next_index].index = ExpandNode(game, color, current, ctx.path);
       //cerr << "value evaluated " << result << " " << v << " " << *value_result << endl;
       // ノード展開のロックの解除
       UNLOCK_EXPAND;
@@ -1677,7 +1691,7 @@ UctSearch( game_info_t *game, int color, mt19937_64 *mt, int current, int *winne
     // 現在見ているノードのロックを解除
     UNLOCK_NODE(current);
     // 手番を入れ替えて1手深く読む
-    result = UctSearch(game, color, mt, uct_child[next_index].index, winner, path);
+    result = UctSearch(ctx, game, color, mt, uct_child[next_index].index, winner);
     //
     // double v = uct_node[current].value;
     // if (*value_result < 0 && v >= 0) {
