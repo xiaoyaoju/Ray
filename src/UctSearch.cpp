@@ -1896,13 +1896,14 @@ SelectMaxUcbChild( const game_info_t *game, int current, int color )
   int max_child = 0;
   const int sum = uct_node[current].move_count;
   double p, max_value;
-  double ucb_value;
   int max_index;
   double max_rate;
   double dynamic_parameter;
   rate_order_t order[PURE_BOARD_MAX + 1];  
   int width;
-  double ucb_bonus_weight = bonus_weight * sqrt(bonus_equivalence / (sum + bonus_equivalence));
+  double child_ucb[UCT_CHILD_MAX];
+  double child_lcb[UCT_CHILD_MAX];
+  const double ucb_bonus_weight = bonus_weight * sqrt(bonus_equivalence / (sum + bonus_equivalence));
   const bool debug = current == current_root && sum % 10000 == 0 && GetDebugMessageMode();
 
   if (live_best_sequence && current == current_root && sum % 1000 == 0) {
@@ -1963,6 +1964,9 @@ SelectMaxUcbChild( const game_info_t *game, int current, int color )
   max_value = -1;
   max_child = 0;
 
+  int max_move_count = 0;
+  int max_move_child = 0;
+
   const double p_p = (double)uct_node[current].win / uct_node[current].move_count;
   const double p_v = (double)uct_node[current].value_win / (uct_node[current].value_move_count + .01);
   const double scale = std::max(0.2, std::min(1.0, 1.0 - (game->moves - 200) / 50.0)) * value_scale;
@@ -1973,12 +1977,14 @@ SelectMaxUcbChild( const game_info_t *game, int current, int color )
       start_child = 1;
     }
   }
+
   // UCB値最大の手を求める  
   for (int i = start_child; i < child_num; i++) {
     if (uct_child[i].flag || uct_child[i].open) {
       //double p2 = -1;
       double value_win = 0;
       double value_move_count = 0;
+      double ucb_value, lcb_value;
 
 #if 1
       if (uct_child[i].index >= 0 && i != 0) {
@@ -2029,6 +2035,7 @@ SelectMaxUcbChild( const game_info_t *game, int current, int color )
 	double u = sqrt(sum) / (1 + uct_child[i].move_count);
 	double rate = uct_child[i].nnrate;
 	ucb_value = p + c_puct * u * rate;
+        lcb_value = p - c_puct * u * rate;
 
 	if (debug && move_count > 0) {
 	  cerr << " P:" << p << " UCB:" << ucb_value << endl;
@@ -2044,18 +2051,75 @@ SelectMaxUcbChild( const game_info_t *game, int current, int color )
 	  div = log(sum) / uct_child[i].move_count;
 	  v = p - p * p + sqrt(2.0 * div);
 	  ucb_value = p + sqrt(div * ((0.25 < v) ? 0.25 : v));
+	  lcb_value = p - sqrt(div * ((0.25 < v) ? 0.25 : v));
 
 	  // UCB Bonus
 	  ucb_value += ucb_bonus_weight * uct_child[i].rate;
 	}
       }
 
+      child_ucb[i] = ucb_value;
+      child_lcb[i] = lcb_value;
+
       if (ucb_value > max_value) {
 	max_value = ucb_value;
 	max_child = i;
       }
+      if (uct_child[i].move_count > max_move_count) {
+	max_move_count = uct_child[i].move_count;
+	max_move_child = i;
+      }
     }
   }
+
+  if (current == current_root && max_child == max_move_child) {
+    double next_ucb = child_lcb[max_child];
+    int next_child = max_child;
+    for (int i = 0; i < child_num; i++) {
+      if (max_child == i)
+	continue;
+      if (uct_child[i].flag || uct_child[i].open) {
+	if (child_ucb[i] > next_ucb) {
+	  next_ucb = child_ucb[i];
+	  next_child = i;
+	}
+      }
+    }
+    if (max_child != next_child
+	&& uct_child[max_child].move_count > uct_child[next_child].move_count * 1.2) {
+      //cerr << "Replace " << FormatMove(uct_child[max_child].pos) << " -> " << FormatMove(uct_child[next_child].pos) << endl;
+      max_child = next_child;
+    }
+  }
+
+#if 0
+  static ray_clock::time_point previous_time = ray_clock::now();
+  static mutex mutex_log;
+  if (current == current_root && sum > 0) {
+    mutex_log.lock();
+    if (GetSpendTime(previous_time) > 1.0) {
+      for (int i = 0; i < child_num; i++) {
+	if (i > 0 && !uct_child[i].flag && !uct_child[i].open)
+	  continue;
+	double win = uct_child[i].win;
+	double move_count = uct_child[i].move_count;
+	double p0 = win / move_count;
+
+	cerr << "|" << setw(4) << FormatMove(uct_child[i].pos);
+	cerr << "|" << setw(5) << (int) move_count;
+	auto precision = cerr.precision();
+	cerr.precision(4);
+	cerr << "|" << setw(10) << fixed << (p0 * 100);
+	cerr << "|" << setw(10) << fixed << (child_ucb[i] * 100);
+	cerr << "|" << setw(10) << fixed << (child_lcb[i] * 100);
+	cerr << endl;
+	cerr.precision(precision);
+      }
+      previous_time = ray_clock::now();
+    }
+    mutex_log.unlock();
+  }
+#endif
 
   return max_child;
 }
