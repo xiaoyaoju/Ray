@@ -768,6 +768,7 @@ UctSearchGenmove( game_info_t *game, int color )
     cerr << "Eval NN            :  " << setw(7) << eval_count_policy << "/" << eval_count_value << "/" << value_evaluation_threshold << endl;
     cerr << "Count Captured     :  " << setw(7) << count << endl;
     cerr << "Score              :  " << setw(7) << score << endl;
+    PrintMoveStat(cerr, game, uct_node, current_root);
     //PrintOwnerNN(S_BLACK, owner_nn);
   }
 
