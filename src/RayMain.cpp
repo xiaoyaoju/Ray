@@ -14,6 +14,8 @@
 #include "UctSearch.h"
 #include "ZobristHash.h"
 
+#include "lz/Leela.h"
+
 
 int
 main( int argc, char **argv )
@@ -63,6 +65,7 @@ main( int argc, char **argv )
   InitializeHash();
   InitializeUctHash();
   SetNeighbor();
+  InitializeLeela();
 
   // GTP
   GTP_main();
