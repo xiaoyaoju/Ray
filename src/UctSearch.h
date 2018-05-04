@@ -107,7 +107,7 @@ struct child_node_t {
   std::atomic<bool> eval_value;
   int index;   // インデックス
   double rate; // 着手のレート
-  double nnrate0; // ニューラルネットワークでのレート
+  //double nnrate0; // ニューラルネットワークでのレート
   double nnrate; // ニューラルネットワークでのレート
   std::atomic<double> value;
   bool flag;   // Progressive Wideningのフラグ

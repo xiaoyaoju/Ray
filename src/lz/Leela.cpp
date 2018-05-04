@@ -38,6 +38,9 @@
 #include "Utils.h"
 #include "Zobrist.h"
 
+#define LEELA
+#include "Leela.h"
+
 using namespace Utils;
 
 #if 0
@@ -365,7 +368,7 @@ int InitializeLeela() {
 
   init_global_objects();
 
-#if 1
+#if 0
   auto maingame = std::make_unique<GameState>();
   ThreadGroup tg(thread_pool);
   std::atomic<int> runcount{ 0 };
@@ -413,4 +416,40 @@ int InitializeLeela() {
     }
 #endif
     return 0;
+}
+
+extern int board_size;
+extern int pure_board_size;
+extern double komi[3];
+#define OB_SIZE 5;
+
+Netresult EvaluateLeela(int moves, record_t *record) {
+  auto maingame = std::make_unique<GameState>();
+  maingame->init_game(pure_board_size, komi[0]);
+
+  int who = FastBoard::BLACK;
+  for (int i = 1; i < moves; i++) {
+    int pos = record[i].pos;
+    int color;
+    if (record[i].color == 1) {
+      color = FastBoard::BLACK;
+      who = FastBoard::WHITE;
+    } else {
+      color = FastBoard::WHITE;
+      who = FastBoard::BLACK;
+    }
+    if (pos <= 0) {
+      //printf("-> pos:%d moves:%d\n", pos, moves);
+      maingame->play_move(color, FastBoard::PASS);
+    } else {
+      int x = pos % board_size - OB_SIZE;
+      int y = pos / board_size - OB_SIZE;
+      int v = maingame->board.get_vertex(x, y);
+
+      maingame->play_move(color, v);
+    }
+  }
+  maingame->set_to_move(who);
+
+  return Network::get_scored_moves(maingame.get(), Network::Ensemble::RANDOM_SYMMETRY, -1, true);
 }

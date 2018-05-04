@@ -29,6 +29,7 @@
 #include "UctRating.h"
 #include "UctSearch.h"
 #include "Utility.h"
+#include "lz/Leela.h"
 
 #if defined (_WIN32)
 #define NOMINMAX
@@ -40,7 +41,6 @@
 #include <sys/time.h>
 #endif
 
-#include "CNTKLibrary.h"
 
 using namespace std;
 
@@ -53,24 +53,19 @@ struct value_eval_req {
   int index;
   child_node_t *uct_child;
   int color;
-  int trans;
+  int moves;
   std::vector<int> path;
-  std::vector<float> data_basic;
-  std::vector<float> data_features;
-  std::vector<float> data_history;
+  record_t record[MAX_RECORDS];
 };
 
 struct policy_eval_req {
   int index;
   int depth;
   int color;
-  int trans;
-  std::vector<float> data_basic;
-  std::vector<float> data_features;
-  std::vector<float> data_history;
+  int moves;
+  record_t record[MAX_RECORDS];
 };
 
-void ReadWeights();
 void EvalNode();
 //void EvalUctNode(std::vector<int>& indices, std::vector<int>& color, std::vector<int>& trans, std::vector<float>& data, std::vector<int>& path);
 
@@ -206,8 +201,6 @@ static std::queue<std::shared_ptr<value_eval_req>> eval_value_queue;
 static int eval_count_policy, eval_count_value;
 static double owner_nn[BOARD_MAX];
 
-static CNTK::FunctionPtr nn_policy;
-static CNTK::FunctionPtr nn_value;
 
 //template<double>
 double atomic_fetch_add(std::atomic<double> *obj, double arg) {
@@ -499,9 +492,6 @@ InitializeUctSearch( void )
     cerr << "You must reduce tree size !!" << endl;
     exit(1);
   }
-
-  if (use_nn && !nn_policy)
-    ReadWeights();
 }
 
 
@@ -1283,17 +1273,12 @@ RatingNode( game_info_t *game, int color, int index, int depth )
 
       uct_node_t *root = &uct_node[current_root];
 
-      double rate[PURE_BOARD_MAX];
-      AnalyzePoRating(game, color, rate);
-
       auto req = make_shared<policy_eval_req>();
       req->color = color;
       req->depth = depth;
       req->index = index;
-      req->trans = rand() / (RAND_MAX / 8 + 1);
-      //req.path.swap(path);
-      WritePlanes(req->data_basic, req->data_features, req->data_history, nullptr,
-        game, root, color, req->trans);
+      req->moves = game->moves;
+      memcpy(req->record, game->record, sizeof(record_t) * MAX_RECORDS);
 #if 1
       mutex_queue.lock();
       eval_policy_queue.push(req);
@@ -1683,17 +1668,13 @@ UctSearch(game_info_t *game, int color, mt19937_64 *mt, LGR& lgrf, LGRContext& l
         uct_child[next_index].index = ExpandNode(game, color);
       UNLOCK_EXPAND;
 
-      double rate[PURE_BOARD_MAX];
-      AnalyzePoRating(game, color, rate);
       auto req = make_shared<value_eval_req>();
       req->index = uct_child[next_index].index;
       req->uct_child = uct_child + next_index;
       req->color = color;
-      //req->index = index;
-      req->trans = rand() / (RAND_MAX / 8 + 1);
       req->path.swap(path);
-      WritePlanes(req->data_basic, req->data_features, req->data_history, nullptr,
-        game, nullptr, color, req->trans);
+      req->moves = game->moves;
+      memcpy(req->record, game->record, sizeof(record_t) * MAX_RECORDS);
       mutex_queue.lock();
       eval_value_queue.push(req);
       mutex_queue.unlock();
@@ -1830,6 +1811,7 @@ RateComp( const void *a, const void *b )
 static void
 UpdatePolicyRate(int current)
 {
+#if 0
   const int move_count = uct_node[current].move_count;
   child_node_t *uct_child = uct_node[current].child;
   const int child_num = uct_node[current].child_num;
@@ -1881,6 +1863,7 @@ UpdatePolicyRate(int current)
     }
     UNLOCK_EXPAND;
   }
+#endif
 }
 
 
@@ -1969,7 +1952,8 @@ SelectMaxUcbChild( const game_info_t *game, int current, int color )
 
   const double p_p = (double)uct_node[current].win / uct_node[current].move_count;
   const double p_v = (double)uct_node[current].value_win / (uct_node[current].value_move_count + .01);
-  const double scale = std::max(0.2, std::min(1.0, 1.0 - (game->moves - 200) / 50.0)) * value_scale;
+  //const double scale = std::max(0.2, std::min(1.0, 1.0 - (game->moves - 200) / 50.0)) * value_scale;
+  const double scale = value_scale;
 
   int start_child = 0;
   if (!early_pass && current == current_root && child_num > 1) {
@@ -2532,353 +2516,136 @@ CorrectDescendentNodes(vector<int> &indexes, int index)
   }   
 }
 
-extern char uct_params_path[1024];
-
-static CNTK::DeviceDescriptor
-GetDevice()
-{
-  if (device_id == -1)
-    return CNTK::DeviceDescriptor::CPUDevice();
-  if (device_id == -2)
-    return CNTK::DeviceDescriptor::UseDefaultDevice();
-  return CNTK::DeviceDescriptor::GPUDevice(device_id);
-}
-
-void
-ReadWeights()
-{
-  wchar_t name[1024];
-  mbstate_t ps;
-  memset(&ps, 0, sizeof(ps));
-  const char * src = uct_params_path;
-  mbsrtowcs(name, &src, 1024, &ps);
-  wstring path = name;
-
-  cerr << "Init CNTK" << endl;
-
-  auto device = GetDevice();
-
-  wstring policy_name = path;
-  policy_name += L"/model7.bin";
-  nn_policy = CNTK::Function::Load(policy_name, device);
-
-#if 0
-  wstring value_name = path;
-  value_name += L"/model6.bin";
-  nn_value = CNTK::Function::Load(value_name, device);
-#else
-  nn_value = nn_policy;
-#endif
-
-  if (!nn_policy || !nn_value)
-  {
-    cerr << "Get EvalModel failed\n";
-    abort();
-  }
-
-#if 0
-  wcerr << L"***POLICY" << endl;
-  for (auto var : nn_policy->Inputs()) {
-    wcerr << var.AsString() << endl;
-  }
-  for (auto var : nn_policy->Outputs()) {
-    wcerr << var.AsString() << endl;
-  }
-  wcerr << L"***VALUE" << endl;
-  for (auto var : nn_value->Inputs()) {
-    wcerr << var.AsString() << endl;
-  }
-  for (auto var : nn_value->Outputs()) {
-    wcerr << var.AsString() << endl;
-  }
-#endif
-
-  cerr << "ok" << endl;
-}
-
-
-bool
-GetVariableByName(vector<CNTK::Variable> variableLists, wstring varName, CNTK::Variable& var)
-{
-  for (vector<CNTK::Variable>::iterator it = variableLists.begin(); it != variableLists.end(); ++it)
-  {
-    if (it->Name().compare(varName) == 0)
-    {
-      var = *it;
-      return true;
-    }
-  }
-  wcerr << L"Not found " << varName << endl;
-  return false;
-}
-
-inline bool
-GetInputVariableByName(CNTK::FunctionPtr evalFunc, wstring varName, CNTK::Variable& var)
-{
-  return GetVariableByName(evalFunc->Arguments(), varName, var);
-}
-
-inline bool
-GetOutputVaraiableByName(CNTK::FunctionPtr evalFunc, wstring varName, CNTK::Variable& var)
-{
-  return GetVariableByName(evalFunc->Outputs(), varName, var);
-}
 
 void
 EvalPolicy(
-  const std::vector<std::shared_ptr<policy_eval_req>>& requests,
-  std::vector<float>& data_basic, std::vector<float>& data_features, std::vector<float>& data_history,
-  std::vector<float>& data_color, std::vector<float>& data_komi)
+  const std::shared_ptr<policy_eval_req>& req)
 {
-  if (requests.size() == 0)
-    return;
+  auto result = EvaluateLeela(req->moves, req->record);
+  vector<float> &moves = result.policy;
 
-  auto device = GetDevice();
-
-  CNTK::Variable var_basic, var_features, var_history, var_color, var_komi;
-  GetInputVariableByName(nn_policy, L"basic", var_basic);
-  GetInputVariableByName(nn_policy, L"features", var_features);
-  GetInputVariableByName(nn_policy, L"history", var_history);
-  GetInputVariableByName(nn_policy, L"color", var_color);
-  //GetInputVariableByName(nn_policy, L"komi", var_komi);
-
-  CNTK::Variable var_ol;
-  GetOutputVaraiableByName(nn_policy, L"ol", var_ol);
-
-  size_t num_req = requests.size();
-
-  CNTK::NDShape shape_basic = var_basic.Shape().AppendShape({ 1, num_req });
-  CNTK::ValuePtr value_basic = CNTK::MakeSharedObject<CNTK::Value>(CNTK::MakeSharedObject<CNTK::NDArrayView>(shape_basic, data_basic, true));
-  CNTK::NDShape shape_features = var_features.Shape().AppendShape({ 1, num_req });
-  CNTK::ValuePtr value_features = CNTK::MakeSharedObject<CNTK::Value>(CNTK::MakeSharedObject<CNTK::NDArrayView>(shape_features, data_features, true));
-  CNTK::NDShape shape_history = var_history.Shape().AppendShape({ 1, num_req });
-  CNTK::ValuePtr value_history = CNTK::MakeSharedObject<CNTK::Value>(CNTK::MakeSharedObject<CNTK::NDArrayView>(shape_history, data_history, true));
-  CNTK::NDShape shape_color = var_color.Shape().AppendShape({ 1, num_req });
-  CNTK::ValuePtr value_color = CNTK::MakeSharedObject<CNTK::Value>(CNTK::MakeSharedObject<CNTK::NDArrayView>(shape_color, data_color, true));
-  //CNTK::NDShape shape_komi = var_komi.Shape().AppendShape({ 1, num_req });
-  //CNTK::ValuePtr value_komi = CNTK::MakeSharedObject<CNTK::Value>(CNTK::MakeSharedObject<CNTK::NDArrayView>(shape_komi, data_komi, true));
-
-  CNTK::ValuePtr value_ol;
-
-  std::unordered_map<CNTK::Variable, CNTK::ValuePtr> inputs = {
-    { var_basic, value_basic },
-    { var_features, value_features },
-    { var_history, value_history },
-    { var_color, value_color },
-    //{ var_komi, value_komi },
-  };
-  std::unordered_map<CNTK::Variable, CNTK::ValuePtr> outputs = { { var_ol, value_ol } };
-
-  try {
-    nn_policy->Forward(inputs, outputs, device);
-  } catch (const std::exception& err) {
-    fprintf(stderr, "Evaluation failed. EXCEPTION occurred: %s\n", err.what());
-    abort();
-  } catch (...) {
-    fprintf(stderr, "Evaluation failed. Unknown ERROR occurred.\n");
-    abort();
-  }
-
-  value_ol = outputs[var_ol];
-  CNTK::NDShape shape_ol = var_ol.Shape().AppendShape({ 1, num_req });
-  vector<float> moves(shape_ol.TotalSize());
-  CNTK::NDArrayViewPtr cpu_moves = CNTK::MakeSharedObject<CNTK::NDArrayView>(shape_ol, moves, false);
-  cpu_moves->CopyFrom(*value_ol->Data());
-
-  if (moves.size() != pure_board_max * num_req) {
+  if (moves.size() != pure_board_max) {
     cerr << "Eval move error " << moves.size() << endl;
     return;
   }
 
-  for (int j = 0; j < requests.size(); j++) {
-    const auto req = requests[j];
-    const int index = req->index;
-    const int child_num = uct_node[index].child_num;
-    child_node_t *uct_child = uct_node[index].child;
-    const int ofs = pure_board_max * j;
+  const int index = req->index;
+  const int child_num = uct_node[index].child_num;
+  child_node_t *uct_child = uct_node[index].child;
+  const int ofs = 0;
 
-    LOCK_NODE(index);
+  LOCK_NODE(index);
 
-    int depth = req->depth;
+  int depth = req->depth;
 #if 0
-    if (index == current_root) {
-      for (int i = 0; i < pure_board_max; i++) {
-	int x = i % pure_board_size;
-	int y = i / pure_board_size;
-	owner_nn[POS(x + OB_SIZE, y + OB_SIZE)] = ownern[i + ofs];
-      }
+  if (index == current_root) {
+    for (int i = 0; i < pure_board_max; i++) {
+      int x = i % pure_board_size;
+      int y = i / pure_board_size;
+      owner_nn[POS(x + OB_SIZE, y + OB_SIZE)] = ownern[i + ofs];
     }
+  }
 #endif
 
-    for (int i = 1; i < child_num; i++) {
-      int pos = RevTransformMove(uct_child[i].pos, req->trans);
+  double sum = 0;
+  uct_child[0].nnrate = min(result.policy_pass, 0.1f);
+  sum += uct_child[0].nnrate;
+  for (int i = 1; i < child_num; i++) {
+    int pos = uct_child[i].pos;
 
-      int x = X(pos) - OB_SIZE;
-      int y = Y(pos) - OB_SIZE;
-      int n = x + y * pure_board_size;
-      double score = moves[n + ofs];
-      //if (depth == 1) cerr << "RAW POLICY " << uct_child[i].pos << " " << req->trans << " " << FormatMove(pos) << " " << x << "," << y << " " << ofs << " -> " << score << endl;
-      if (uct_child[i].ladder) {
-        score -= 4; // ~= 1.83%
-      }
-
-      uct_child[i].nnrate0 = score;
+    int x = X(pos) - OB_SIZE;
+    int y = Y(pos) - OB_SIZE;
+    int n = x + y * pure_board_size;
+    double score = moves[n + ofs];
+    //if (depth == 1) cerr << "RAW POLICY " << uct_child[i].pos << " " << req->trans << " " << FormatMove(pos) << " " << x << "," << y << " " << ofs << " -> " << score << endl;
+    if (uct_child[i].ladder) {
+      score = min(score, 0.01);
     }
 
-    UpdatePolicyRate(index);
-    uct_node[index].evaled = true;
-
-    UNLOCK_NODE(index);
+    uct_child[i].nnrate = score;
+    sum += uct_child[i].nnrate;
   }
-  eval_count_policy += requests.size();
+  //cerr << "sum:" << sum << endl;
+  for (int i = 0; i < child_num; i++) {
+    uct_child[i].nnrate /= sum;
+  }
+
+  UpdatePolicyRate(index);
+  uct_node[index].evaled = true;
+
+  UNLOCK_NODE(index);
+
+  eval_count_policy++;
 }
 
 
 void
-EvalValue(
-  const std::vector<std::shared_ptr<value_eval_req>>& requests,
-  std::vector<float>& data_basic, std::vector<float>& data_features, std::vector<float>& data_history,
-  std::vector<float>& data_color, std::vector<float>& data_komi, std::vector<float>& data_safety)
+EvalValue(const std::shared_ptr<value_eval_req>& req)
 {
-  if (requests.size() == 0)
-    return;
+  auto result = EvaluateLeela(req->moves, req->record);
+  float win = result.winrate;
+  //cerr << "color:" << req->color << "\twin:" << win << endl;
+  vector<float> &moves = result.policy;
 
-  auto device = GetDevice();
+  const int index = req->index;
+  const int child_num = uct_node[index].child_num;
+  child_node_t *uct_child = uct_node[index].child;
+  const int ofs = 0;
 
-  CNTK::Variable var_basic, var_features, var_history, var_color, var_komi;
-  GetInputVariableByName(nn_value, L"basic", var_basic);
-  GetInputVariableByName(nn_value, L"features", var_features);
-  GetInputVariableByName(nn_value, L"history", var_history);
-  GetInputVariableByName(nn_value, L"color", var_color);
-  GetInputVariableByName(nn_value, L"komi", var_komi);
+  LOCK_NODE(index);
 
-  CNTK::Variable var_p;
-  GetOutputVaraiableByName(nn_value, L"p2", var_p);
-  CNTK::Variable var_ol;
-  GetOutputVaraiableByName(nn_policy, L"ol", var_ol);
+  double sum = 0;
+  uct_child[0].nnrate = min(result.policy_pass, 0.1f);
+  sum += uct_child[0].nnrate;
+  for (int i = 1; i < child_num; i++) {
+    int pos = uct_child[i].pos;
 
-  size_t num_req = requests.size();
-
-  CNTK::NDShape shape_basic = var_basic.Shape().AppendShape({ 1, num_req });
-  CNTK::ValuePtr value_basic = CNTK::MakeSharedObject<CNTK::Value>(CNTK::MakeSharedObject<CNTK::NDArrayView>(shape_basic, data_basic, true));
-  CNTK::NDShape shape_features = var_features.Shape().AppendShape({ 1, num_req });
-  CNTK::ValuePtr value_features = CNTK::MakeSharedObject<CNTK::Value>(CNTK::MakeSharedObject<CNTK::NDArrayView>(shape_features, data_features, true));
-  CNTK::NDShape shape_history = var_history.Shape().AppendShape({ 1, num_req });
-  CNTK::ValuePtr value_history = CNTK::MakeSharedObject<CNTK::Value>(CNTK::MakeSharedObject<CNTK::NDArrayView>(shape_history, data_history, true));
-  CNTK::NDShape shape_color = var_color.Shape().AppendShape({ 1, num_req });
-  CNTK::ValuePtr value_color = CNTK::MakeSharedObject<CNTK::Value>(CNTK::MakeSharedObject<CNTK::NDArrayView>(shape_color, data_color, true));
-  CNTK::NDShape shape_komi = var_komi.Shape().AppendShape({ 1, num_req });
-  CNTK::ValuePtr value_komi = CNTK::MakeSharedObject<CNTK::Value>(CNTK::MakeSharedObject<CNTK::NDArrayView>(shape_komi, data_komi, true));
-
-  CNTK::ValuePtr value_p;
-  CNTK::ValuePtr value_ol;
-
-  std::unordered_map<CNTK::Variable, CNTK::ValuePtr> inputs = {
-    { var_basic, value_basic },
-    { var_features, value_features },
-    { var_history, value_history },
-    { var_color, value_color },
-    { var_komi, value_komi },
-  };
-  std::unordered_map<CNTK::Variable, CNTK::ValuePtr> outputs = {
-    { var_p, value_p },
-    { var_ol, value_ol },
-  };
-
-  try {
-    nn_value->Forward(inputs, outputs, device);
-  } catch (const std::exception& err) {
-    fprintf(stderr, "Evaluation failed. EXCEPTION occurred: %s\n", err.what());
-    abort();
-  } catch (...) {
-    fprintf(stderr, "Evaluation failed. Unknown ERROR occurred.\n");
-    abort();
-  }
-
-  value_p = outputs[var_p];
-  CNTK::NDShape shape_p = var_p.Shape().AppendShape({ 1, num_req });
-  vector<float> win(shape_p.TotalSize());
-  CNTK::NDArrayViewPtr cpu_p = CNTK::MakeSharedObject<CNTK::NDArrayView>(shape_p, win, false);
-  cpu_p->CopyFrom(*value_p->Data());
-
-  if (win.size() != requests.size()) {
-    cerr << "Eval win error " << win.size() << endl;
-    return;
-  }
-
-  value_ol = outputs[var_ol];
-  CNTK::NDShape shape_ol = var_ol.Shape().AppendShape({ 1, num_req });
-  vector<float> moves(shape_ol.TotalSize());
-  CNTK::NDArrayViewPtr cpu_moves = CNTK::MakeSharedObject<CNTK::NDArrayView>(shape_ol, moves, false);
-  cpu_moves->CopyFrom(*value_ol->Data());
-
-  if (moves.size() != pure_board_max * num_req) {
-    cerr << "Eval move error " << moves.size() << endl;
-    return;
-  }
-
-  //cerr << "Eval " << indices.size() << " " << path.size() << endl;
-  for (int j = 0; j < requests.size(); j++) {
-    auto req = requests[j];
-
-    const int index = req->index;
-    const int child_num = uct_node[index].child_num;
-    child_node_t *uct_child = uct_node[index].child;
-    const int ofs = pure_board_max * j;
-
-    LOCK_NODE(index);
-
-    for (int i = 1; i < child_num; i++) {
-      int pos = RevTransformMove(uct_child[i].pos, req->trans);
-
-      int x = X(pos) - OB_SIZE;
-      int y = Y(pos) - OB_SIZE;
-      int n = x + y * pure_board_size;
-      double score = moves[n + ofs];
-      //if (depth == 1) cerr << "RAW POLICY " << uct_child[i].pos << " " << req->trans << " " << FormatMove(pos) << " " << x << "," << y << " " << ofs << " -> " << score << endl;
-      if (uct_child[i].ladder) {
-        score -= 4; // ~= 1.83%
-      }
-
-      uct_child[i].nnrate0 = score;
+    int x = X(pos) - OB_SIZE;
+    int y = Y(pos) - OB_SIZE;
+    int n = x + y * pure_board_size;
+    double score = moves[n + ofs];
+    //if (depth == 1) cerr << "RAW POLICY " << uct_child[i].pos << " " << req->trans << " " << FormatMove(pos) << " " << x << "," << y << " " << ofs << " -> " << score << endl;
+    if (uct_child[i].ladder) {
+      score = min(score, 0.01);
     }
 
-    UpdatePolicyRate(index);
-    uct_node[index].evaled = true;
-
-    UNLOCK_NODE(index);
-
-    double p = ((double)win[j] + 1) / 2;
-    if (p < 0)
-      p = 0;
-    if (p > 1)
-      p = 1;
-    //cerr << "#" << index << "  " << sum << endl;
-
-    double value = 1 - p;// color[j] == S_BLACK ? p : 1 - p;
-
-    req->uct_child->value = value;
-    for (int i = req->path.size() - 1; i >= 0; i--) {
-      int current = req->path[i];
-      if (current < 0)
-        break;
-
-      atomic_fetch_add(&uct_node[current].value_move_count, 1);
-      atomic_fetch_add(&uct_node[current].value_win, value);
-      value = 1 - value;
-    }
+    uct_child[i].nnrate = score;
+    sum += uct_child[i].nnrate;
   }
-  eval_count_value += requests.size();
+  //cerr << "sum:" << sum << endl;
+  for (int i = 0; i < child_num; i++) {
+    uct_child[i].nnrate /= sum;
+  }
+
+  UpdatePolicyRate(index);
+  uct_node[index].evaled = true;
+
+  UNLOCK_NODE(index);
+
+  double p = win;
+  if (p < 0)
+    p = 0;
+  if (p > 1)
+    p = 1;
+  //cerr << "#" << index << "  " << sum << endl;
+
+  double value = 1 - p;// color[j] == S_BLACK ? p : 1 - p;
+
+  req->uct_child->value = value;
+  for (int i = req->path.size() - 1; i >= 0; i--) {
+    int current = req->path[i];
+    if (current < 0)
+      break;
+
+    atomic_fetch_add(&uct_node[current].value_move_count, 1);
+    atomic_fetch_add(&uct_node[current].value_win, value);
+    value = 1 - value;
+  }
+
+  eval_count_value++;
 }
 
 void EvalNode() {
-  std::vector<float> eval_input_data_basic;
-  std::vector<float> eval_input_data_features;
-  std::vector<float> eval_input_data_history;
-  std::vector<float> eval_input_data_color;
-  std::vector<float> eval_input_data_komi;
-  std::vector<float> eval_input_data_safety;
-
   int num_eval = 0;
 
   while (true) {
@@ -2900,59 +2667,26 @@ void EvalNode() {
 
     if (eval_policy_queue.size() == 0) {
     } else {
-      std::vector<std::shared_ptr<policy_eval_req>> requests;
+      auto req = eval_policy_queue.front();
+      eval_policy_queue.pop();
 
-      for (int i = 0; i < policy_batch_size && !eval_policy_queue.empty(); i++) {
-        auto req = eval_policy_queue.front();
-        requests.push_back(req);
-        eval_policy_queue.pop();
-      }
       mutex_queue.unlock();
 
-      eval_input_data_basic.resize(0);
-      eval_input_data_features.resize(0);
-      eval_input_data_history.resize(0);
-      eval_input_data_color.resize(0);
-      eval_input_data_komi.resize(0);
-      for (auto& req : requests) {
-        std::copy(req->data_basic.begin(), req->data_basic.end(), std::back_inserter(eval_input_data_basic));
-        std::copy(req->data_features.begin(), req->data_features.end(), std::back_inserter(eval_input_data_features));
-        std::copy(req->data_history.begin(), req->data_history.end(), std::back_inserter(eval_input_data_history));
-        eval_input_data_color.push_back(req->color - 1);
-        eval_input_data_komi.push_back(komi[0]);
-      }
-      num_eval += requests.size();
-      EvalPolicy(requests, eval_input_data_basic, eval_input_data_features, eval_input_data_history, eval_input_data_color, eval_input_data_komi);
+      num_eval++;
+      EvalPolicy(req);
       mutex_queue.lock();
     }
 
     if (running && eval_value_queue.size() == 0) {
       mutex_queue.unlock();
     } else {
-      std::vector<std::shared_ptr<value_eval_req>> requests;
+      auto req = eval_value_queue.front();
+      eval_value_queue.pop();
 
-      for (int i = 0; i < value_batch_size && !eval_value_queue.empty(); i++) {
-        auto req = eval_value_queue.front();
-        requests.push_back(req);
-        eval_value_queue.pop();
-      }
       mutex_queue.unlock();
 
-      eval_input_data_basic.resize(0);
-      eval_input_data_features.resize(0);
-      eval_input_data_history.resize(0);
-      eval_input_data_color.resize(0);
-      eval_input_data_komi.resize(0);
-      for (auto& req : requests) {
-        std::copy(req->data_basic.begin(), req->data_basic.end(), std::back_inserter(eval_input_data_basic));
-        std::copy(req->data_features.begin(), req->data_features.end(), std::back_inserter(eval_input_data_features));
-        std::copy(req->data_history.begin(), req->data_history.end(), std::back_inserter(eval_input_data_history));
-        eval_input_data_color.push_back(req->color - 1);
-        eval_input_data_komi.push_back(komi[0]);
-      }
-      eval_input_data_safety.resize(requests.size() * pure_board_max * 8);
-      num_eval += requests.size();
-      EvalValue(requests, eval_input_data_basic, eval_input_data_features, eval_input_data_history, eval_input_data_color, eval_input_data_komi, eval_input_data_safety);
+      num_eval++;
+      EvalValue(req);
     }
   }
 }
@@ -2988,22 +2722,13 @@ PolicyNetworkGenmove( game_info_t *game, int color )
   req->color = color;
   req->depth = 0;
   req->index = current_root;
-  req->trans = rand() / (RAND_MAX / 8 + 1);
-  //req.path.swap(path);
-  WritePlanes(req->data_basic, req->data_features, req->data_history, nullptr,
-    game, root, color, req->trans);
+  req->moves = game->moves;
+  memcpy(req->record, game->record, sizeof(record_t) * MAX_RECORDS);
 
   // Eval policy network
-  vector<float> data_color;
-  vector<float> data_komi;
-  data_color.push_back(req->color - 1);
-  data_komi.push_back(komi[0]);
-
   auto org_policy_temperature = policy_temperature;
   policy_temperature = 1.0;
-  std::vector<std::shared_ptr<policy_eval_req>> requests;
-  requests.push_back(req);
-  EvalPolicy(requests, req->data_basic, req->data_features, req->data_history, data_color, data_komi);
+  EvalPolicy(req);
   policy_temperature = org_policy_temperature;
 
   // Select move
