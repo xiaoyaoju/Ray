@@ -32,6 +32,19 @@
 #include "FastState.h"
 #include "GameState.h"
 
+struct Netresult {
+    // 19x19 board positions
+    std::vector<float> policy;
+
+    // pass
+    float policy_pass;
+
+    // winrate
+    float winrate;
+
+    Netresult();
+};
+
 class Network {
 public:
     enum Ensemble {
@@ -41,18 +54,6 @@ public:
     using NNPlanes = std::vector<BoardPlane>;
     using ScoreVertexPair = std::pair<float,int>;
 
-    struct Netresult {
-        // 19x19 board positions
-        std::vector<float> policy;
-
-        // pass
-        float policy_pass;
-
-        // winrate
-        float winrate;
-
-        Netresult() : policy(BOARD_SQUARES), policy_pass(0.0f), winrate(0.0f) {}
-    };
 
     static Netresult get_scored_moves(const GameState* const state,
                                       const Ensemble ensemble,
