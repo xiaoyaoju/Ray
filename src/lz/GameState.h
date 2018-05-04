@@ -26,7 +26,7 @@
 #include "FastState.h"
 #include "FullBoard.h"
 #include "KoState.h"
-#include "TimeControl.h"
+//#include "TimeControl.h"
 
 class GameState : public KoState {
 public:
@@ -55,10 +55,10 @@ public:
 
     void start_clock(int color);
     void stop_clock(int color);
-    TimeControl& get_timecontrol();
+    //TimeControl& get_timecontrol();
     void set_timecontrol(int maintime, int byotime, int byostones,
                          int byoperiods);
-    void set_timecontrol(TimeControl tmc);
+    //void set_timecontrol(TimeControl tmc);
     void adjust_time(int color, int time, int stones);
 
     void display_state();
@@ -69,7 +69,7 @@ private:
     bool valid_handicap(int stones);
 
     std::vector<std::shared_ptr<const KoState>> game_history;
-    TimeControl m_timecontrol;
+    //TimeControl m_timecontrol;
     int m_resigned{FastBoard::EMPTY};
 };
 
