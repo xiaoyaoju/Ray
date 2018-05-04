@@ -15,10 +15,10 @@ const int BUF_SIZE = 256;
 #define DELIM  " "
 
 //  プログラム名
-#define PROGRAM_NAME  "Rayon"
+#define PROGRAM_NAME  "RLO"
 
 //  プログラムのバージョン
-#define PROGRAM_VERSION  "9.0.1+4.0"
+#define PROGRAM_VERSION  "9.0.1+0.11fb"
 
 //  GTPのバージョン
 #define PROTOCOL_VERSION  "2"

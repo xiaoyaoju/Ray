@@ -872,7 +872,7 @@ std::vector<float> softmax(const std::vector<float>& input,
     return output;
 }
 
-Network::Netresult Network::get_scored_moves(
+Netresult Network::get_scored_moves(
     const GameState* const state, const Ensemble ensemble,
     const int symmetry, const bool skip_cache) {
     Netresult result;
@@ -917,7 +917,7 @@ Network::Netresult Network::get_scored_moves(
     return result;
 }
 
-Network::Netresult Network::get_scored_moves_internal(
+Netresult Network::get_scored_moves_internal(
     const NNPlanes& planes, const int symmetry) {
     assert(symmetry >= 0 && symmetry <= 7);
     assert(INPUT_CHANNELS == planes.size());
@@ -1128,3 +1128,5 @@ int Network::get_nn_idx_symmetry(const int vertex, int symmetry) {
     assert(newvtx >= 0 && newvtx < BOARD_SQUARES);
     return newvtx;
 }
+
+Netresult::Netresult() : policy(BOARD_SQUARES), policy_pass(0.0f), winrate(0.0f) {}
