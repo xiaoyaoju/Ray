@@ -44,7 +44,7 @@
 #include "zlib.h"
 #ifdef USE_OPENCL
 #include "OpenCLScheduler.h"
-#include "UCTNode.h"
+//#include "UCTNode.h"
 #endif
 
 #include "FastBoard.h"
@@ -53,10 +53,10 @@
 #include "GameState.h"
 #include "GTP.h"
 #include "Im2Col.h"
-#include "NNCache.h"
+//#include "NNCache.h"
 #include "Random.h"
 #include "ThreadPool.h"
-#include "Timing.h"
+//#include "Timing.h"
 #include "Utils.h"
 
 namespace x3 = boost::spirit::x3;
@@ -94,6 +94,7 @@ static bool value_head_not_stm;
 static std::array<std::array<int, BOARD_SQUARES>, 8> symmetry_nn_idx_table;
 
 void Network::benchmark(const GameState* const state, const int iterations) {
+  /*
     const auto cpus = cfg_num_threads;
     const Time start;
 
@@ -114,6 +115,7 @@ void Network::benchmark(const GameState* const state, const int iterations) {
     const auto elapsed = Time::timediff_seconds(start, end);
     myprintf("%5d evaluations in %5.2f seconds -> %d n/s\n",
              runcount.load(), elapsed, int(runcount.load() / elapsed));
+             */
 }
 
 void Network::process_bn_var(std::vector<float>& weights, const float epsilon) {
@@ -878,12 +880,14 @@ Network::Netresult Network::get_scored_moves(
         return result;
     }
 
+#if 0
     if (!skip_cache) {
         // See if we already have this in the cache.
         if (NNCache::get_NNCache().lookup(state->board.get_hash(), result)) {
             return result;
         }
     }
+#endif
 
     NNPlanes planes;
     gather_features(state, planes);
@@ -905,8 +909,10 @@ Network::Netresult Network::get_scored_moves(
         }
     }
 
+#if 0
     // Insert result into cache.
     NNCache::get_NNCache().insert(state->board.get_hash(), result);
+#endif
 
     return result;
 }

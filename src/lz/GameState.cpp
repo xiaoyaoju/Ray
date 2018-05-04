@@ -31,7 +31,7 @@
 #include "FastState.h"
 #include "FullBoard.h"
 #include "KoState.h"
-#include "UCTSearch.h"
+//#include "UCTSearch.h"
 
 void GameState::init_game(int size, float komi) {
     KoState::init_game(size, komi);
@@ -39,8 +39,8 @@ void GameState::init_game(int size, float komi) {
     game_history.clear();
     game_history.emplace_back(std::make_shared<KoState>(*this));
 
-    m_timecontrol.set_boardsize(board.get_boardsize());
-    m_timecontrol.reset_clocks();
+    //m_timecontrol.set_boardsize(board.get_boardsize());
+    //m_timecontrol.reset_clocks();
 
     m_resigned = FastBoard::EMPTY;
 }
@@ -51,7 +51,7 @@ void GameState::reset_game() {
     game_history.clear();
     game_history.emplace_back(std::make_shared<KoState>(*this));
 
-    m_timecontrol.reset_clocks();
+    //m_timecontrol.reset_clocks();
 
     m_resigned = FastBoard::EMPTY;
 }
@@ -156,17 +156,17 @@ bool GameState::play_textmove(const std::string& color,
 }
 
 void GameState::stop_clock(int color) {
-    m_timecontrol.stop(color);
+    //m_timecontrol.stop(color);
 }
 
 void GameState::start_clock(int color) {
-    m_timecontrol.start(color);
+    //m_timecontrol.start(color);
 }
 
 void GameState::display_state() {
     FastState::display_state();
 
-    m_timecontrol.display_times();
+    //m_timecontrol.display_times();
 }
 
 int GameState::who_resigned() const {
@@ -176,7 +176,7 @@ int GameState::who_resigned() const {
 bool GameState::has_resigned() const {
     return m_resigned != FastBoard::EMPTY;
 }
-
+/*
 TimeControl& GameState::get_timecontrol() {
     return m_timecontrol;
 }
@@ -195,7 +195,7 @@ void GameState::set_timecontrol(TimeControl tmc) {
 
 void GameState::adjust_time(int color, int time, int stones) {
     m_timecontrol.adjust_time(color, time, stones);
-}
+}*/
 
 void GameState::anchor_game_history(void) {
     // handicap moves don't count in game history
@@ -300,7 +300,7 @@ bool GameState::valid_handicap(int handicap) {
 
     return true;
 }
-
+/*
 void GameState::place_free_handicap(int stones) {
     int limit = board.get_boardsize() * board.get_boardsize();
     if (stones > limit / 2) {
@@ -332,6 +332,7 @@ void GameState::place_free_handicap(int stones) {
 
     set_handicap(orgstones);
 }
+*/
 
 const FullBoard& GameState::get_past_board(int moves_ago) const {
     assert(moves_ago >= 0 && (unsigned)moves_ago <= m_movenum);

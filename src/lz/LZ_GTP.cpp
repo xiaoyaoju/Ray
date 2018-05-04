@@ -36,10 +36,10 @@
 #include "FullBoard.h"
 #include "GameState.h"
 #include "Network.h"
-#include "SGFTree.h"
+//#include "SGFTree.h"
 #include "SMP.h"
-#include "Training.h"
-#include "UCTSearch.h"
+//#include "Training.h"
+//#include "UCTSearch.h"
 #include "Utils.h"
 
 using namespace Utils;
@@ -49,10 +49,10 @@ bool cfg_gtp_mode;
 bool cfg_allow_pondering;
 int cfg_num_threads;
 int cfg_max_threads;
-int cfg_max_playouts;
-int cfg_max_visits;
-TimeManagement::enabled_t cfg_timemanage;
-int cfg_lagbuffer_cs;
+//int cfg_max_playouts;
+//int cfg_max_visits;
+//TimeManagement::enabled_t cfg_timemanage;
+//int cfg_lagbuffer_cs;
 int cfg_resignpct;
 int cfg_noise;
 int cfg_random_cnt;
@@ -83,10 +83,10 @@ void GTP::setup_default_parameters() {
 #else
     cfg_num_threads = cfg_max_threads;
 #endif
-    cfg_max_playouts = UCTSearch::UNLIMITED_PLAYOUTS;
-    cfg_max_visits = UCTSearch::UNLIMITED_PLAYOUTS;
-    cfg_timemanage = TimeManagement::AUTO;
-    cfg_lagbuffer_cs = 100;
+    //cfg_max_playouts = UCTSearch::UNLIMITED_PLAYOUTS;
+    //cfg_max_visits = UCTSearch::UNLIMITED_PLAYOUTS;
+    //cfg_timemanage = TimeManagement::AUTO;
+    //cfg_lagbuffer_cs = 100;
 #ifdef USE_OPENCL
     cfg_gpus = { };
     cfg_sgemm_exhaustive = false;
@@ -176,6 +176,7 @@ std::string GTP::get_life_list(const GameState & game, bool live) {
     return result;
 }
 
+#if 0
 bool GTP::execute(GameState & game, std::string xinput) {
     std::string input;
     static auto search = std::make_unique<UCTSearch>(game);
@@ -797,3 +798,4 @@ bool GTP::execute(GameState & game, std::string xinput) {
     gtp_fail_printf(id, "unknown command");
     return true;
 }
+#endif

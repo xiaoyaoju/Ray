@@ -20,8 +20,8 @@
 
 #include <cstdint>
 #include <algorithm>
-#include <boost/format.hpp>
-#include <boost/program_options.hpp>
+//#include <boost/format.hpp>
+//#include <boost/program_options.hpp>
 #include <cstdio>
 #include <cstdlib>
 #include <iostream>
@@ -32,7 +32,7 @@
 #include "GTP.h"
 #include "GameState.h"
 #include "Network.h"
-#include "NNCache.h"
+//#include "NNCache.h"
 #include "Random.h"
 #include "ThreadPool.h"
 #include "Utils.h"
@@ -40,6 +40,7 @@
 
 using namespace Utils;
 
+#if 0
 static void license_blurb() {
     printf(
         "Leela Zero %s  Copyright (C) 2017-2018  Gian-Carlo Pascutto and contributors\n"
@@ -300,6 +301,7 @@ static void parse_commandline(int argc, char *argv[]) {
     }
     cfg_options_str = out.str();
 }
+#endif
 
 // Setup global objects after command line has been parsed
 void init_global_objects() {
@@ -314,14 +316,17 @@ void init_global_objects() {
     // improves reproducibility across platforms.
     Random::get_Rng().seedrandom(cfg_rng_seed);
 
+#if 0
     // When visits are limited ensure cache size is still limited.
     auto playouts = std::min(cfg_max_playouts, cfg_max_visits);
     NNCache::get_NNCache().set_size_from_playouts(playouts);
+#endif
 
     // Initialize network
     Network::initialize();
 }
 
+#if 0
 void benchmark(GameState& game) {
     game.set_timecontrol(0, 1, 0, 0);  // Set infinite time.
     game.play_textmove("b", "q16");
@@ -329,31 +334,50 @@ void benchmark(GameState& game) {
     game.set_to_move(FastBoard::WHITE);
     search->think(FastBoard::WHITE);
 }
-
-int main(int argc, char *argv[]) {
-    auto input = std::string{};
-
-    // Set up engine parameters
-    GTP::setup_default_parameters();
-    parse_commandline(argc, argv);
-
-    // Disable IO buffering as much as possible
-    std::cout.setf(std::ios::unitbuf);
-    std::cerr.setf(std::ios::unitbuf);
-    std::cin.setf(std::ios::unitbuf);
-
-    setbuf(stdout, nullptr);
-    setbuf(stderr, nullptr);
-#ifndef WIN32
-    setbuf(stdin, nullptr);
 #endif
 
-    if (!cfg_gtp_mode && !cfg_benchmark) {
-        license_blurb();
-    }
+extern char uct_params_path[1024];
 
-    init_global_objects();
+int InitializeLeela() {
+  auto input = std::string{};
 
+  // Set up engine parameters
+  GTP::setup_default_parameters();
+  //parse_commandline(argc, argv);
+
+  // Disable IO buffering as much as possible
+  //std::cout.setf(std::ios::unitbuf);
+  //std::cerr.setf(std::ios::unitbuf);
+  //std::cin.setf(std::ios::unitbuf);
+
+  //setbuf(stdout, nullptr);
+  //setbuf(stderr, nullptr);
+#ifndef WIN32
+    //setbuf(stdin, nullptr);
+#endif
+
+    //if (!cfg_gtp_mode && !cfg_benchmark) {
+        //license_blurb();
+    //}
+
+  cfg_weightsfile = uct_params_path;
+  cfg_weightsfile += "/lz.bin";
+
+  init_global_objects();
+
+#if 1
+  auto maingame = std::make_unique<GameState>();
+  ThreadGroup tg(thread_pool);
+  std::atomic<int> runcount{ 0 };
+
+  tg.add_task([&runcount, &maingame]() {
+    Network::get_scored_moves(maingame.get(), Network::Ensemble::RANDOM_SYMMETRY, -1, true);
+  });
+
+  tg.wait_all();
+#endif
+
+#if 0
     auto maingame = std::make_unique<GameState>();
 
     /* set board limits */
@@ -387,6 +411,6 @@ int main(int argc, char *argv[]) {
             cfg_logfile_handle = fopen(cfg_logfile.c_str(), "a");
         }
     }
-
+#endif
     return 0;
 }
