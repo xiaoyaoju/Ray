@@ -401,6 +401,12 @@ SetDeviceId(const int id)
   device_id = id;
 }
 
+int
+GetDeviceId()
+{
+  return device_id;
+}
+
 void
 SetNoExpand(bool flag)
 {
