@@ -239,6 +239,8 @@ void SetUseNN(bool flag);
 
 void SetDeviceId( const int id );
 
+int GetDeviceId();
+
 // Policy networkの手を打つ
 int PolicyNetworkGenmove(game_info_t *game, int color);
 
