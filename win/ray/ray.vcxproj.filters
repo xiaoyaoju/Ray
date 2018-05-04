@@ -13,6 +13,9 @@
       <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
       <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
     </Filter>
+    <Filter Include="lz">
+      <UniqueIdentifier>{2b00282e-5bb6-4fe2-9f9a-6812ab451c9b}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\src\Simulation.cpp">
@@ -78,6 +81,51 @@
     <ClCompile Include="..\..\src\SearchBoard.cpp">
       <Filter>ソース ファイル</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\lz\OpenCL.cpp">
+      <Filter>lz</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\lz\OpenCLScheduler.cpp">
+      <Filter>lz</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\lz\Random.cpp">
+      <Filter>lz</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\lz\FastBoard.cpp">
+      <Filter>lz</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\lz\FastState.cpp">
+      <Filter>lz</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\lz\FullBoard.cpp">
+      <Filter>lz</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\lz\GameState.cpp">
+      <Filter>lz</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\lz\Utils.cpp">
+      <Filter>lz</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\lz\Zobrist.cpp">
+      <Filter>lz</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\lz\KoState.cpp">
+      <Filter>lz</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\lz\Network.cpp">
+      <Filter>lz</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\lz\SMP.cpp">
+      <Filter>lz</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\lz\Tuner.cpp">
+      <Filter>lz</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\lz\LZ_GTP.cpp">
+      <Filter>lz</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\lz\Leela.cpp">
+      <Filter>lz</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\src\Simulation.h">
@@ -139,6 +187,60 @@
     </ClInclude>
     <ClInclude Include="..\..\src\SearchBoard.h">
       <Filter>ヘッダー ファイル</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\lz\GameState.h">
+      <Filter>lz</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\lz\Im2Col.h">
+      <Filter>lz</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\lz\OpenCL.h">
+      <Filter>lz</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\lz\OpenCLScheduler.h">
+      <Filter>lz</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\lz\Random.h">
+      <Filter>lz</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\lz\FastBoard.h">
+      <Filter>lz</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\lz\FastState.h">
+      <Filter>lz</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\lz\FullBoard.h">
+      <Filter>lz</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\lz\Utils.h">
+      <Filter>lz</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\lz\config.h">
+      <Filter>lz</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\lz\Zobrist.h">
+      <Filter>lz</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\lz\KoState.h">
+      <Filter>lz</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\lz\ThreadPool.h">
+      <Filter>lz</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\lz\Network.h">
+      <Filter>lz</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\lz\GTP.h">
+      <Filter>lz</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\lz\SMP.h">
+      <Filter>lz</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\lz\Tuner.h">
+      <Filter>lz</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\lz\Leela.h">
+      <Filter>lz</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
