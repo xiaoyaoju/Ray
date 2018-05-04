@@ -136,8 +136,7 @@
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <ClCompile>
       <WarningLevel>Level3</WarningLevel>
-      <PrecompiledHeader>
-      </PrecompiledHeader>
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
       <Optimization>Full</Optimization>
       <FunctionLevelLinking>false</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
@@ -163,6 +162,21 @@
     <ClCompile Include="..\..\src\GoBoard.cpp" />
     <ClCompile Include="..\..\src\Gtp.cpp" />
     <ClCompile Include="..\..\src\Ladder.cpp" />
+    <ClCompile Include="..\..\src\lz\FastBoard.cpp" />
+    <ClCompile Include="..\..\src\lz\FastState.cpp" />
+    <ClCompile Include="..\..\src\lz\FullBoard.cpp" />
+    <ClCompile Include="..\..\src\lz\GameState.cpp" />
+    <ClCompile Include="..\..\src\lz\Leela.cpp" />
+    <ClCompile Include="..\..\src\lz\LZ_GTP.cpp" />
+    <ClCompile Include="..\..\src\lz\KoState.cpp" />
+    <ClCompile Include="..\..\src\lz\Network.cpp" />
+    <ClCompile Include="..\..\src\lz\OpenCL.cpp" />
+    <ClCompile Include="..\..\src\lz\OpenCLScheduler.cpp" />
+    <ClCompile Include="..\..\src\lz\Random.cpp" />
+    <ClCompile Include="..\..\src\lz\SMP.cpp" />
+    <ClCompile Include="..\..\src\lz\Tuner.cpp" />
+    <ClCompile Include="..\..\src\lz\Utils.cpp" />
+    <ClCompile Include="..\..\src\lz\Zobrist.cpp" />
     <ClCompile Include="..\..\src\Message.cpp" />
     <ClCompile Include="..\..\src\MoveCache.cpp" />
     <ClCompile Include="..\..\src\Nakade.cpp" />
@@ -186,6 +200,24 @@
     <ClInclude Include="..\..\src\GoBoard.h" />
     <ClInclude Include="..\..\src\Gtp.h" />
     <ClInclude Include="..\..\src\Ladder.h" />
+    <ClInclude Include="..\..\src\lz\config.h" />
+    <ClInclude Include="..\..\src\lz\FastBoard.h" />
+    <ClInclude Include="..\..\src\lz\FastState.h" />
+    <ClInclude Include="..\..\src\lz\FullBoard.h" />
+    <ClInclude Include="..\..\src\lz\GameState.h" />
+    <ClInclude Include="..\..\src\lz\GTP.h" />
+    <ClInclude Include="..\..\src\lz\Im2Col.h" />
+    <ClInclude Include="..\..\src\lz\KoState.h" />
+    <ClInclude Include="..\..\src\lz\Leela.h" />
+    <ClInclude Include="..\..\src\lz\Network.h" />
+    <ClInclude Include="..\..\src\lz\OpenCL.h" />
+    <ClInclude Include="..\..\src\lz\OpenCLScheduler.h" />
+    <ClInclude Include="..\..\src\lz\Random.h" />
+    <ClInclude Include="..\..\src\lz\SMP.h" />
+    <ClInclude Include="..\..\src\lz\ThreadPool.h" />
+    <ClInclude Include="..\..\src\lz\Tuner.h" />
+    <ClInclude Include="..\..\src\lz\Utils.h" />
+    <ClInclude Include="..\..\src\lz\Zobrist.h" />
     <ClInclude Include="..\..\src\Message.h" />
     <ClInclude Include="..\..\src\MoveCache.h" />
     <ClInclude Include="..\..\src\Nakade.h" />
@@ -212,6 +244,10 @@
     <Import Project="..\packages\CNTK.Deps.MKL.2.4.0\build\native\CNTK.Deps.MKL.targets" Condition="Exists('..\packages\CNTK.Deps.MKL.2.4.0\build\native\CNTK.Deps.MKL.targets')" />
     <Import Project="..\packages\CNTK.Deps.OpenCV.Zip.2.4.0\build\native\CNTK.Deps.OpenCV.Zip.targets" Condition="Exists('..\packages\CNTK.Deps.OpenCV.Zip.2.4.0\build\native\CNTK.Deps.OpenCV.Zip.targets')" />
     <Import Project="..\packages\CNTK.GPU.2.4.0\build\native\CNTK.GPU.targets" Condition="Exists('..\packages\CNTK.GPU.2.4.0\build\native\CNTK.GPU.targets')" />
+    <Import Project="..\packages\boost.1.67.0.0\build\boost.targets" Condition="Exists('..\packages\boost.1.67.0.0\build\boost.targets')" />
+    <Import Project="..\packages\OpenBLAS.0.2.14.1\build\native\openblas.targets" Condition="Exists('..\packages\OpenBLAS.0.2.14.1\build\native\openblas.targets')" />
+    <Import Project="..\packages\opencl-nug.0.777.12\build\native\opencl-nug.targets" Condition="Exists('..\packages\opencl-nug.0.777.12\build\native\opencl-nug.targets')" />
+    <Import Project="..\packages\zlib-msvc14-x64.1.2.11.7795\build\native\zlib-msvc14-x64.targets" Condition="Exists('..\packages\zlib-msvc14-x64.1.2.11.7795\build\native\zlib-msvc14-x64.targets')" />
   </ImportGroup>
   <Target Name="EnsureNuGetPackageBuildImports" BeforeTargets="PrepareForBuild">
     <PropertyGroup>
@@ -222,5 +258,9 @@
     <Error Condition="!Exists('..\packages\CNTK.Deps.MKL.2.4.0\build\native\CNTK.Deps.MKL.targets')" Text="$([System.String]::Format('$(ErrorText)', '..\packages\CNTK.Deps.MKL.2.4.0\build\native\CNTK.Deps.MKL.targets'))" />
     <Error Condition="!Exists('..\packages\CNTK.Deps.OpenCV.Zip.2.4.0\build\native\CNTK.Deps.OpenCV.Zip.targets')" Text="$([System.String]::Format('$(ErrorText)', '..\packages\CNTK.Deps.OpenCV.Zip.2.4.0\build\native\CNTK.Deps.OpenCV.Zip.targets'))" />
     <Error Condition="!Exists('..\packages\CNTK.GPU.2.4.0\build\native\CNTK.GPU.targets')" Text="$([System.String]::Format('$(ErrorText)', '..\packages\CNTK.GPU.2.4.0\build\native\CNTK.GPU.targets'))" />
+    <Error Condition="!Exists('..\packages\boost.1.67.0.0\build\boost.targets')" Text="$([System.String]::Format('$(ErrorText)', '..\packages\boost.1.67.0.0\build\boost.targets'))" />
+    <Error Condition="!Exists('..\packages\OpenBLAS.0.2.14.1\build\native\openblas.targets')" Text="$([System.String]::Format('$(ErrorText)', '..\packages\OpenBLAS.0.2.14.1\build\native\openblas.targets'))" />
+    <Error Condition="!Exists('..\packages\opencl-nug.0.777.12\build\native\opencl-nug.targets')" Text="$([System.String]::Format('$(ErrorText)', '..\packages\opencl-nug.0.777.12\build\native\opencl-nug.targets'))" />
+    <Error Condition="!Exists('..\packages\zlib-msvc14-x64.1.2.11.7795\build\native\zlib-msvc14-x64.targets')" Text="$([System.String]::Format('$(ErrorText)', '..\packages\zlib-msvc14-x64.1.2.11.7795\build\native\zlib-msvc14-x64.targets'))" />
   </Target>
 </Project>
