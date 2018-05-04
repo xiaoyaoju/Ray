@@ -238,4 +238,6 @@ void SetUseNN(bool flag);
 
 void SetDeviceId( const int id );
 
+int GetDeviceId();
+
 #endif
