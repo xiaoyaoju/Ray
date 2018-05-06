@@ -2046,6 +2046,7 @@ SelectMaxUcbChild( const game_info_t *game, int current, int color )
     }
   }
 
+  /*
   static ray_clock::time_point previous_time = ray_clock::now();
   static mutex mutex_log;
   if (current == current_root && sum > 0) {
@@ -2072,6 +2073,7 @@ SelectMaxUcbChild( const game_info_t *game, int current, int color )
     }
     mutex_log.unlock();
   }
+  */
 
   return max_child;
 }
