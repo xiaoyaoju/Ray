@@ -710,7 +710,9 @@ UctSearchGenmove( game_info_t *game, int color )
   double best_wpv = (double)uct_node[current_root].value_win / uct_node[current_root].value_move_count;
 
   // コミを含めない盤面のスコアを求める
-  double score = (double)CalculateScore(game);
+  game_info_t game_copy;
+  CopyGame(&game_copy, game);
+  double score = (double)CalculateScore(&game_copy);
   // コミを考慮した勝敗
   score -= komi[my_color];
 
