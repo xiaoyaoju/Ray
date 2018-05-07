@@ -37,12 +37,7 @@ const double FPU = 5.0;
 const double PROGRESSIVE_WIDENING = 1.8;
 
 // ノード展開の閾値
-const int EXPAND_THRESHOLD_9  = 20;
-const int EXPAND_THRESHOLD_13 = 25;
-//const int EXPAND_THRESHOLD_19 = 40;
-const int EXPAND_THRESHOLD_19 = 15;
 extern int custom_expand_threshold;
-
 
 // 候補手の最大数(盤上全体 + パス)
 const int UCT_CHILD_MAX = PURE_BOARD_MAX + 1;
@@ -108,7 +103,6 @@ struct child_node_t {
   double rate; // 着手のレート
   //double nnrate0; // ニューラルネットワークでのレート
   double nnrate; // ニューラルネットワークでのレート
-  std::atomic<double> value;
   bool flag;   // Progressive Wideningのフラグ
   bool open;   // 常に探索候補に入れるかどうかのフラグ
   bool ladder; // シチョウのフラグ
