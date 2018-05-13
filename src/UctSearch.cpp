@@ -2834,7 +2834,7 @@ void EvalNode() {
       mutex_queue.lock();
     }
 
-    if (running && eval_value_queue.size() == 0) {
+    if (eval_value_queue.size() == 0) {
       mutex_queue.unlock();
     } else {
       std::vector<std::shared_ptr<value_eval_req>> requests;
