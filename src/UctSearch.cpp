@@ -51,7 +51,6 @@ using namespace std;
 struct value_eval_req {
   int index;
   child_node_t *uct_child;
-  int color;
   int moves;
   std::vector<int> path;
   record_t record[MAX_RECORDS];
@@ -59,8 +58,6 @@ struct value_eval_req {
 
 struct policy_eval_req {
   int index;
-  int depth;
-  int color;
   int moves;
   record_t record[MAX_RECORDS];
 };
@@ -1239,8 +1236,6 @@ RatingNode( game_info_t *game, int color, int index, int depth )
     uct_node_t *root = &uct_node[current_root];
 
     auto req = make_shared<policy_eval_req>();
-    req->color = color;
-    req->depth = depth;
     req->index = index;
     req->moves = game->moves;
     memcpy(req->record, game->record, sizeof(record_t) * MAX_RECORDS);
@@ -1614,11 +1609,12 @@ UctSearch( game_info_t *game, int color, mt19937_64 *mt, int current, int *winne
       uct_node_t *root = &uct_node[current_root];
 
       auto req = make_shared<value_eval_req>();
+      req->index = uct_child[next_index].index;
       req->uct_child = uct_child + next_index;
-      req->color = color;
-      req->path.swap(path);
+      copy(path.begin(), path.end(), back_inserter(req->path));
       req->moves = game->moves;
       memcpy(req->record, game->record, sizeof(record_t) * MAX_RECORDS);
+
       mutex_queue.lock();
       eval_value_queue.push(req);
       mutex_queue.unlock();
@@ -2465,7 +2461,6 @@ EvalPolicy(
 
   LOCK_NODE(index);
 
-  int depth = req->depth;
 #if 0
   if (index == current_root) {
     for (int i = 0; i < pure_board_max; i++) {
