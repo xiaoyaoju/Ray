@@ -1,14 +1,10 @@
 Require
 -------
-- CNTK version 2.4
-  https://github.com/Microsoft/CNTK/releases
-- NVIDIA GPU
+- OpenCL device
 
 
 Additional Options
 ------------------
---no-nn            Do not use neural networks.
-
 --no-gpu           Do not use GPU, even if GPU is available.
 
 --no-early-pass    Do not pass.
