@@ -1351,7 +1351,7 @@ InterruptionCheck( void )
   child_node_t *uct_child = uct_node[current_root].child;
 
   if (mode != CONST_PLAYOUT_MODE &&
-      GetSpendTime(begin_time) * 10.0 < time_limit) {
+      GetSpendTime(begin_time) * 2.0 < time_limit) {
       return false;
   }
 
@@ -1381,6 +1381,10 @@ InterruptionCheck( void )
 static bool
 ExtendTime( void )
 {
+  // 持ち時間が少ないときは延長しない
+  if (time_limit < 2.0)
+    return false;
+
   int max = 0, second = 0;
   int max_index = 0;
   const int child_num = uct_node[current_root].child_num;
@@ -2760,11 +2764,12 @@ void EvalNode() {
   std::vector<float> eval_input_data_safety;
 
   int num_eval = 0;
+  bool allow_skip = (!reuse_subtree && !ponder) || time_limit <= 1.0;
 
   while (true) {
     mutex_queue.lock();
     if (!running
-      && ((!reuse_subtree && !ponder) || (eval_policy_queue.empty() && eval_value_queue.empty()))) {
+      && (allow_skip || (eval_policy_queue.empty() && eval_value_queue.empty()))) {
       mutex_queue.unlock();
       cerr << "Eval " << num_eval << endl;
       break;
