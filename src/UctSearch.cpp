@@ -2779,6 +2779,8 @@ void EvalNode() {
       if (GetDebugMessageMode()) {
         cerr << "Eval " << num_eval << endl;
       }
+      if (allow_skip)
+        ClearEvalQueue();
       break;
     }
 
