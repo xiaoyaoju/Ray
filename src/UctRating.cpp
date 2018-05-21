@@ -103,15 +103,14 @@ static void InputLargePattern( const char *filename, latent_factor_t *lf, index_
 void
 InitializeUctRating()
 {
-  int i;
   //  γ読み込み
   InputUCTParameter();
 
-  for (i = UCT_SAVE_CAPTURE_1_1; i <= UCT_SEMEAI_CAPTURE; i++) {
+  for (int i = UCT_SAVE_CAPTURE_1_1; i <= UCT_SEMEAI_CAPTURE; i++) {
     capture_mask |= uct_mask[i];
   }
 
-  for (i = UCT_ATARI; i <= UCT_3POINT_C_ATARI_L_L; i++) {
+  for (int i = UCT_ATARI; i <= UCT_3POINT_C_ATARI_L_L; i++) {
     atari_mask |= uct_mask[i];
   }
 }
@@ -195,9 +194,8 @@ void
 UctCheckFeaturesLib2( const game_info_t *game, int color, int id, uct_features_t *uct_features )
 {
   const string_t *string = game->string;
-  int lib1, lib2, neighbor;
+  int lib1, lib2, neighbor, lib1_state, lib2_state;
   unsigned long long *tactical_features1 = uct_features->tactical_features1;
-  int lib1_state, lib2_state;
 
   // 呼吸点が2つになった連の呼吸点を取り出す
   lib1 = string[id].lib[0];
@@ -326,9 +324,8 @@ void
 UctCheckFeaturesLib3( const game_info_t *game, int color, int id, uct_features_t *uct_features )
 {
   const string_t *string = game->string;
-  int lib1, lib2, lib3, neighbor;
+  int lib1, lib2, lib3, neighbor, lib1_state, lib2_state, lib3_state;
   unsigned long long *tactical_features1 = uct_features->tactical_features1;
-  int lib1_state, lib2_state, lib3_state;
 
   // 呼吸点が3つになった連の呼吸点を取り出す
   lib1 = string[id].lib[0];
@@ -500,18 +497,15 @@ UctCheckFeaturesLib3( const game_info_t *game, int color, int id, uct_features_t
 //////////////////
 void
 UctCheckFeatures( const game_info_t *game, int color, uct_features_t *uct_features )
-{
-  const string_t *string = game->string;
+{ 
   const char *board = game->board;
+  const string_t *string = game->string;
   const int *string_id = game->string_id;
-  int previous_move = PASS;
-  int id;
+  int previous_move = PASS, id;
   int check[4] = { 0 };
   int checked = 0;
-  bool ladder;
+  bool ladder, already_checked;
   int neighbor4[4];
-  int i, j;
-  bool already_checked;
 
   if (game->moves > 1) previous_move = game->record[game->moves - 1].pos;
 
@@ -519,11 +513,11 @@ UctCheckFeatures( const game_info_t *game, int color, uct_features_t *uct_featur
 
   GetNeighbor4(neighbor4, previous_move);
 
-  for (i = 0; i < 4; i++) {
+  for (int i = 0; i < 4; i++) {
     if (board[neighbor4[i]] == color) {
       id = string_id[neighbor4[i]];
       already_checked = false;
-      for (j = 0; j < checked; j++) {
+      for (int j = 0; j < checked; j++) {
 	if (check[j] == id) {
 	  already_checked = true;
 	  break;
@@ -553,15 +547,14 @@ UctCheckCaptureAfterKo( const game_info_t *game, int color, uct_features_t *uct_
   const string_t *string = game->string;
   const char *board = game->board;
   const int *string_id = game->string_id;
-  int other = FLIP_COLOR(color);
-  int previous_move_2 = game->record[game->moves - 2].pos;
-  int id, lib, i;
+  const int other = FLIP_COLOR(color);
+  const int previous_move_2 = game->record[game->moves - 2].pos;
+  int id, lib, neighbor4[4];
   unsigned long long *tactical_features1 = uct_features->tactical_features1;
-  int neighbor4[4];
 
   GetNeighbor4(neighbor4, previous_move_2);
 
-  for (i = 0; i < 4; i++) {
+  for (int i = 0; i < 4; i++) {
     if (board[neighbor4[i]] == other) {
       id = string_id[neighbor4[i]];
       if (string[id].libs == 1) {
@@ -589,7 +582,6 @@ UctCheckSelfAtari( const game_info_t *game, int color, int pos, uct_features_t *
   int already_num = 0;
   int id;
   int lib, count, libs = 0;
-  int i, j;
   int lib_candidate[PURE_BOARD_MAX];   
   bool checked;
   unsigned long long *tactical_features1 = uct_features->tactical_features1;
@@ -598,7 +590,7 @@ UctCheckSelfAtari( const game_info_t *game, int color, int pos, uct_features_t *
 
   GetNeighbor4(neighbor4, pos);
 
-  for (i = 0; i < 4; i++) {
+  for (int i = 0; i < 4; i++) {
     if (board[neighbor4[i]] == S_EMPTY) {
       lib_candidate[libs++] = neighbor4[i];
     }
@@ -608,11 +600,11 @@ UctCheckSelfAtari( const game_info_t *game, int color, int pos, uct_features_t *
   if (libs >= 2) return true;
 
   //  上下左右の確認
-  for (i = 0; i < 4; i++) {
+  for (int i = 0; i < 4; i++) {
     if (board[neighbor4[i]] == color) {
       id = string_id[neighbor4[i]];
       already_checked = false;
-      for (j = 0; j < already_num; j++) {
+      for (int j = 0; j < already_num; j++) {
 	if (already[j] == id) {
 	  already_checked = true;
 	}
@@ -625,7 +617,7 @@ UctCheckSelfAtari( const game_info_t *game, int color, int pos, uct_features_t *
       while (lib != LIBERTY_END) {
 	if (lib != pos) {
 	  checked = false;
-	  for (j = 0; j < libs; j++) {
+	  for (int j = 0; j < libs; j++) {
 	    if (lib_candidate[j] == lib) {
 	      checked = true;
 	      break;
@@ -678,19 +670,17 @@ void
 UctCheckCapture( const game_info_t *game, int color, int pos, uct_features_t *uct_features )
 {
   const char *board = game->board;
+  const int other = FLIP_COLOR(color);
   const string_t *string = game->string;
   const int *string_id = game->string_id;
-  int other = FLIP_COLOR(color);
   bool check;
-  int neighbor;
-  int id;
+  int neighbor, id;
   unsigned long long *tactical_features1 = uct_features->tactical_features1;
   int neighbor4[4];
-  int i;
 
   GetNeighbor4(neighbor4, pos);
 
-  for (i = 0; i < 4; i++) {
+  for (int i = 0; i < 4; i++) {
     if (board[neighbor4[i]] == other) {
       if (string[string_id[neighbor4[i]]].libs == 1) {
 	check = false;
@@ -722,17 +712,15 @@ void
 UctCheckAtari( const game_info_t *game, int color, int pos, uct_features_t *uct_features )
 {
   const char *board = game->board;
+  const int other = FLIP_COLOR(color);
   const string_t *string = game->string;
-  int other = FLIP_COLOR(color);
   const int *string_id = game->string_id;
-  int id;
-  int size;
+  int id, size, neighbor4[4];
   unsigned long long *tactical_features1 = uct_features->tactical_features1;
-  int neighbor4[4], i;
 
   GetNeighbor4(neighbor4, pos);
 
-  for (i = 0; i < 4; i++) {
+  for (int i = 0; i < 4; i++) {
     if (board[neighbor4[i]] == other) {
       id = string_id[neighbor4[i]];
       if (string[id].libs == 2) {
@@ -757,10 +745,8 @@ UctCheckAtari( const game_info_t *game, int color, int pos, uct_features_t *uct_
 void
 UctCheckKoConnection( const game_info_t *game, uct_features_t *uct_features )
 {
-  int ko_pos = game->ko_pos;
-
   if (game->ko_move == game->moves - 2) {
-    uct_features->tactical_features1[ko_pos] |= uct_mask[UCT_KO_CONNECTION];
+    uct_features->tactical_features1[game->ko_pos] |= uct_mask[UCT_KO_CONNECTION];
   }
 }
 
@@ -771,8 +757,8 @@ UctCheckKoConnection( const game_info_t *game, uct_features_t *uct_features )
 void
 UctCheckRemove2Stones( const game_info_t *game, int color, uct_features_t *uct_features )
 {
-  int i, rm1, rm2, connect;
-  int other = FLIP_COLOR(color);
+  const int other = FLIP_COLOR(color);
+  int i, connect;
   unsigned long long *tactical_features1 = uct_features->tactical_features1;
   int cross[4];
 
@@ -785,8 +771,8 @@ UctCheckRemove2Stones( const game_info_t *game, int color, uct_features_t *uct_f
     return;
   }
 
-  rm1 = game->capture_pos[other][0];
-  rm2 = game->capture_pos[other][1];
+  const int rm1 = game->capture_pos[other][0];
+  const int rm2 = game->capture_pos[other][1];
 
   if (rm1 - rm2 != 1 &&
       rm2 - rm1 != 1 &&
@@ -823,17 +809,16 @@ UctCheckRemove2Stones( const game_info_t *game, int color, uct_features_t *uct_f
 void
 UctCheckRemove3Stones( const game_info_t *game, int color, uct_features_t *uct_features )
 {
-  int rm1, rm2, rm3;
-  int other = FLIP_COLOR(color);
+  const int other = FLIP_COLOR(color);
   unsigned long long *tactical_features1 = uct_features->tactical_features1;
 
   if (game->capture_num[other] != 3) {
     return;
   }
 
-  rm1 = game->capture_pos[other][0];
-  rm2 = game->capture_pos[other][1];
-  rm3 = game->capture_pos[other][2];
+  const int rm1 = game->capture_pos[other][0];
+  const int rm2 = game->capture_pos[other][1];
+  const int rm3 = game->capture_pos[other][2];
 
   if (DIS(rm1, rm2) == 2 && DIS(rm1, rm3) == 2){
     tactical_features1[rm1] |= uct_mask[UCT_NAKADE_3];
@@ -852,7 +837,7 @@ void
 UctCheckKeimaTsukekoshi( const game_info_t *game, int color, int pos, uct_features_t *uct_features )
 {
   const char *board = game->board;
-  int other = FLIP_COLOR(color);
+  const int other = FLIP_COLOR(color);
   unsigned long long *tactical_features1 = uct_features->tactical_features1;
   int keima_pos[8], opponent_pos[8];
 
@@ -1001,9 +986,9 @@ UctCheckDoubleKeima( const game_info_t *game, int color, int pos, uct_features_t
   // ++O+O++
   // Oのうち自分と相手の石が1個ずつ以上ある時の特徴
   const char *board = game->board;
-  int other = FLIP_COLOR(color);
+  const int other = FLIP_COLOR(color);
   int keima_pos[8];
-  int i, p = 0, o = 0;
+  int player = 0, opponent = 0;
   unsigned long long *tactical_features1 = uct_features->tactical_features1;
 
   if (Pat3(game->pat, pos) != 0x0000) {
@@ -1019,12 +1004,12 @@ UctCheckDoubleKeima( const game_info_t *game, int color, int pos, uct_features_t
   keima_pos[6] = 2 * board_size - 1;
   keima_pos[7] = 2 * board_size + 1;
 
-  for (i = 0; i < 8; i++) {
-    if (board[pos + keima_pos[i]] == color) p++;
-    if (board[pos + keima_pos[i]] == other) o++;
+  for (int i = 0; i < 8; i++) {
+    if (board[pos + keima_pos[i]] == color) player++;
+    if (board[pos + keima_pos[i]] == other) opponent++;
   }
 
-  if (p > 0 && o > 0){
+  if (player > 0 && opponent > 0){
     tactical_features1[pos] |= uct_mask[UCT_DOUBLE_KEIMA];
   }
 
@@ -1040,13 +1025,13 @@ UctCheckSnapBack( const game_info_t *game, int color, int pos, uct_features_t *u
   const string_t *string = game->string;
   const int *string_id = game->string_id;
   const char *board = game->board;
-  int other = FLIP_COLOR(color);
+  const int other = FLIP_COLOR(color);
   unsigned long long *tactical_features1 = uct_features->tactical_features1;
-  int i, neighbor4[4];
+  int neighbor4[4];
 
   GetNeighbor4(neighbor4, pos);
 
-  for (i = 0; i < 4; i++) {
+  for (int i = 0; i < 4; i++) {
     if (board[neighbor4[i]] == other) {
       int id = string_id[neighbor4[i]];
 
@@ -1075,10 +1060,10 @@ UctCheckSnapBack( const game_info_t *game, int color, int pos, uct_features_t *u
 double
 CalculateLFRScore( const game_info_t *game, int pos, int index[3], uct_features_t *uct_features )
 {
+  const int moves = game->moves;
   const pattern_t *pat = game->pat;
   int pm1 = PASS, pm2 = PASS;
-  int moves = game->moves;
-  int i, j, f, dis1 = -1, dis2 = -1;
+  int dis1 = -1, dis2 = -1;
   double score = weight_zero;
   double tmp_score;
   unsigned long long *tactical_features1 = uct_features->tactical_features1;
@@ -1117,7 +1102,7 @@ CalculateLFRScore( const game_info_t *game, int pos, int index[3], uct_features_
   md2 = md2_index[MD2(pat, pos)];
 
   // 特徴を
-  for (i = 0; i < UCT_TACTICAL_FEATURE_MAX; i++) {
+  for (int i = 0; i < UCT_TACTICAL_FEATURE_MAX; i++) {
     if ((tactical_features1[pos] & uct_mask[i]) != 0) {
       all_feature[feature_num++] = &uct_tactical_features[i];
     }
@@ -1146,15 +1131,15 @@ CalculateLFRScore( const game_info_t *game, int pos, int index[3], uct_features_
   }
 
   // wの足し算
-  for (i = 0; i < feature_num; i++) {
+  for (int i = 0; i < feature_num; i++) {
     score += all_feature[i]->w;
   }
 
   // vの計算
-  for (f = 0; f < LFR_DIMENSION; f++) {
-    for (i = 0; i < feature_num; i++) {
+  for (int f = 0; f < LFR_DIMENSION; f++) {
+    for (int i = 0; i < feature_num; i++) {
       tmp_score = 0.0;
-      for (j = i + 1; j < feature_num; j++) {
+      for (int j = i + 1; j < feature_num; j++) {
 	tmp_score += all_feature[j]->v[f];
       }
       score += tmp_score * all_feature[i]->v[f];
@@ -1171,11 +1156,9 @@ CalculateLFRScore( const game_info_t *game, int pos, int index[3], uct_features_
 void
 AnalyzeUctRating( const game_info_t *game, int color, double rate[] )
 {
-  int i;
-  int pos;
-  int moves = game->moves;
-  pattern_hash_t hash_pat;
+  const int moves = game->moves;
   int pat_index[3];
+  pattern_hash_t hash_pat;
   uct_features_t uct_features;
 
   memset(&uct_features, 0, sizeof(uct_features_t));
@@ -1188,8 +1171,8 @@ AnalyzeUctRating( const game_info_t *game, int color, double rate[] )
     UctCheckKoConnection(game, &uct_features);
   }
 
-  for (i = 0; i < pure_board_max; i++) {
-    pos = onboard_pos[i];
+  for (int i = 0; i < pure_board_max; i++) {
+    const int pos = onboard_pos[i];
     if (!game->candidates[pos] || !IsLegal(game, pos, color)) {
       rate[i] = 0;
       continue;
@@ -1208,9 +1191,7 @@ AnalyzeUctRating( const game_info_t *game, int color, double rate[] )
     pat_index[1] = SearchIndex(md4_index, hash_pat.list[MD_4]);
     pat_index[2] = SearchIndex(md5_index, hash_pat.list[MD_5 + MD_MAX]);
 
-    double gamma = CalculateLFRScore(game, pos, pat_index, &uct_features);
-
-    rate[i] = gamma;
+    rate[i] = CalculateLFRScore(game, pos, pat_index, &uct_features);
   }
 }
 
@@ -1292,7 +1273,6 @@ static void
 InputLatentFactor( const char *filename, latent_factor_t *lf, int n )
 {
   FILE *fp;
-  int i, j;
 
 #if defined (_WIN32)
   errno_t err;
@@ -1301,12 +1281,12 @@ InputLatentFactor( const char *filename, latent_factor_t *lf, int n )
   if (err != 0) {
     cerr << "can not open -" << filename << "-" << endl;
   }
-  for (i = 0; i < n; i++) {
+  for (int i = 0; i < n; i++) {
     if (fscanf_s(fp, "%lf", &lf[i].w) == EOF) {
       cerr << "Read Error : " << filename << endl;
       exit(1);
     }
-    for (j = 0; j < LFR_DIMENSION; j++) {
+    for (int j = 0; j < LFR_DIMENSION; j++) {
       if (fscanf_s(fp, "%lf", &lf[i].v[j]) == EOF) {
         cerr << "Read Error : " << filename << endl;
 	exit(1);
@@ -1318,12 +1298,12 @@ InputLatentFactor( const char *filename, latent_factor_t *lf, int n )
   if (fp == NULL) {
     cerr << "can not open -" << filename << "-" << endl;
   }
-  for (i = 0; i < n; i++) {
+  for (int i = 0; i < n; i++) {
     if (fscanf(fp, "%lf", &lf[i].w) == EOF) {
       cerr << "Read Error : " << filename << endl;
       exit(1);
     }
-    for (j = 0; j < LFR_DIMENSION; j++) {
+    for (int j = 0; j < LFR_DIMENSION; j++) {
       if (fscanf(fp, "%lf", &lf[i].v[j]) == EOF) {
         cerr << "Read Error : " << filename << endl;
         exit(1);
@@ -1342,18 +1322,18 @@ static void
 InputPat3( const char *filename, latent_factor_t *lf )
 {
   FILE *fp;
-  int i, idx = 0;
+  int idx = 0;
   double weight;
-  unsigned int pat3, pat3_transp16[16];
+  unsigned int pat3_transp16[16];
 
-  for (pat3 = 0; pat3 < (unsigned int)PAT3_MAX; pat3++) {
+  for (unsigned int pat3 = 0; pat3 < (unsigned int)PAT3_MAX; pat3++) {
     pat3_index[pat3] = -1;
   }
 
-  for (pat3 = 0; pat3 < (unsigned int)PAT3_MAX; pat3++) {
+  for (unsigned int pat3 = 0; pat3 < (unsigned int)PAT3_MAX; pat3++) {
     if (pat3_index[pat3] == -1) {
       Pat3Transpose16(pat3, pat3_transp16);
-      for (i = 0; i < 16; i++) {
+      for (int i = 0; i < 16; i++) {
 	pat3_index[pat3_transp16[i]] = idx;
       }
       idx++;
@@ -1368,14 +1348,14 @@ InputPat3( const char *filename, latent_factor_t *lf )
     cerr << "can not open -" << filename << "-" << endl;
     exit(1);
   }
-  for (pat3 = 0; pat3 < (unsigned int)PAT3_MAX; pat3++) {
+  for (unsigned int pat3 = 0; pat3 < (unsigned int)PAT3_MAX; pat3++) {
     if (fscanf_s(fp, "%lf", &weight) == EOF) {
       cerr << "Read Error : " << filename << endl;
       exit(1);
     }
     idx = pat3_index[pat3];
     lf[idx].w = weight;   
-    for (i = 0; i < LFR_DIMENSION; i++) {
+    for (int i = 0; i < LFR_DIMENSION; i++) {
       if (fscanf_s(fp, "%lf", &lf[idx].v[i]) == EOF) {
         cerr << "Read Error : " << filename << endl;
         exit(1);
@@ -1388,14 +1368,14 @@ InputPat3( const char *filename, latent_factor_t *lf )
     cerr << "can not open -" << filename << "-" << endl;
     exit(1);
   }
-  for (pat3 = 0; pat3 < (unsigned int)PAT3_MAX; pat3++) {
+  for (unsigned int pat3 = 0; pat3 < (unsigned int)PAT3_MAX; pat3++) {
     if (fscanf(fp, "%lf", &weight) == EOF) {
       cerr << "Read Error : " << filename << endl;
       exit(1);
     }
     idx = pat3_index[pat3];
     lf[idx].w = weight;
-    for (i = 0; i < LFR_DIMENSION; i++) {
+    for (int i = 0; i < LFR_DIMENSION; i++) {
       if (fscanf(fp, "%lf", &lf[idx].v[i]) == EOF) {
         cerr << "Read Error : " << filename << endl;
         exit(1);
@@ -1413,19 +1393,18 @@ static void
 InputMD2( const char *filename, latent_factor_t *lf )
 {
   FILE *fp;
-  int i;
   int index, idx = 0;
   double weight;
-  unsigned int md2, md2_transp16[16];
+  unsigned int md2_transp16[16];
 
-  for (md2 = 0; md2 < (unsigned int)MD2_MAX; md2++) {
+  for (unsigned int md2 = 0; md2 < (unsigned int)MD2_MAX; md2++) {
     md2_index[md2] = -1;
   }
 
-  for (md2 = 0; md2 < (unsigned int)MD2_MAX; md2++) {
+  for (unsigned int md2 = 0; md2 < (unsigned int)MD2_MAX; md2++) {
     if (md2_index[md2] == -1) {
       MD2Transpose16(md2, md2_transp16);
-      for (i = 0; i < 16; i++) {
+      for (int i = 0; i < 16; i++) {
 	md2_index[md2_transp16[i]] = idx;
       }
       idx++;
@@ -1442,7 +1421,7 @@ InputMD2( const char *filename, latent_factor_t *lf )
   while (fscanf_s(fp, "%d%lf", &index, &weight) != EOF) {
     idx = md2_index[index];
     lf[idx].w = weight;
-    for (i = 0; i < LFR_DIMENSION; i++) {
+    for (int i = 0; i < LFR_DIMENSION; i++) {
       if (fscanf_s(fp, "%lf", &lf[idx].v[i]) == EOF) {
         cerr << "Read Error : " << filename << endl;
         exit(1);
@@ -1457,7 +1436,7 @@ InputMD2( const char *filename, latent_factor_t *lf )
   while (fscanf(fp, "%d%lf", &index, &weight) != EOF) {
     idx = md2_index[index];
     lf[idx].w = weight;
-    for (i = 0; i < LFR_DIMENSION; i++) {
+    for (int i = 0; i < LFR_DIMENSION; i++) {
       if (fscanf(fp, "%lf", &lf[idx].v[i]) == EOF) {
         cerr << "Read Error : " << filename << endl;
         exit(1);
@@ -1474,12 +1453,11 @@ static void
 InputLargePattern( const char *filename, latent_factor_t *lf, index_hash_t *pat_index )
 {
   FILE *fp;
-  int i;
   int index, idx = 0;
   unsigned long long hash;
   double weight;
 
-  for (i = 0; i < HASH_MAX; i++) {
+  for (int i = 0; i < HASH_MAX; i++) {
     pat_index[i].hash = 0;
     pat_index[i].index = -1;
   }
@@ -1496,7 +1474,7 @@ InputLargePattern( const char *filename, latent_factor_t *lf, index_hash_t *pat_
     pat_index[index].hash = hash;
     pat_index[index].index = idx;
     lf[idx].w = weight;
-    for (i = 0; i < LFR_DIMENSION; i++) {
+    for (int i = 0; i < LFR_DIMENSION; i++) {
       if (fscanf_s(fp, "%lf", &lf[idx].v[i]) == EOF) {
         cerr << "Read Error : " << filename << endl;
         exit(1);
@@ -1514,7 +1492,7 @@ InputLargePattern( const char *filename, latent_factor_t *lf, index_hash_t *pat_
     pat_index[index].hash = hash;
     pat_index[index].index = idx;
     lf[idx].w = weight;
-    for (i = 0; i < LFR_DIMENSION; i++) {
+    for (int i = 0; i < LFR_DIMENSION; i++) {
       if (fscanf(fp, "%lf", &lf[idx].v[i]) == EOF) {
         cerr << "Read Error : " << filename << endl;
         exit(1);
