@@ -163,6 +163,7 @@
     <ClCompile Include="..\..\src\GoBoard.cpp" />
     <ClCompile Include="..\..\src\Gtp.cpp" />
     <ClCompile Include="..\..\src\Ladder.cpp" />
+    <ClCompile Include="..\..\src\SgfExtractor.cpp" />
     <ClCompile Include="..\..\src\Train.cpp" />
     <ClCompile Include="..\..\src\Message.cpp" />
     <ClCompile Include="..\..\src\MoveCache.cpp" />

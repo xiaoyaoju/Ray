@@ -1,6 +1,6 @@
 #include "Train.h"
 #include "UctSearch.h"
-#include "SGFExtractor.hpp"
+#include "SgfExtractor.h"
 #include "DynamicKomi.h"
 #include "Rating.h"
 #include "Message.h"
@@ -61,10 +61,10 @@ struct DataSet {
 static vector<string> filenames;
 static mutex mutex_records;
 //static vector<SGF_record> *records_next;
-static vector<SGF_record> *records_current;
-static vector<SGF_record> records_a;
-static vector<SGF_record> records_b;
-static map<SGF_record*, shared_ptr<float[]>> statistic;
+static vector<SGF_record_t> *records_current;
+static vector<SGF_record_t> records_a;
+static vector<SGF_record_t> records_b;
+static map<SGF_record_t*, shared_ptr<float[]>> statistic;
 extern int threads;
 
 static void
@@ -82,7 +82,7 @@ ListFiles()
 }
 
 static void
-ReadFiles(int thread_no, size_t offset, size_t size, vector<SGF_record> *records)
+ReadFiles(int thread_no, size_t offset, size_t size, vector<SGF_record_t> *records)
 {
   vector<string> files;
   files.reserve(size);
@@ -126,7 +126,7 @@ public:
     FreeGame(game);
   }
 
-  bool Play(DataSet& data, const SGF_record& kifu) {
+  bool Play(DataSet& data, const SGF_record_t& kifu) {
     int win_color;
     if (kifu.handicaps > 0)
       return false;
@@ -150,14 +150,18 @@ public:
 
     // Replay to random turn
     int dump_turn;
+#if 0
     if (kifu.random_move < 0) {
+#endif
       uniform_int_distribution<int> dist_turn(1, max(1, kifu.moves - 20));
       dump_turn = dist_turn(mt);
+#if 0
     } else {
       //dump_turn = kifu.random_move - 1;
       uniform_int_distribution<int> dist_turn(kifu.random_move - 1, min(kifu.random_move + 8, kifu.moves - 1));
       dump_turn = dist_turn(mt);
     }
+#endif
 
     int color = S_BLACK;
     double rate[PURE_BOARD_MAX];
@@ -476,7 +480,7 @@ Train()
       //auto finish_time = GetSpendTime(begin_time) * 1000;
       //cerr << "read sgf " << finish_time << endl;
 
-      vector<SGF_record> *records_next;
+      vector<SGF_record_t> *records_next;
       if (alt % 2 == 0) {
         records_current = &records_a;
         records_next = &records_b;

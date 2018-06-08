@@ -27,7 +27,7 @@
 #include "ZobristHash.h"
 #include "MoveCache.h"
 #include "OpeningBook.h"
-#include "SGFExtractor.hpp"
+#include "SgfExtractor.h"
 
 using namespace std;
 
@@ -1255,7 +1255,7 @@ GTP_dupm_kifu_feature(void)
   }
   CHOMP(file_name);
 
-  SGF_record kifu;
+  SGF_record_t kifu;
   ExtractKifu(file_name, &kifu);
 
   if (kifu.moves == 0) {
