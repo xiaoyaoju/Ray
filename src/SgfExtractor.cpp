@@ -2,10 +2,13 @@
 #include <cstdlib>
 #include <cstring>
 #include <cctype>
+#include <memory>
 
 #include "GoBoard.h"
 #include "Message.h"
 #include "SgfExtractor.h"
+
+using namespace std;
 
 // SGFの座標を数値に変換
 static int ParsePosition( char c );
@@ -51,7 +54,11 @@ void
 ExtractKifu( const char *file_name, SGF_record_t *kifu )
 {
   FILE *fp;
-  char sgf_text[100005], buffer[10000];
+  const int buffer_size = 1000000;
+  auto sgf_buf = unique_ptr<char[]>(new char[buffer_size]);
+  char *sgf_text = sgf_buf.get();
+  char buffer[10000];
+
   int cursor = 0;
   
 #if defined (_WIN32)
@@ -68,7 +75,7 @@ ExtractKifu( const char *file_name, SGF_record_t *kifu )
   }
 #endif  
 
-  memset(sgf_text, 0, sizeof(char) * 100005);
+  memset(sgf_text, 0, sizeof(char) * buffer_size);
   
   while (fgets(buffer, 10000, fp) != NULL) {
 #if defined (_WIN32)
@@ -76,6 +83,10 @@ ExtractKifu( const char *file_name, SGF_record_t *kifu )
 #else
     strncat(sgf_text, buffer, 10000);
 #endif
+    if (strlen(sgf_text) >= buffer_size - 10000) {
+      fprintf(stderr, "Too long sgf");
+      abort();
+    }
   }
   fclose(fp);
   
