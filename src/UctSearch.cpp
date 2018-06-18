@@ -751,6 +751,8 @@ UctSearchGenmove( game_info_t *game, int color )
     pos = PASS;
   } else if (best_wp <= resign_threshold && (!use_nn || best_wpv < resign_threshold)) {
     pos = RESIGN;
+  } else if (best_wp <= 0.01) {
+    pos = RESIGN;
   } else {
     pos = uct_child[select_index].pos;
   }
