@@ -154,6 +154,10 @@ public:
     if (kifu.random_move < 0) {
 #endif
       uniform_int_distribution<int> dist_turn(1, max(1, kifu.moves - 20));
+      /*
+      if (rand() % 100 < 10)
+        dist_turn = uniform_int_distribution<int>(kifu.moves * 3 / 4 - 20, max(1, kifu.moves - 20));
+        */
       dump_turn = dist_turn(mt);
 #if 0
     } else {
@@ -471,6 +475,33 @@ Train()
       const wstring ckpName = L"feedForward.net." + to_wstring(start_step) + L"." + to_wstring(999);
       wcerr << "Restrat " << start_step << endl;
       net = CNTK::Function::Load(ckpName, device);
+    } else if (fs::exists(L"./ref.bin")) {
+      auto ref_net = CNTK::Function::Load(L"ref.bin", device);
+      if (ref_net) {
+        for (auto p : net->Parameters()) {
+            wcerr << p.AsString() << " " << p.NeedsGradient();
+          auto& name = p.AsString();
+          if (
+            true
+            //name.find(L"model_move.") != wstring::npos
+            //|| name.find(L"sqm.") != wstring::npos
+            //name.find(L"owner.") != wstring::npos
+            //&& (name.find(L"core.core2") == wstring::npos || name.find(L"x.x.x.x.x") == wstring::npos)
+            //&& name.find(L"core.core2") == wstring::npos
+            //name.find(L"core.p2_L2.p2_L2.scale") != wstring::npos
+            ) {
+            wcerr << " LEARN";
+            for (auto rp : ref_net->Parameters()) {
+              if (name == rp.AsString()) {
+                wcerr << " COPY ";
+                p.SetValue(rp.GetValue());
+                break;
+              }
+            }
+            wcerr << endl;
+          }
+        }
+      }
     }
 
     for (int alt = start_step;; alt++) {
