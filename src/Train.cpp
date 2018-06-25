@@ -154,10 +154,11 @@ public:
     if (kifu.random_move < 0) {
 #endif
       uniform_int_distribution<int> dist_turn(1, max(1, kifu.moves - 20));
-      /*
-      if (rand() % 100 < 10)
-        dist_turn = uniform_int_distribution<int>(kifu.moves * 3 / 4 - 20, max(1, kifu.moves - 20));
-        */
+
+      if (abs(kifu.komi - 7.5) > 1.1 && rand() % 100 < 75) {
+        dist_turn = uniform_int_distribution<int>(kifu.moves * 3 / 4 - 20, kifu.moves - 1);
+      }
+
       dump_turn = dist_turn(mt);
 #if 0
     } else {
@@ -595,6 +596,8 @@ Train()
       //double rate = 2.0e-7 + 8.0e-6 / stepsize * (stepsize - abs(alt % (stepsize * 2) - stepsize));
       double lr_scale = pow(2, -alt / stepsize / 2.0);
       double rate = lr_min + (lr_max - lr_min) / stepsize * (stepsize - alt % stepsize);
+      if (alt < stepsize * 2)
+        rate = lr_min + (lr_max - lr_min) / stepsize * (stepsize - abs(alt % (stepsize * 2) - stepsize));
       rate *= lr_scale;
       cerr << rate << endl;
       LearningRateSchedule learningRatePerSample = TrainingParameterPerSampleSchedule(rate);
