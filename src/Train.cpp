@@ -366,8 +366,8 @@ public:
     CNTK::ValuePtr value_history = CNTK::MakeSharedObject<CNTK::Value>(CNTK::MakeSharedObject<CNTK::NDArrayView>(shape_history, data.history, true));
     CNTK::NDShape shape_color = var_color.Shape().AppendShape({ 1, num_req });
     CNTK::ValuePtr value_color = CNTK::MakeSharedObject<CNTK::Value>(CNTK::MakeSharedObject<CNTK::NDArrayView>(shape_color, data.color, true));
-    CNTK::NDShape shape_komi = var_komi.Shape().AppendShape({ 1, num_req });
-    CNTK::ValuePtr value_komi = CNTK::MakeSharedObject<CNTK::Value>(CNTK::MakeSharedObject<CNTK::NDArrayView>(shape_komi, data.komi, true));
+    //CNTK::NDShape shape_komi = var_komi.Shape().AppendShape({ 1, num_req });
+    //CNTK::ValuePtr value_komi = CNTK::MakeSharedObject<CNTK::Value>(CNTK::MakeSharedObject<CNTK::NDArrayView>(shape_komi, data.komi, true));
 
     CNTK::NDShape shape_win = var_win.Shape().AppendShape({ 1, num_req });
     CNTK::ValuePtr value_win = CNTK::MakeSharedObject<CNTK::Value>(CNTK::MakeSharedObject<CNTK::NDArrayView>(shape_win, data.win, true));
@@ -381,7 +381,7 @@ public:
       { var_features, value_features },
       { var_history, value_history },
       { var_color, value_color },
-      { var_komi, value_komi },
+      //{ var_komi, value_komi },
       { var_win, value_win },
       { var_move, value_move },
       { var_statistic , value_statistic },
@@ -555,10 +555,10 @@ Train()
         auto& name = p.AsString();
         total_count++;
         if (
-          //true
+          true
           //name.find(L"model_move.") != wstring::npos
           //|| name.find(L"sqm.") != wstring::npos
-          name.find(L"owner.") != wstring::npos
+          //name.find(L"owner.") != wstring::npos
           //&& (name.find(L"core.core2") == wstring::npos || name.find(L"x.x.x.x.x") == wstring::npos)
           //&& name.find(L"core.core2") == wstring::npos
           //name.find(L"core.p2_L2.p2_L2.scale") != wstring::npos

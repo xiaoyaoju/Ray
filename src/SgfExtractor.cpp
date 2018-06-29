@@ -60,18 +60,26 @@ ExtractKifu( const char *file_name, SGF_record_t *kifu )
   char buffer[10000];
 
   int cursor = 0;
-  
+
+  kifu->board_size = 19;
+  kifu->result = R_UNKNOWN;
+  kifu->moves = 0;
+  kifu->handicaps = 0;
+  kifu->komi = 0.0;
+
 #if defined (_WIN32)
   errno_t err;
 
   if((err = fopen_s(&fp, file_name, "r")) != 0) {
     printf("Can't open this file!!\n");
-    exit(1);
+    //exit(1);
+    return;
   } 
 #else
   if((fp = fopen(file_name, "r")) == NULL) {
     printf("Can't open this file!!\n");
-    exit(1);
+    //exit(1);
+    return;
   }
 #endif  
 
@@ -79,22 +87,18 @@ ExtractKifu( const char *file_name, SGF_record_t *kifu )
   
   while (fgets(buffer, 10000, fp) != NULL) {
 #if defined (_WIN32)
-    strcat_s(sgf_text, 10000, buffer);
+    strcat_s(sgf_text, buffer_size, buffer);
 #else
     strncat(sgf_text, buffer, 10000);
 #endif
-    if (strlen(sgf_text) >= buffer_size - 10000) {
+    if (strlen(sgf_text) >= buffer_size - 10000 - 1) {
       fprintf(stderr, "Too long sgf");
-      abort();
+      //abort();
+      return;
     }
   }
   fclose(fp);
-  
-  kifu->board_size = 19;
-  kifu->result = R_UNKNOWN;
-  kifu->moves = 0;
-  kifu->handicaps = 0;
-  kifu->komi = 0.0;
+
   memset(kifu->move_x, 0, sizeof(kifu->move_x));
   memset(kifu->move_y, 0, sizeof(kifu->move_y));
   memset(kifu->black_name, 0, sizeof(kifu->black_name));
