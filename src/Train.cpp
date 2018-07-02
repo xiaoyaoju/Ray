@@ -70,12 +70,19 @@ extern int threads;
 static void
 ListFiles()
 {
-  for (auto entry : fs::recursive_directory_iterator(kifu_dir)) {
-    if (entry.path().extension() == ".sgf") {
-      filenames.push_back(entry.path().string());
-      //cerr << "Read " << entry.path().string() << endl;
-      //if (records.size() > 1000) break;
+  stringstream ss{ kifu_dir };
+  std::string dir;
+  while (getline(ss, dir, ',')) {
+    cerr << "Reading from " << dir << endl;
+    size_t count = filenames.size();
+    for (auto entry : fs::recursive_directory_iterator(dir)) {
+      if (entry.path().extension() == ".sgf") {
+        filenames.push_back(entry.path().string());
+        //cerr << "Read " << entry.path().string() << endl;
+        //if (records.size() > 1000) break;
+      }
     }
+    cerr << ">> " << (filenames.size() - count) << endl;
   }
 
   cerr << "OK " << filenames.size() << endl;
