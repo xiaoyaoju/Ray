@@ -106,8 +106,8 @@ ReadFiles(int thread_no, size_t offset, size_t size, vector<SGF_record_t> *recor
     if (kifu->moves == 0)
       cerr << "Bad file " << files[i] << endl;
 
-    if (kifu->moves > PURE_BOARD_MAX * 0.9)
-      kifu->moves = PURE_BOARD_MAX * 0.9;
+    if (kifu->moves > pure_board_max * 0.9)
+      kifu->moves = pure_board_max * 0.9;
   }
 }
 
@@ -233,7 +233,7 @@ public:
           if (kifu.comment[i + 1].size() > 0) {
             stringstream in{ kifu.comment[i + 1] };
             vector<float> rate;
-            rate.reserve(PURE_BOARD_MAX);
+            rate.reserve(pure_board_max);
             while (!in.eof()) {
               float r;
               in >> r;
@@ -321,7 +321,7 @@ public:
   unique_ptr<DataSet> Read(size_t n) {
     auto data = make_unique<DataSet>();
     data->num_req = 0;
-    data->basic.reserve(pure_board_max * 10 * n);
+    data->basic.reserve(pure_board_max * 24 * n);
     data->features.reserve(pure_board_max * (F_MAX1 + F_MAX2) * n);
     data->history.reserve(pure_board_max * n);
     data->color.reserve(n);
@@ -506,8 +506,8 @@ Train()
                 break;
               }
             }
-            wcerr << endl;
           }
+          wcerr << endl;
         }
       }
     }
