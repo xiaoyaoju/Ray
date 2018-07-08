@@ -2544,7 +2544,14 @@ ReadWeights()
   auto device = GetDevice();
 
   wstring policy_name = path;
-  policy_name += L"/model7a.bin";
+  if (pure_board_size == 19) {
+    policy_name += L"/model7a.bin";
+  } else if (pure_board_size == 9) {
+    policy_name += L"/model7a_9.bin";
+  } else {
+    cerr << "Unsupported board size " << pure_board_size << endl;
+    abort();
+  }
   nn_policy = CNTK::Function::Load(policy_name, device);
 
 #if 0
