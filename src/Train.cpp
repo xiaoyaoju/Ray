@@ -165,6 +165,8 @@ public:
       if (abs(kifu.komi - 7.5) > 1.1 && rand() % 100 < 75) {
         dist_turn = uniform_int_distribution<int>(kifu.moves * 3 / 4 - 20, kifu.moves - 1);
       }
+      if (pure_board_size == 9)
+        dist_turn = uniform_int_distribution<int>(1, max(1, kifu.moves - 5));
 
       dump_turn = dist_turn(mt);
 #if 0
@@ -495,7 +497,8 @@ Train()
             //|| name.find(L"sqm.") != wstring::npos
             //name.find(L"owner.") != wstring::npos
             //&& (name.find(L"core.core2") == wstring::npos || name.find(L"x.x.x.x.x") == wstring::npos)
-            //&& name.find(L"core.core2") == wstring::npos
+            && (name.find(L"core.") != wstring::npos
+              || name.find(L"model.") != wstring::npos)
             //name.find(L"core.p2_L2.p2_L2.scale") != wstring::npos
             ) {
             wcerr << " LEARN";
@@ -569,6 +572,8 @@ Train()
           //&& (name.find(L"core.core2") == wstring::npos || name.find(L"x.x.x.x.x") == wstring::npos)
           //&& name.find(L"core.core2") == wstring::npos
           //name.find(L"core.p2_L2.p2_L2.scale") != wstring::npos
+          && (name.find(L"core.x.x.") == wstring::npos
+            && name.find(L"model.") == wstring::npos)
           ) {
           if (alt < 2)
             wcerr << " LEARN";
