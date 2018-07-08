@@ -1858,7 +1858,7 @@ UpdatePolicyRate(int current)
     }
     rate = max_rate / sum;
 
-    //if (n != 0) cerr << "#" << n << " max:" << (max_rate / sum) << " temperature:" << t << " " << tt << endl;
+    //if (n != 0) cerr << "#" << n << " max:" << (max_rate / sum) << " temperature:" << t << endl;
     if (rate > policy_top_rate_max)
       t *= 1.05;
     n++;
@@ -2709,7 +2709,10 @@ EvalPolicy(
       int y = Y(pos) - OB_SIZE;
       int n = x + y * pure_board_size;
       double score = moves[n + ofs];
+      //cerr << "RAW POLICY " << uct_child[i].pos << " " << req->trans << " " << FormatMove(pos) << " " << x << "," << y << " " << ofs << " -> " << score << endl;
       //if (depth == 1) cerr << "RAW POLICY " << uct_child[i].pos << " " << req->trans << " " << FormatMove(pos) << " " << x << "," << y << " " << ofs << " -> " << score << endl;
+      if (isnan(score) || isinf(score))
+        score = -10;
       if (uct_child[i].ladder) {
         score -= 4; // ~= 1.83%
       }
@@ -2828,6 +2831,8 @@ EvalValue(
       int n = x + y * pure_board_size;
       double score = moves[n + ofs];
       //if (depth == 1) cerr << "RAW POLICY " << uct_child[i].pos << " " << req->trans << " " << FormatMove(pos) << " " << x << "," << y << " " << ofs << " -> " << score << endl;
+      if (isnan(score) || isinf(score))
+        score = -10;
       if (uct_child[i].ladder) {
         score -= 4; // ~= 1.83%
       }
@@ -2846,6 +2851,8 @@ EvalValue(
     if (p > 1)
       p = 1;
     //cerr << "#" << index << "  " << sum << endl;
+    if (isnan(p) || isinf(p))
+      p = 0.501;
 
     double value = 1 - p;// req->color == S_BLACK ? 1 - p : p;
 
