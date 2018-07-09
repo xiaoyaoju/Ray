@@ -444,7 +444,7 @@ Train()
     const int stepsize = 200;
     const double lr_min = 1.0e-6;
     //const double lr_max = 2.0e-4;
-    const double lr_max = 2.0e-4;
+    const double lr_max = 2.0e-5;
 
     const size_t loop_size = trainingCheckpointFrequency * 2;
     minibatch_size = 128;
@@ -572,8 +572,8 @@ Train()
           //&& (name.find(L"core.core2") == wstring::npos || name.find(L"x.x.x.x.x") == wstring::npos)
           //&& name.find(L"core.core2") == wstring::npos
           //name.find(L"core.p2_L2.p2_L2.scale") != wstring::npos
-          && (name.find(L"core.x.x.") == wstring::npos
-            && name.find(L"model.") == wstring::npos)
+          //&& (name.find(L"core.x.x.") == wstring::npos
+          //  && name.find(L"model.") == wstring::npos)
           ) {
           if (alt < start_step + 2)
             wcerr << " LEARN";
