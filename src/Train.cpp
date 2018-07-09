@@ -560,7 +560,7 @@ Train()
       int learn_count = 0;
       std::vector<Parameter> parameters;
       for (auto p : net->Parameters()) {
-        if (alt < 2)
+        if (alt < start_step + 2)
           wcerr << p.AsString() << " " << p.NeedsGradient();
         auto& name = p.AsString();
         total_count++;
@@ -575,12 +575,12 @@ Train()
           && (name.find(L"core.x.x.") == wstring::npos
             && name.find(L"model.") == wstring::npos)
           ) {
-          if (alt < 2)
+          if (alt < start_step + 2)
             wcerr << " LEARN";
           parameters.push_back(p);
           learn_count++;
         }
-        if (alt < 2)
+        if (alt < start_step + 2)
           wcerr << endl;
       }
 
