@@ -2131,7 +2131,7 @@ WritePlanes(
 			}\
 		}
 
-    data_basic.reserve(data_basic.size() + 19 * 19 * 10);
+    data_basic.reserve(data_basic.size() + 19 * 19 * 24);
 
     OUTPUT({ OUTPUT_FEATURE(data_basic, c == color); });
     OUTPUT({ OUTPUT_FEATURE(data_basic, c == opp); });
@@ -2141,8 +2141,10 @@ WritePlanes(
 
     OUTPUT({ OUTPUT_FEATURE(data_basic, p == ko); });
 
-    OUTPUT({ int l = GetLibs(game, p); data_basic.push_back((c == color) ? (std::min(l, 10) / 10.0f) : 0.0f); });
-    OUTPUT({ int l = GetLibs(game, p); data_basic.push_back((c == opp) ? (std::min(l, 10) / 10.0f) : 0.0f); });
+    for (int i = 0; i < 8; i++)
+      OUTPUT({ int l = GetLibs(game, p); OUTPUT_FEATURE(data_basic, c == color && l == i + 1); });
+    for (int i = 0; i < 8; i++)
+      OUTPUT({ int l = GetLibs(game, p); OUTPUT_FEATURE(data_basic, c == opp && l == i + 1); });
 
     OUTPUT({ OUTPUT_FEATURE(data_basic, ladder[0][p]); });
     OUTPUT({ OUTPUT_FEATURE(data_basic, ladder[1][p]); });
