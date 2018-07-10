@@ -2845,7 +2845,7 @@ EvalValue(
 
     UNLOCK_NODE(index);
 
-    double p = win[j];// ((double)win[j] + 1) / 2;
+    double p = (win[j] + 1.0) / 2.0;
     if (p < 0)
       p = 0;
     if (p > 1)
