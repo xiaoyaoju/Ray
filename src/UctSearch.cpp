@@ -76,6 +76,16 @@ void ReadWeights();
 void EvalNode();
 //void EvalUctNode(std::vector<int>& indices, std::vector<int>& color, std::vector<int>& trans, std::vector<float>& data, std::vector<int>& path);
 
+////////////
+//  定数  //
+////////////
+
+// ノード展開の閾値
+const int EXPAND_THRESHOLD_9 = 20;
+const int EXPAND_THRESHOLD_13 = 25;
+const int EXPAND_THRESHOLD_19 = 15;
+
+
 ////////////////
 //  大域変数  //
 ////////////////
