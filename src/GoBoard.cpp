@@ -2071,7 +2071,7 @@ WritePlanes(
 			}\
 		}
 
-    data_basic.reserve(data_basic.size() + 19 * 19 * 10);
+    data_basic.reserve(data_basic.size() + pure_board_max * 24);
 
     OUTPUT({ OUTPUT_FEATURE(data_basic, c == color); });
     OUTPUT({ OUTPUT_FEATURE(data_basic, c == opp); });
@@ -2081,13 +2081,15 @@ WritePlanes(
 
     OUTPUT({ OUTPUT_FEATURE(data_basic, p == ko); });
 
-    OUTPUT({ int l = GetLibs(game, p); data_basic.push_back((c == color) ? (std::min(l, 10) / 10.0f) : 0.0f); });
-    OUTPUT({ int l = GetLibs(game, p); data_basic.push_back((c == opp) ? (std::min(l, 10) / 10.0f) : 0.0f); });
+    for (int i = 0; i < 8; i++)
+      OUTPUT({ int l = GetLibs(game, p); OUTPUT_FEATURE(data_basic, c == color && l == i + 1); });
+    for (int i = 0; i < 8; i++)
+      OUTPUT({ int l = GetLibs(game, p); OUTPUT_FEATURE(data_basic, c == opp && l == i + 1); });
 
     OUTPUT({ OUTPUT_FEATURE(data_basic, ladder[0][p]); });
     OUTPUT({ OUTPUT_FEATURE(data_basic, ladder[1][p]); });
 
-    data_features.reserve(data_features.size() + 19 * 19 * (F_MAX1 + F_MAX2));
+    data_features.reserve(data_features.size() + pure_board_max * (F_MAX1 + F_MAX2));
     for (int i = 0; i < F_MAX1; i++) {
       OUTPUT({
         bool flg = (game->tactical_features1[p] & po_tactical_features_mask[i]) != 0;
@@ -2114,7 +2116,7 @@ WritePlanes(
       }
     }*/
 
-    data_move.reserve(data_move.size() + 19 * 19 * 1);
+    data_move.reserve(data_move.size() + pure_board_max * 1);
     OUTPUT({ data_move.push_back(0.0); });
     for (int i = 0; i < game->moves; i++) {
       int p = RevTransformMove(game->record[game->moves - i - 1].pos, tran);
@@ -2123,7 +2125,7 @@ WritePlanes(
       int x = X(p) - OB_SIZE;
       int y = Y(p) - OB_SIZE;
       int n = x + y * pure_board_size;
-      if (n < 0 || n >= 19 * 19) {
+      if (n < 0 || n >= pure_board_max) {
         cerr << "bad pos " << n << endl;
       }
       //if (i == 0 && pos == move) cerr << "bad pos2 " << n << endl;
@@ -2132,7 +2134,7 @@ WritePlanes(
     }
 
     if (data_owner) {
-      data_owner->reserve(data_owner->size() + 19 * 19 * 1);
+      data_owner->reserve(data_owner->size() + pure_board_max * 1);
       const statistic_t *statistic = root->statistic;
       for (int i = 1, y = board_start; y <= board_end; y++, i++) {
         // cerr << setw(2) << (pure_board_size + 1 - i) << ":|";

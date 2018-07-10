@@ -658,10 +658,6 @@ PrintMoveStat( std::ostream& out, const game_info_t *game, const uct_node_t *uct
       }
       //cerr << "VA:" << (value_win / value_move_count) << " VS:" << uct_child[i].value << endl;
     }
-    if (value_move_count == 0 && uct_child[i].value >= 0) {
-      value_move_count = 1;
-      value_win = uct_child[i].value;
-    }
 
     double win = uct_child[i].win;
     double move_count = uct_child[i].move_count;
