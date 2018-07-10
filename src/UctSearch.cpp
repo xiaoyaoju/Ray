@@ -110,7 +110,7 @@ mutex mutex_expand;       // ノード展開を排他処理するためのmutex
 mutex mutex_queue;
 
 // 探索の設定
-enum SEARCH_MODE mode = CONST_TIME_MODE;
+static enum SEARCH_MODE mode = TIME_SETTING_MODE;
 // 使用するスレッド数
 int threads = 1;
 // 1手あたりの試行時間
@@ -431,6 +431,7 @@ SetTimeSettings( int main_time, int byoyomi, int stone )
 {
   if (mode == CONST_PLAYOUT_MODE ||
       mode == CONST_TIME_MODE) {
+    cerr << "Ignore time_setting " << mode << endl;
     return ;
   }
 
