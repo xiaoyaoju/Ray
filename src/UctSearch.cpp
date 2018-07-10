@@ -445,8 +445,8 @@ SetTimeSettings( int main_time, int byoyomi, int stone )
     return ;
   }
 
-  if (main_time == 0) {
-    const_thinking_time = (double)byoyomi * 0.85;
+  if (main_time == 0 || (stone > 0 && main_time < ((double)byoyomi) / stone)) {
+    const_thinking_time = max((double)byoyomi * 0.85, byoyomi - 1.0);
     mode = CONST_TIME_MODE;
     cerr << "Const Thinking Time Mode" << endl;
   } else {
@@ -1364,6 +1364,10 @@ InterruptionCheck( void )
   if (mode != CONST_PLAYOUT_MODE &&
       GetSpendTime(begin_time) * 2.0 < time_limit) {
       return false;
+  }
+  if (mode == CONST_PLAYOUT_MODE
+    || mode == CONST_TIME_MODE) {
+    return false;
   }
 
   // 探索回数が最も多い手と次に多い手を求める
