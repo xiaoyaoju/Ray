@@ -497,8 +497,8 @@ Train()
             //|| name.find(L"sqm.") != wstring::npos
             //name.find(L"owner.") != wstring::npos
             //&& (name.find(L"core.core2") == wstring::npos || name.find(L"x.x.x.x.x") == wstring::npos)
-            && (name.find(L"core.") != wstring::npos
-              || name.find(L"model.") != wstring::npos)
+            //&& (name.find(L"core.") != wstring::npos
+            //  || name.find(L"model.") != wstring::npos)
             //name.find(L"core.p2_L2.p2_L2.scale") != wstring::npos
             ) {
             wcerr << " LEARN";
