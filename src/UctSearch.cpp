@@ -1727,22 +1727,23 @@ UctSearch(uct_search_context_t& ctx, game_info_t *game, int color, mt19937_64 *m
 
     // コミを考慮した勝敗
     if (my_color == S_BLACK) {
-      if (score - dynamic_komi[my_color] >= 0) {
-	result = (color == S_BLACK ? 0 : 1);
-	*winner = S_BLACK;
+      if (score - dynamic_komi[0] + 0.1 >= 0) {
+        result = (color == S_BLACK ? 0 : 1);
+        *winner = S_BLACK;
       } else {
-	result = (color == S_WHITE ? 0 : 1);
-	*winner = S_WHITE;
+        result = (color == S_WHITE ? 0 : 1);
+        *winner = S_WHITE;
       }
     } else {
-      if (score - dynamic_komi[my_color] > 0) {
-	result = (color == S_BLACK ? 0 : 1);
-	*winner = S_BLACK;
+      if (score - dynamic_komi[0] + 0.1 > 0) {
+        result = (color == S_BLACK ? 0 : 1);
+        *winner = S_BLACK;
       } else {
-	result = (color == S_WHITE ? 0 : 1);
-	*winner = S_WHITE;
+        result = (color == S_WHITE ? 0 : 1);
+        *winner = S_WHITE;
       }
     }
+
     // 統計情報の記録
     Statistic(game, *winner);
 
