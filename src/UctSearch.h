@@ -80,6 +80,11 @@ enum SEARCH_MODE {
   TIME_SETTING_WITH_BYOYOMI_MODE, // 持ち時間ありのモード(秒読みあり)
 };
 
+enum class SCORING_MODE {
+  JAPANESE,
+  CHINESE,
+};
+
 
 //////////////
 //  構造体  //
@@ -154,6 +159,9 @@ extern int current_root;
 
 // 各座標のCriticality
 extern double criticality[BOARD_MAX]; 
+
+// Scoring Rule
+extern SCORING_MODE scoring_mode;
 
 
 ////////////

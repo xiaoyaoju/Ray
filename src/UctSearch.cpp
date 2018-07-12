@@ -177,6 +177,9 @@ bool reuse_subtree = false;
 // 自分の手番の色
 int my_color;
 
+// Scoring Rule
+SCORING_MODE scoring_mode = SCORING_MODE::CHINESE;
+
 //
 static bool live_best_sequence = false;
 
@@ -1660,23 +1663,44 @@ UctSearch( uct_search_context_t& ctx, game_info_t *game, int color, mt19937_64 *
     score = (double)CalculateScore(game);
     
     // コミを考慮した勝敗
-    if (my_color == S_BLACK) {
-      if (score - dynamic_komi[my_color] >= 0) {
-	result = (color == S_BLACK ? 0 : 1);
-	*winner = S_BLACK;
+    if (scoring_mode == SCORING_MODE::JAPANESE) {
+      if (my_color == S_BLACK) {
+        if (score - dynamic_komi[my_color] + 0.1 >= 0) {
+          result = (color == S_BLACK ? 0 : 1);
+          *winner = S_BLACK;
+        } else {
+          result = (color == S_WHITE ? 0 : 1);
+          *winner = S_WHITE;
+        }
       } else {
-	result = (color == S_WHITE ? 0 : 1);
-	*winner = S_WHITE;
+        if (score - dynamic_komi[my_color] - 0.1 > 0) {
+          result = (color == S_BLACK ? 0 : 1);
+        *winner = S_BLACK;
+        } else {
+          result = (color == S_WHITE ? 0 : 1);
+          *winner = S_WHITE;
+        }
       }
     } else {
-      if (score - dynamic_komi[my_color] > 0) {
-	result = (color == S_BLACK ? 0 : 1);
-	*winner = S_BLACK;
+      if (my_color == S_BLACK) {
+        if (score - dynamic_komi[0] + 0.1 >= 0) {
+          result = (color == S_BLACK ? 0 : 1);
+          *winner = S_BLACK;
+        } else {
+          result = (color == S_WHITE ? 0 : 1);
+          *winner = S_WHITE;
+        }
       } else {
-	result = (color == S_WHITE ? 0 : 1);
-	*winner = S_WHITE;
+        if (score - dynamic_komi[0] - 0.1 > 0) {
+          result = (color == S_BLACK ? 0 : 1);
+        *winner = S_BLACK;
+        } else {
+          result = (color == S_WHITE ? 0 : 1);
+          *winner = S_WHITE;
+        }
       }
     }
+
     // 統計情報の記録
     Statistic(game, *winner);
   } else {
