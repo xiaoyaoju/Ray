@@ -1963,7 +1963,12 @@ SelectMaxUcbChild( const game_info_t *game, int current, int color )
   const double p_p0 = (double)uct_node[current].win / (uct_node[current].move_count + 1);
   const double p_v0 = (double)uct_node[current].value_win / (uct_node[current].value_move_count + 1);
   //const double scale = std::max(0.2, std::min(1.0, 1.0 - (game->moves - 200) / 50.0)) * value_scale;
-  const double scale = value_scale;
+  double scale;
+  if (pure_board_size == 9) {
+    scale = max(0.2, std::min(1.0, 1.0 - (game->moves - 30) / 30.0)) * value_scale;
+  } else {
+    scale = value_scale;
+  }
 
   int start_child = 0;
   if (!early_pass && current == current_root && child_num > 1) {
