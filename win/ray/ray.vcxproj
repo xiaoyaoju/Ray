@@ -166,6 +166,7 @@
     <ClCompile Include="..\..\src\Message.cpp" />
     <ClCompile Include="..\..\src\MoveCache.cpp" />
     <ClCompile Include="..\..\src\Nakade.cpp" />
+    <ClCompile Include="..\..\src\OpeningBook.cpp" />
     <ClCompile Include="..\..\src\Pattern.cpp" />
     <ClCompile Include="..\..\src\PatternHash.cpp" />
     <ClCompile Include="..\..\src\Point.cpp" />
@@ -189,6 +190,7 @@
     <ClInclude Include="..\..\src\Message.h" />
     <ClInclude Include="..\..\src\MoveCache.h" />
     <ClInclude Include="..\..\src\Nakade.h" />
+    <ClInclude Include="..\..\src\OpeningBook.h" />
     <ClInclude Include="..\..\src\Pattern.h" />
     <ClInclude Include="..\..\src\PatternHash.h" />
     <ClInclude Include="..\..\src\Point.h" />
