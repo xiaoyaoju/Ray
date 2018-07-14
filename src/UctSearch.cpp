@@ -245,7 +245,7 @@ ClearEvalQueue()
 }
 
 // Opening book scale
-const int book_equivalent_move = 1000;
+const int book_equivalent_move = 100;
 
 ////////////
 //  関数  //
@@ -764,7 +764,7 @@ UctSearchGenmove( game_info_t *game, int color )
   // それ以外は選ばれた着手を返す
   if (pass_wp >= PASS_THRESHOLD &&
       (early_pass || count == 0) &&
-      (game->record[game->moves - 1].pos == PASS)){
+      (game->moves > 1 && game->record[game->moves - 1].pos == PASS)){
     pos = PASS;
   } else if (game->moves >= MAX_MOVES) {
     pos = PASS;
@@ -1382,6 +1382,7 @@ RatingNode( game_info_t *game, int color, int index, int depth )
   // Lookup opening book
   auto book = LookupOpeningBook(game);
   if (book) {
+    int sum = 0;
     for (auto &e : *book) {
       for (int i = 1; i < child_num; i++) {
         int pos = uct_child[i].pos;
@@ -1389,9 +1390,11 @@ RatingNode( game_info_t *game, int color, int index, int depth )
           continue;
         atomic_fetch_add(&uct_child[i].win, e.win * book_equivalent_move);
         atomic_fetch_add(&uct_child[i].move_count, e.move_count * book_equivalent_move);
+        sum += e.move_count;
         break;
       }
     }
+    cerr << "Use book " << sum << " " << (sum * book_equivalent_move) << endl;
   }
 
   // 最もγが大きい着手を探索できるようにする
