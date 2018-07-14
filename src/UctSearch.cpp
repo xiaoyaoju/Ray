@@ -29,6 +29,7 @@
 #include "UctRating.h"
 #include "UctSearch.h"
 #include "Utility.h"
+#include "OpeningBook.h"
 
 #if defined (_WIN32)
 #define NOMINMAX
@@ -242,6 +243,9 @@ ClearEvalQueue()
   eval_policy_queue.swap(empty_policy);
   mutex_queue.unlock();
 }
+
+// Opening book scale
+const int book_equivalent_move = 1000;
 
 ////////////
 //  関数  //
@@ -1372,6 +1376,21 @@ RatingNode( game_info_t *game, int color, int index, int depth )
     if (score + dynamic_parameter > max_score) {
       max_index = i;
       max_score = score + dynamic_parameter;
+    }
+  }
+
+  // Lookup opening book
+  auto book = LookupOpeningBook(game);
+  if (book) {
+    for (auto &e : *book) {
+      for (int i = 1; i < child_num; i++) {
+        int pos = uct_child[i].pos;
+        if (pos != e.pos)
+          continue;
+        atomic_fetch_add(&uct_child[i].win, e.win * book_equivalent_move);
+        atomic_fetch_add(&uct_child[i].move_count, e.move_count * book_equivalent_move);
+        break;
+      }
     }
   }
 
