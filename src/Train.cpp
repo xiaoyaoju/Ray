@@ -58,68 +58,18 @@ struct DataSet {
   std::vector<float> statistic;
 };
 
-static vector<string> filenames;
-static mutex mutex_records;
-//static vector<SGF_record> *records_next;
-static vector<SGF_record_t> *records_current;
-static vector<SGF_record_t> records_a;
-static vector<SGF_record_t> records_b;
-static map<SGF_record_t*, shared_ptr<float[]>> statistic;
-extern int threads;
-
-static void
-ListFiles()
-{
-  stringstream ss{ kifu_dir };
-  std::string dir;
-  while (getline(ss, dir, ',')) {
-    cerr << "Reading from " << dir << endl;
-    size_t count = filenames.size();
-    for (auto entry : fs::recursive_directory_iterator(dir)) {
-      if (entry.path().extension() == ".sgf") {
-        filenames.push_back(entry.path().string());
-        //cerr << "Read " << entry.path().string() << endl;
-        //if (records.size() > 1000) break;
-      }
-    }
-    cerr << ">> " << (filenames.size() - count) << endl;
-  }
-
-  cerr << "OK " << filenames.size() << endl;
-}
-
-static void
-ReadFiles(int thread_no, size_t offset, size_t size, vector<SGF_record_t> *records)
-{
-  vector<string> files;
-  files.reserve(size);
-  for (size_t i = 0; i < size; i++) {
-    files.push_back(filenames[(i + offset) % filenames.size()]);
-  }
-  random_device rd;
-  std::mt19937_64 mt{ rd() };
-  shuffle(begin(files), end(files), mt);
-
-  for (size_t i = 0; i < size; i++) {
-    auto kifu = &(*records)[i * threads + thread_no];
-    ExtractKifu(files[i].c_str(), kifu);
-    if (kifu->moves == 0)
-      cerr << "Bad file " << files[i] << endl;
-
-    if (kifu->moves > pure_board_max * 0.9)
-      kifu->moves = pure_board_max * 0.9;
-  }
-}
-
 class Reader {
 public:
   size_t current_rec;
   std::mt19937_64 mt;
   game_info_t* game;
-  int offset;
+  const int offset;
 
-  explicit Reader(int offset)
-    : offset(offset) {
+  const vector<SGF_record_t> *records;
+  const int threads;
+
+  explicit Reader(int offset, const vector<SGF_record_t> *records, int threads)
+    : offset(offset), records(records), threads(threads) {
     random_device rd;
     mt.seed(rd());
 
@@ -314,7 +264,7 @@ public:
   }
 
   void ReadOne(DataSet& data) {
-    auto& r = (*records_current)[(current_rec * threads + offset) % records_current->size()];
+    auto& r = (*records)[(current_rec * threads + offset) % records->size()];
     Play(data, r);
 
     current_rec++;
@@ -400,6 +350,60 @@ public:
   }
 };
 
+
+static vector<string> filenames;
+static mutex mutex_records;
+//static vector<SGF_record> *records_next;
+static vector<SGF_record_t> *records_current;
+static vector<SGF_record_t> records_a;
+static vector<SGF_record_t> records_b;
+static map<SGF_record_t*, shared_ptr<float[]>> statistic;
+extern int threads;
+
+static void
+ListFiles()
+{
+  stringstream ss{ kifu_dir };
+  std::string dir;
+  while (getline(ss, dir, ',')) {
+    cerr << "Reading from " << dir << endl;
+    size_t count = filenames.size();
+    for (auto entry : fs::recursive_directory_iterator(dir)) {
+      if (entry.path().extension() == ".sgf") {
+        filenames.push_back(entry.path().string());
+        //cerr << "Read " << entry.path().string() << endl;
+        //if (records.size() > 1000) break;
+      }
+    }
+    cerr << ">> " << (filenames.size() - count) << endl;
+  }
+
+  cerr << "OK " << filenames.size() << endl;
+}
+
+static void
+ReadFiles(int thread_no, size_t offset, size_t size, vector<SGF_record_t> *records)
+{
+  vector<string> files;
+  files.reserve(size);
+  for (size_t i = 0; i < size; i++) {
+    files.push_back(filenames[(i + offset) % filenames.size()]);
+  }
+  random_device rd;
+  std::mt19937_64 mt{ rd() };
+  shuffle(begin(files), end(files), mt);
+
+  for (size_t i = 0; i < size; i++) {
+    auto kifu = &(*records)[i * threads + thread_no];
+    ExtractKifu(files[i].c_str(), kifu);
+    if (kifu->moves == 0)
+      cerr << "Bad file " << files[i] << endl;
+
+    if (kifu->moves > pure_board_max * 0.9)
+      kifu->moves = pure_board_max * 0.9;
+  }
+}
+
 static volatile bool running;
 static mutex mutex_queue;
 static queue<unique_ptr<DataSet>> data_queue;
@@ -409,7 +413,7 @@ static int minibatch_size;
 void
 ReadGames(int thread_no)
 {
-  Reader reader{ thread_no };
+  Reader reader{ thread_no, records_current, threads };
   while (running) {
     //cerr << "READ " << thread_no << endl;
     auto data = reader.Read(minibatch_size);
