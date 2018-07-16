@@ -434,14 +434,11 @@ Train()
 {
   try {
     random_device rd;
-    std::mt19937_64 mt{ rd() };
+    std::mt19937_64 mt{ 0 };
 
     ReadWeights();
     auto device = GetDevice();
     auto net = GetPolicyNetwork();
-
-    ListFiles();
-    shuffle(begin(filenames), end(filenames), mt);
 
     const size_t outputFrequencyInMinibatches = 50;
     const size_t trainingCheckpointFrequency = 500;
@@ -453,6 +450,32 @@ Train()
     const size_t loop_size = trainingCheckpointFrequency * 2;
     minibatch_size = 128;
     const size_t step = minibatch_size * loop_size / 2 / threads;
+
+    ListFiles();
+    shuffle(begin(filenames), end(filenames), mt);
+
+    vector<SGF_record_t> cv_records;
+    const int cv_size = 1024;
+    for (int i = 0; i < cv_size; i++) {
+      auto f = filenames.back();
+      filenames.pop_back();
+
+      auto kifu = &cv_records[i];
+      ExtractKifu(f.c_str(), kifu);
+      if (kifu->moves == 0) {
+        cerr << "Bad file " << f << endl;
+        i--;
+      }
+
+      if (kifu->moves > pure_board_max * 0.9)
+        kifu->moves = pure_board_max * 0.9;
+    }
+
+    vector<unique_ptr<DataSet>> cv_data;
+    Reader cv_reader{ 0, &cv_records, 1 };
+    for (int i = 0; cv_size / minibatch_size; i++) {
+      cv_data.push_back(move(cv_reader.Read(minibatch_size)));
+    }
 
     records_a.resize(step * threads);
     records_b.resize(step * threads);
