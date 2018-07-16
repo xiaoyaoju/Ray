@@ -454,8 +454,8 @@ Train()
     ListFiles();
     shuffle(begin(filenames), end(filenames), mt);
 
-    vector<SGF_record_t> cv_records;
     const int cv_size = 1024;
+    vector<SGF_record_t> cv_records(cv_size);
     for (int i = 0; i < cv_size; i++) {
       auto f = filenames.back();
       filenames.pop_back();
@@ -473,7 +473,7 @@ Train()
 
     vector<unique_ptr<DataSet>> cv_data;
     Reader cv_reader{ 0, &cv_records, 1 };
-    for (int i = 0; cv_size / minibatch_size; i++) {
+    for (int i = 0; i < cv_size / minibatch_size; i++) {
       cv_data.push_back(move(cv_reader.Read(minibatch_size)));
     }
 
@@ -686,10 +686,32 @@ Train()
           fprintf(stderr, "CrossEntropy loss = %.8g, Evaluation criterion = %.8g\n", trainLossValue / mb, evaluationValue / mb);
           const wstring ckpName = L"feedForward.net." + to_wstring(alt) + L"." + to_wstring(i);
           trainer->SaveCheckpoint(ckpName);
+
+          // Cross validation
+          double accumulatedError = 0;
+          double error = 0;
+          size_t totalNumberOfSamples = 0;
+          size_t numberOfMinibatches = 0;
+
+          //auto checkpoint = m_cv.m_source->GetCheckpointState();
+          for (int i = 0; i < cv_data.size(); i++) {
+            unordered_map<Variable, ValuePtr> minibatch = reader.GetMiniBatchData(*cv_data[i]);
+            error = trainer->TestMinibatch(minibatch, device);
+            accumulatedError += error * cv_data[i]->num_req;
+            totalNumberOfSamples += cv_data[i]->num_req;
+            numberOfMinibatches++;
+          }
+          fprintf(stderr, "CV %.8g, %d\n", accumulatedError / totalNumberOfSamples, totalNumberOfSamples);
+
+          //m_cv.m_source->RestoreFromCheckpoint(checkpoint);
+          trainer->SummarizeTestProgress();
+
+          // Resume
           trainer->RestoreFromCheckpoint(ckpName);
           mb = 0;
           trainLossValue = 0;
           evaluationValue = 0;
+
           begin_time = ray_clock::now();
         }
       }
