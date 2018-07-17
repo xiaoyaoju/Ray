@@ -274,6 +274,25 @@ InitializePoTacticalFeaturesSet( void )
   }
 }
 
+
+//////////////////
+//  MD2パターン  // 
+//////////////////
+static inline float
+GetPattern(game_info_t *game, int color, int pos) {
+  unsigned int md2 = MD2(game->pat, pos);
+  if (color == S_WHITE)
+    md2 = MD2Reverse(md2);
+  /*
+  if (md2 == 0x2aaa2 || md2 == 0xeebb2) {
+    cerr << color << " " << FormatMove(pos) << " -> " << po_pattern[md2] << endl;
+    PrintBoard(game);
+  }
+  */
+  return po_pattern[md2];
+}
+
+
 //////////////////////
 //  着手( rating )  // 
 //////////////////////
@@ -368,7 +387,7 @@ RatingMove(game_info_t *game, int color, std::mt19937_64 *mt, LGR& lgr)
     // 選ばれた手が合法手ならループを抜け出し
     // そうでなければその箇所のレートを0にし, 手を選びなおす
     if (IsLegalNotEye(game, pos, color)) {
-#if 0
+#if 1
       if (IsBadMove(game, pos, color) && rate[pos] > 1) {
         long long r = rate[pos];
         *sum_rate -= rate[pos];
@@ -472,7 +491,7 @@ NeighborUpdate( game_info_t *game, int color, long long *sum_rate, long long *su
       } else {
 	PoCheckCaptureAndAtari(game, color, pos);
 
-	gamma = po_pattern[MD2(game->pat, pos)] * po_previous_distance[index];
+	gamma = GetPattern(game, color, pos) * po_previous_distance[index];
 	gamma *= po_tactical_set1[game->tactical_features1[pos]];
 	gamma *= po_tactical_set2[game->tactical_features2[pos]];
 	gamma *= bias[i];
@@ -520,7 +539,7 @@ NakadeUpdate( game_info_t *game, int color, long long *sum_rate, long long *sum_
 	} else {
 	  gamma = 10000.0;
 	}
-	gamma *= po_pattern[MD2(game->pat, pos)];
+	gamma *= GetPattern(game, color, pos);
 	gamma *= po_tactical_set1[game->tactical_features1[pos]];
 	gamma *= po_tactical_set2[game->tactical_features2[pos]];
 	rate[pos] = (long long)(gamma) + 1;
@@ -563,7 +582,7 @@ OtherUpdate( game_info_t *game, int color, long long *sum_rate, long long *sum_r
 	rate[pos] = 0;
       } else {
 	PoCheckCaptureAndAtari(game, color, pos);
-	gamma = po_pattern[MD2(game->pat, pos)];
+	gamma = GetPattern(game, color, pos);
 	gamma *= po_tactical_set1[game->tactical_features1[pos]];
 	gamma *= po_tactical_set2[game->tactical_features2[pos]];
 	rate[pos] = (long long)(gamma) + 1;
@@ -609,7 +628,7 @@ Neighbor12Update( game_info_t *game, int color, long long *sum_rate, long long *
 	  rate[pos] = 0;
 	} else {
 	  PoCheckCaptureAndAtari(game, color, pos);
-	  gamma = po_pattern[MD2(game->pat, pos)];
+	  gamma = GetPattern(game, color, pos);
 	  gamma *= po_tactical_set1[game->tactical_features1[pos]];
 	  gamma *= po_tactical_set2[game->tactical_features2[pos]];
 	  rate[pos] = (long long)(gamma) + 1;
@@ -749,7 +768,7 @@ Rating( game_info_t *game, int color, long long *sum_rate, long long *sum_rate_r
       if (!self_atari_flag) {
 	rate[pos] = 0;
       } else {
-	gamma = po_pattern[MD2(game->pat, pos)];
+	gamma = GetPattern(game, color, pos);
 	gamma *= po_tactical_set1[game->tactical_features1[pos]];
 	gamma *= po_tactical_set2[game->tactical_features2[pos]];
 	if (pm1 != PASS) {
@@ -1646,12 +1665,18 @@ InputPOGamma( void )
   po_parameters_path += '/';
 #endif
 
+  string type;
+  if (pure_board_size == 9)
+    type = "-9";
+  else
+    type = "";
+
   // 戦術的特徴の読み込み
-  path = po_parameters_path + "TacticalFeature.txt";
+  path = po_parameters_path + "TacticalFeature" + type + ".txt";
   InputTxtFLT(path.c_str(), po_tactical_features, TACTICAL_FEATURE_MAX);
 
   // 直前の着手からの距離の読み込み
-  path = po_parameters_path + "PreviousDistance.txt";
+  path = po_parameters_path + "PreviousDistance" + type + ".txt";
   InputTxtFLT(path.c_str(), po_neighbor_orig, PREVIOUS_DISTANCE_MAX);
 
   // 直前の着手からの距離のγを補正して出力
@@ -1661,12 +1686,31 @@ InputPOGamma( void )
   po_previous_distance[2] = (float)(po_neighbor_orig[2] * jump_bias);
 
   // 3x3のパターンの読み込み
-  path = po_parameters_path + "Pat3.txt";
+  path = po_parameters_path + "Pat3" + type + ".txt";
   InputTxtFLT(path.c_str(), po_pat3, PAT3_MAX);
 
   // マンハッタン距離2のパターンの読み込み
-  path = po_parameters_path + "MD2.txt";
+  path = po_parameters_path + "MD2" + type + ".txt";
   InputMD2(path.c_str(), po_md2);
+
+#if 0
+  // ヒューリスティック
+  unsigned int transp[8];
+  for (i = 0; i < MD2_MAX; i++){
+    // 2目へ打ち込む
+    if ((i & 0x3ffff) == 0x2aaa2 || (i & 0x3ffff) == 0x2ebb2 || (i & 0x3ffff) == 0x2a6a2) {
+      MD2Transpose8(i, transp);
+      for (int j = 0; j < 8; j++) {
+        int md2 = transp[j];
+
+        float r = po_md2[md2] * po_pat3[md2 & 0xFFFF];
+        if (r < 1)
+          po_md2[md2] = 1.0 / po_pat3[md2 & 0xFFFF];
+        //cerr << i << "\t" << md2 << "\t" << r << endl;
+      }
+    }
+  }
+#endif
 
   // 3x3とMD2のパターンをまとめる
   for (i = 0; i < MD2_MAX; i++){
@@ -1679,7 +1723,12 @@ InputPOGamma( void )
         r = 1.0f;
       }
     }
-
+    /*
+    if (((i & 0x3ffff) == 0x15551 || (MD2Reverse(i) & 0x3ffff) == 0x15551) && r != 1.0f) {
+      cerr << hex << i << "\t" << r << endl;
+      DisplayInputMD2(i);
+    }
+    //*/
     po_pattern[i] = r * 100.0f;
   }
 }
@@ -1788,7 +1837,7 @@ AnalyzePoRating( game_info_t *game, int color, double rate[] )
     
     gamma *= po_tactical_set1[game->tactical_features1[pos]];
     gamma *= po_tactical_set2[game->tactical_features2[pos]];
-    gamma *= po_pattern[MD2(game->pat, pos)];
+    gamma *= GetPattern(game, color, pos);
     
     rate[i] = (long long int)gamma + 1;
   }
