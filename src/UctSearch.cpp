@@ -1394,7 +1394,9 @@ RatingNode( game_info_t *game, int color, int index, int depth )
         break;
       }
     }
-    cerr << "Use book " << sum << " " << (sum * book_equivalent_move) << endl;
+    if (GetDebugMessageMode()) {
+      cerr << "Use book " << sum << " " << (sum * book_equivalent_move) << endl;
+    }
   }
 
   // 最もγが大きい着手を探索できるようにする
@@ -2918,7 +2920,9 @@ void EvalNode() {
     if (!running
       && (allow_skip || (eval_policy_queue.empty() && eval_value_queue.empty()))) {
       mutex_queue.unlock();
-      cerr << "Eval " << num_eval << endl;
+      if (GetDebugMessageMode()) {
+        cerr << "Eval " << num_eval << endl;
+      }
       break;
     }
 
