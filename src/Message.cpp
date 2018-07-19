@@ -17,7 +17,7 @@ using namespace std;
 
 
 bool debug_message = true;
-
+bool verbose = false;
 
 ////////////////////////////////////
 //  エラーメッセージの出力の設定  //
@@ -32,6 +32,18 @@ bool
 GetDebugMessageMode()
 {
   return debug_message;
+}
+
+void
+SetVerbose( const bool flag )
+{
+  verbose = flag;
+}
+
+bool
+GetVerbose()
+{
+  return verbose;
 }
 
 //////////////////

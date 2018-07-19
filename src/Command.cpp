@@ -42,6 +42,7 @@ const string command[COMMAND_MAX] = {
   "--no-expand",
   "--device-id",
   "--weights",
+  "--verbose",
 };
 
 //  コマンドの説明
@@ -66,6 +67,7 @@ const string errmessage[COMMAND_MAX] = {
   "No MCTS",
   "Set GPU to use",
   "Set location of weights file (default uct_params/lz.bin)",
+  "Verbose log mode",
 };
 
 std::string cfg_weightsfile;
@@ -170,7 +172,10 @@ AnalyzeCommand( int argc, char **argv )
         break;
       case COMMAND_WEIGHTS_FILE:
         cfg_weightsfile = argv[++i];
-	break;
+        break;
+      case COMMAND_VERBOSE:
+        SetVerbose(true);
+        break;
       default:
 	for (int j = 0; j < COMMAND_MAX; j++){
 	  fprintf(stderr, "%-22s : %s\n", command[j].c_str(), errmessage[j].c_str());
