@@ -5,8 +5,8 @@ OPTIMIZE = -O3
 CPP11 = -std=c++11 -std=c++1y
 WARNING = -Wall
 DEBUG = #-g
-CNTKDIR = ~/cntk
-CNTK_VERSION=2.4
+CNTKDIR = ~/cntk2.5
+CNTK_VERSION=2.5
 CFLAGS = ${OPTIMIZE} ${WARNING} ${CPP11} ${DEBUG}  -I ${CNTKDIR}/Include/
 CNTK_LIBS = -lCntk.Core-${CNTK_VERSION} -lCntk.Math-${CNTK_VERSION} -lCntk.Eval-${CNTK_VERSION}
 LIBS = -lm -pthread -L ${CNTKDIR}/cntk/lib -L ${CNTKDIR}/cntk/dependencies/lib ${CNTK_LIBS}
