@@ -2032,66 +2032,6 @@ CalculateScore( game_info_t *game )
 }
 
 
-////////////////
-//  
-////////////////
-#define HASH_VMIRROR     1
-#define HASH_HMIRROR     2
-#define HASH_XYFLIP      4
-inline int TransformMove(int p, int i)
-{
-  if (p == PASS || p == RESIGN)
-    return p;
-  int p0 = p;
-  int x = X(p);
-  int y = Y(p);
-  if (i & HASH_VMIRROR) {
-    y = board_end - (y - board_start);
-  }
-  if (i & HASH_HMIRROR) {
-    x = board_end - (x - board_start);
-  }
-  if (i & HASH_XYFLIP) {
-    swap(x, y);
-  }
-  int row = x;
-  int col = y;
-#if 0
-  if (row < board_start || row > board_end || col < board_start || col > board_end) {
-    std::cerr << "BAD TRANS " << p0 << " -> " << p << " " << board_size << " " << i << " " << row << "," << col << "\n";
-    exit(1);
-  }
-#endif
-  return POS(x, y);
-}
-
-inline int RevTransformMove(int p, int i)
-{
-  if (p == PASS || p == RESIGN)
-    return p;
-  int p0 = p;
-  int x = X(p);
-  int y = Y(p);
-  if (i & HASH_XYFLIP) {
-    swap(x, y);
-  }
-  if (i & HASH_HMIRROR) {
-    x = board_end - (x - board_start);
-  }
-  if (i & HASH_VMIRROR) {
-    y = board_end - (y - board_start);
-  }
-  int row = x;
-  int col = y;
-#if 0
-  if (row < board_start || row > board_end || col < board_start || col > board_end) {
-    std::cerr << "BAD TRANS " << p0 << " -> " << p << " " << board_size << " " << i << " " << row << "," << col << "\n";
-    exit(1);
-  }
-#endif
-  return POS(x, y);
-}
-
 static int
 GetLibs(
   const game_info_t *game,
