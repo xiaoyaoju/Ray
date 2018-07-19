@@ -517,18 +517,21 @@ static void
 GTP_finalscore( void )
 {
   char buf[10];
-  double score = 0;
-  
-  score = UctAnalyze(game, S_BLACK) - komi[0];
+
+  double score = UctAnalyze(game, S_BLACK) - komi[0];
 
 #if defined(_WIN32)  
-  if (score > 0) {
+  if (abs(score) < 0.1) {
+    sprintf_s(buf, 10, "Draw");
+  } if (score > 0) {
     sprintf_s(buf, 10, "B+%.1lf", score);
   } else {
     sprintf_s(buf, 10, "W+%.1lf", abs(score));
   }
 #else
-  if (score > 0) {
+  if (abs(score) < 0.1) {
+    snprintf(buf, 10, "Draw");
+  } else if (score > 0) {
     snprintf(buf, 10, "B+%.1lf", score);
   } else {
     snprintf(buf, 10, "W+%.1lf", abs(score));
