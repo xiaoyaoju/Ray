@@ -2776,7 +2776,9 @@ void EvalNode() {
     if (!running
       && (allow_skip || (eval_policy_queue.empty() && eval_value_queue.empty()))) {
       mutex_queue.unlock();
-      cerr << "Eval " << num_eval << endl;
+      if (GetDebugMessageMode()) {
+        cerr << "Eval " << num_eval << endl;
+      }
       break;
     }
 
