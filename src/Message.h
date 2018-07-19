@@ -10,6 +10,9 @@
 void SetDebugMessageMode( const bool flag );
 bool GetDebugMessageMode();
 
+void SetVerbose( const bool flag );
+bool GetVerbose();
+
 //  盤面の表示
 void PrintBoard( const game_info_t *game );
 void PrintRate( const game_info_t *game );

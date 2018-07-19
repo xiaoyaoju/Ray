@@ -1852,7 +1852,7 @@ SelectMaxUcbChild( const game_info_t *game, int current, int color )
   double child_ucb[UCT_CHILD_MAX];
   double child_lcb[UCT_CHILD_MAX];
   double ucb_bonus_weight = bonus_weight * sqrt(bonus_equivalence / (sum + bonus_equivalence));
-  const bool debug = current == current_root && sum % 10000 == 0 && GetDebugMessageMode();
+  const bool debug = current == current_root && sum % 10000 == 0 && GetDebugMessageMode() && GetVerbose();
 
   if (live_best_sequence && current == current_root && sum % 1000 == 0) {
     PrintBestSequenceGFX(cerr, game, uct_node, current_root, color);
