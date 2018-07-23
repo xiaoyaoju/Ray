@@ -62,8 +62,8 @@ const int VIRTUAL_LOSS = 1;
 
 extern double c_puct;
 extern double value_scale;
-extern double policy_temperature;
-extern double policy_temperature_inc;
+extern double custom_policy_temperature;
+extern double custom_policy_temperature_inc;
 
 extern double policy_top_rate_max;
 extern double seach_threshold_policy_rate;

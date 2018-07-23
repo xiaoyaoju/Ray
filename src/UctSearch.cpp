@@ -200,8 +200,17 @@ SCORING_MODE scoring_mode = SCORING_MODE::CHINESE;
 //
 static bool live_best_sequence = false;
 
-double policy_temperature = 0.49;
-double policy_temperature_inc = 0.056;
+const double POLICY_TEMPERATURE_9 = 1.0;
+const double POLICY_TEMPERATURE_13 = 0.49;
+const double POLICY_TEMPERATURE_19 = 0.49;
+const double POLICY_TEMPERATURE_INC = 0.056;
+
+double policy_temperature = POLICY_TEMPERATURE_19;
+double policy_temperature_inc = POLICY_TEMPERATURE_INC;
+
+double custom_policy_temperature = -1;
+double custom_policy_temperature_inc = -1;
+
 double c_puct = 0.8;
 double value_scale = 0.80;
 int custom_expand_threshold = -1;
@@ -426,6 +435,22 @@ SetParameter( void )
     expand_threshold = EXPAND_THRESHOLD_13;
   } else {
     expand_threshold = EXPAND_THRESHOLD_19;
+  }
+
+  if (custom_policy_temperature > 0) {
+    policy_temperature = custom_policy_temperature;
+  } else if (pure_board_size < 11) {
+    policy_temperature = POLICY_TEMPERATURE_9;
+  } else if (pure_board_size < 16) {
+    policy_temperature = POLICY_TEMPERATURE_13;
+  } else {
+    policy_temperature = POLICY_TEMPERATURE_19;
+  }
+
+  if (custom_policy_temperature_inc > 0) {
+    policy_temperature_inc = custom_policy_temperature_inc;
+  } else {
+    policy_temperature_inc = POLICY_TEMPERATURE_INC;
   }
 }
 

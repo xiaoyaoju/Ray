@@ -901,9 +901,9 @@ GTP_ray_param()
   } else if (name == "expand_threshold") {
     custom_expand_threshold = (int)round(value);
   } else if (name == "policy_temperature") {
-    policy_temperature = value;
+    custom_policy_temperature = value;
   } else if (name == "policy_temperature_inc") {
-    policy_temperature_inc = value;
+    custom_policy_temperature_inc = value;
   } else if (name == "tgr1_rate") {
     tgr1_rate = (int)round(value);
   } else if (name == "lgrf1_rate") {
