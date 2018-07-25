@@ -2045,7 +2045,7 @@ WritePlanes(
   std::vector<float>& data_features,
   std::vector<float>& data_move,
   std::vector<float>* data_owner,
-  const game_info_t *game,
+  game_info_t *game,
   const uct_node_t *root,
   int color,
   int tran)
@@ -2089,20 +2089,27 @@ WritePlanes(
     OUTPUT({ OUTPUT_FEATURE(data_basic, ladder[0][p]); });
     OUTPUT({ OUTPUT_FEATURE(data_basic, ladder[1][p]); });
 
-    data_features.reserve(data_features.size() + pure_board_max * (F_MAX1 + F_MAX2));
-    for (int i = 0; i < F_MAX1; i++) {
-      OUTPUT({
-        bool flg = (game->tactical_features1[p] & po_tactical_features_mask[i]) != 0;
-      //if (flg) count1[i]++;
-      OUTPUT_FEATURE(data_features, flg);
-      });
-    }
-    for (int i = 0; i < F_MAX2; i++) {
-      OUTPUT({
-        bool flg = (game->tactical_features2[p] & po_tactical_features_mask[i]) != 0;
-      //if (flg) count2[i]++;
-      OUTPUT_FEATURE(data_features, flg);
-      });
+    data_features.reserve(data_features.size() + pure_board_max * (F_MAX1 + F_MAX2) * 2);
+
+    double rate[PURE_BOARD_MAX];
+
+    for (int side = 0; side < 2; side++) {
+      AnalyzePoRating(game, side == 0 ? color : opp, rate);
+
+      for (int i = 0; i < F_MAX1; i++) {
+        OUTPUT({
+          bool flg = (game->tactical_features1[p] & po_tactical_features_mask[i]) != 0;
+          //if (flg) count1[i]++;
+          OUTPUT_FEATURE(data_features, flg);
+        });
+      }
+      for (int i = 0; i < F_MAX2; i++) {
+        OUTPUT({
+          bool flg = (game->tactical_features2[p] & po_tactical_features_mask[i]) != 0;
+          //if (flg) count2[i]++;
+          OUTPUT_FEATURE(data_features, flg);
+        });
+      }
     }
 
     /*count++;

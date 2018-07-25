@@ -1331,9 +1331,6 @@ RatingNode( game_info_t *game, int color, int index, int depth )
 
       uct_node_t *root = &uct_node[current_root];
 
-      double rate[PURE_BOARD_MAX];
-      AnalyzePoRating(game, color, rate);
-
       auto req = make_shared<policy_eval_req>();
       req->color = color;
       req->index = index;

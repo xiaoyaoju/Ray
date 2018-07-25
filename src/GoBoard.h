@@ -276,7 +276,7 @@ struct uct_node_t;
 
 void WritePlanes(std::vector<float>& data_basic, std::vector<float>& data_features,
   std::vector<float>& data_move, std::vector<float>* data_owner,
-  const game_info_t *game, const uct_node_t *root,
+  game_info_t *game, const uct_node_t *root,
   int color, int tran);
 
 #define HASH_VMIRROR     1
