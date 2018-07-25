@@ -332,8 +332,8 @@ public:
     CNTK::ValuePtr value_win = CNTK::MakeSharedObject<CNTK::Value>(CNTK::MakeSharedObject<CNTK::NDArrayView>(shape_win, data.win, true));
     CNTK::NDShape shape_move = var_move.Shape().AppendShape({ 1, num_req });
     CNTK::ValuePtr value_move = CNTK::MakeSharedObject<CNTK::Value>(CNTK::MakeSharedObject<CNTK::NDArrayView>(shape_move, data.move, true));
-    CNTK::NDShape shape_statistic = var_statistic.Shape().AppendShape({ 1, num_req });
-    CNTK::ValuePtr value_statistic = CNTK::MakeSharedObject<CNTK::Value>(CNTK::MakeSharedObject<CNTK::NDArrayView>(shape_statistic, data.statistic, true));
+    //CNTK::NDShape shape_statistic = var_statistic.Shape().AppendShape({ 1, num_req });
+    //CNTK::ValuePtr value_statistic = CNTK::MakeSharedObject<CNTK::Value>(CNTK::MakeSharedObject<CNTK::NDArrayView>(shape_statistic, data.statistic, true));
 
     std::unordered_map<CNTK::Variable, CNTK::ValuePtr> inputs = {
       { var_basic, value_basic },
@@ -343,7 +343,7 @@ public:
       //{ var_komi, value_komi },
       { var_win, value_win },
       { var_move, value_move },
-      { var_statistic , value_statistic },
+      //{ var_statistic , value_statistic },
     };
 
     return inputs;
@@ -444,8 +444,8 @@ Train()
     const size_t trainingCheckpointFrequency = 500;
     const int stepsize = 200;
     const double lr_min = 1.0e-6;
-    //const double lr_max = 2.0e-4;
-    const double lr_max = 2.0e-5;
+    const double lr_max = 2.0e-4;
+    //const double lr_max = 2.0e-5;
 
     const size_t loop_size = trainingCheckpointFrequency * 2;
     minibatch_size = 128;
@@ -626,7 +626,8 @@ Train()
         GetOutputVaraiableByName(net, L"err_value2", prediction);
         break;
       case 2:
-        GetOutputVaraiableByName(net, L"err_owner", prediction);
+        //GetOutputVaraiableByName(net, L"err_owner", prediction);
+        GetOutputVaraiableByName(net, L"err_value2", prediction);
         break;
       }
       wcerr << prediction.AsString() << endl;
@@ -672,8 +673,14 @@ Train()
         //auto minibatchData = minibatchSource->GetNextMinibatch(minibatchSize, device);
         std::unordered_map<Variable, ValuePtr> arguments = reader.GetMiniBatchData(*data);
         std::unordered_map<Variable, ValuePtr> outputsToFetch;
-        trainer->TrainMinibatch(arguments, false, outputsToFetch, device);
-        PrintTrainingProgress(trainer, i, outputFrequencyInMinibatches);
+
+        try {
+          trainer->TrainMinibatch(arguments, false, outputsToFetch, device);
+          PrintTrainingProgress(trainer, i, outputFrequencyInMinibatches);
+        } catch (const std::exception& err) {
+          fprintf(stderr, "EXCEPTION occurred: %s\n", err.what());
+          abort();
+        }
 
         mb += 1;
         trainLossValue += trainer->PreviousMinibatchLossAverage();
