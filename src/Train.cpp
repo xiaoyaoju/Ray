@@ -618,7 +618,7 @@ Train()
       //Variable classifierOutputVar;
       //FunctionPtr classifierOutput = classifierOutputVar;
       Variable prediction;
-      switch (alt % 3) {
+      switch (alt % 2) {
       case 0:
         GetOutputVaraiableByName(net, L"errs_move", prediction);
         break;
@@ -626,8 +626,7 @@ Train()
         GetOutputVaraiableByName(net, L"err_value2", prediction);
         break;
       case 2:
-        //GetOutputVaraiableByName(net, L"err_owner", prediction);
-        GetOutputVaraiableByName(net, L"err_value2", prediction);
+        GetOutputVaraiableByName(net, L"err_owner", prediction);
         break;
       }
       wcerr << prediction.AsString() << endl;
