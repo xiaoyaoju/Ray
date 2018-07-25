@@ -1,6 +1,8 @@
 #ifndef _SGF_EXTRACTOR_H_
 #define _SGF_EXTRACTOR_H_
 
+#include <string>
+
 struct SGF_record_t {
   int start_color;      // 最初に着手した色
   int moves;            // 着手数
@@ -13,6 +15,8 @@ struct SGF_record_t {
   int board_size;       // 盤のサイズ
   char black_name[256]; // 黒番のプレイヤーの名前
   char white_name[256]; // 白番のプレイヤーの名前
+  int random_move;
+  std::string comment[800];
   double komi;          // コミ
 };
 

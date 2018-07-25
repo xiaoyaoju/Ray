@@ -58,6 +58,7 @@ ExtractKifu( const char *file_name, SGF_record_t *kifu )
   auto sgf_buf = unique_ptr<char[]>(new char[buffer_size]);
   char *sgf_text = sgf_buf.get();
   char buffer[10000];
+  std::array<char, 10000> comment;
 
   int cursor = 0;
 
@@ -65,6 +66,7 @@ ExtractKifu( const char *file_name, SGF_record_t *kifu )
   kifu->result = R_UNKNOWN;
   kifu->moves = 0;
   kifu->handicaps = 0;
+  kifu->random_move = -1;
   kifu->komi = 0.0;
 
 #if defined (_WIN32)
@@ -143,6 +145,30 @@ ExtractKifu( const char *file_name, SGF_record_t *kifu )
     if (strncmp(&sgf_text[cursor], "KM[", 3) == 0) cursor = GetKomi(kifu, sgf_text, cursor);
     if (strncmp(&sgf_text[cursor], "PB[", 3) == 0) cursor = GetPlayerName(kifu, sgf_text, cursor, S_BLACK);
     if (strncmp(&sgf_text[cursor], "PW[", 3) == 0) cursor = GetPlayerName(kifu, sgf_text, cursor, S_WHITE);
+
+    if (strncmp(&sgf_text[cursor], "C[", 2) == 0) {
+      //cursor = GetMove(kifu, sgf_text, cursor);
+      int tmp_cursor = 2;
+      comment[0] = '\0';
+
+      while (sgf_text[cursor + tmp_cursor] != ']') tmp_cursor++;
+
+      for (int i = 0; i < tmp_cursor - 2 && i < comment.size(); i++) {
+        comment[i] = sgf_text[cursor + i + 2];
+      }
+      comment[tmp_cursor - 2] = '\0';
+      //fprintf(stderr, "COMMENT %d %s\n", kifu->moves, comment);
+
+      if (strcmp("RAND", comment.data()) == 0
+        || strcmp("RANDOM", comment.data()) == 0) {
+        //fprintf(stderr, "RAND %d\n", kifu->moves);
+        kifu->random_move = kifu->moves;
+      } else if (strlen(comment.data()) > 0 && kifu->moves > 0) {
+        kifu->comment[kifu->moves - 1] = std::string(comment.data());
+      }
+
+      cursor = cursor + tmp_cursor;
+    }
 
     // 無視するデータ
     if ((strncmp(&sgf_text[cursor], "GM[", 3) == 0) ||
