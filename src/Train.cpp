@@ -107,7 +107,7 @@ public:
 
     // Replay to random turn
     int dump_turn;
-#if 0
+#if 1
     if (kifu.random_move < 0) {
 #endif
       uniform_int_distribution<int> dist_turn(1, max(1, kifu.moves - 20));
@@ -119,10 +119,12 @@ public:
         dist_turn = uniform_int_distribution<int>(1, max(1, kifu.moves - 5));
 
       dump_turn = dist_turn(mt);
-#if 0
+#if 1
     } else {
       //dump_turn = kifu.random_move - 1;
       uniform_int_distribution<int> dist_turn(kifu.random_move - 1, min(kifu.random_move + 8, kifu.moves - 1));
+      if (pure_board_size == 9)
+        dist_turn = uniform_int_distribution<int>(kifu.random_move - 1, max(kifu.random_move, kifu.moves - 5));
       dump_turn = dist_turn(mt);
     }
 #endif
