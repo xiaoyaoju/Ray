@@ -12,7 +12,6 @@
 #include <set>
 
 #include "Message.h"
-#include "MoveCache.h"
 #include "Nakade.h"
 #include "Point.h"
 #include "Rating.h"
@@ -297,7 +296,7 @@ GetPattern(game_info_t *game, int color, int pos) {
 //  着手( rating )  // 
 //////////////////////
 int
-RatingMove(game_info_t *game, int color, std::mt19937_64 *mt, LGR& lgr)
+RatingMove( game_info_t *game, int color, std::mt19937_64 *mt )
 {
   long long *rate = game->rate[color - 1];
   long long *sum_rate_row = game->sum_rate_row[color - 1];
@@ -308,61 +307,6 @@ RatingMove(game_info_t *game, int color, std::mt19937_64 *mt, LGR& lgr)
 
   // レートの部分更新
   PartialRating(game, color, sum_rate, sum_rate_row, rate);
-  if (*sum_rate > 0) {
-      // LGR
-    if (((*mt)() % 100) < tgr1_rate && game->moves > 0) {
-      static std::atomic<uint64_t> lgr_total;
-      static std::atomic<uint64_t> lgr_hit;
-      std::atomic_fetch_add(&lgr_total, (uint64_t)1);
-      int pos1 = game->record[game->moves - 1].pos;
-      pos = lgr.getTGR1(color, pos1, game);
-
-      if (pos != PASS && rate[pos] > 0) {
-	std::atomic_fetch_add(&lgr_hit, (uint64_t)1);
-	if (IsLegalNotEye(game, pos, color)) {
-	  return pos;
-	}
-      }
-      if (lgr_total % 1000000 == 0 && GetDebugMessageMode()) {
-	cerr << "TGR1 " << (100.0 * lgr_hit / lgr_total) << "%" << endl;
-      }
-    }
-    if (((*mt)() % 100) < lgrf1_rate && game->moves > 0) {
-      static std::atomic<uint64_t> lgr_total;
-      static std::atomic<uint64_t> lgr_hit;
-      std::atomic_fetch_add(&lgr_total, (uint64_t)1);
-      int pos1 = game->record[game->moves - 1].pos;
-      pos = lgr.getLGRF1(color, pos1, game);
-      if (pos != PASS && rate[pos] > 0) {
-	std::atomic_fetch_add(&lgr_hit, (uint64_t)1);
-	if (IsLegalNotEye(game, pos, color)) {
-	  return pos;
-	}
-      }
-      if (lgr_total % 1000000 == 0 && GetDebugMessageMode()) {
-	cerr << "LGRF1 " << (100.0 * lgr_hit / lgr_total) << "%" << endl;
-      }
-    }
-
-    if (use_lgrf2 && game->moves > 1) {
-      static std::atomic<uint64_t> lgr_total;
-      static std::atomic<uint64_t> lgr_hit;
-      std::atomic_fetch_add(&lgr_total, (uint64_t)1);
-      int pos1 = game->record[game->moves - 2].pos;
-      int pos2 = game->record[game->moves - 1].pos;
-      pos = lgr.getLGRF2(color, pos1, pos2);
-      if (pos != PASS && rate[pos] > 0) {
-	std::atomic_fetch_add(&lgr_hit, (uint64_t)1);
-	if (IsLegalNotEye(game, pos, color)) {
-	  //cerr << "Use LGRF2 " << FormatMove(pos1) << " -> " << FormatMove(pos2) << " -> " << FormatMove(pos) << endl;
-	  return pos;
-	}
-      }
-      if (lgr_total % 1000000 == 0 && GetDebugMessageMode()) {
-	cerr << "LGRF2 " << (100 * lgr_hit / lgr_total) << "%" << std::endl;
-      }
-    }
-  }
 
   // 合法手を選択するまでループ
   while (true){
