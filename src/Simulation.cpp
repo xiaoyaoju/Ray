@@ -3,7 +3,6 @@
 
 #include "GoBoard.h"
 #include "Message.h"
-#include "MoveCache.h"
 #include "Point.h"
 #include "Rating.h"
 #include "Simulation.h"
@@ -15,7 +14,7 @@ using namespace std;
 //  終局までシミュレーション  //
 ////////////////////////////////
 void
-Simulation(game_info_t *game, int starting_color, std::mt19937_64 *mt, LGR& lgr, LGRContext& ctx)
+Simulation( game_info_t *game, int starting_color, std::mt19937_64 *mt )
 {
   int color = starting_color;
   int pos = -1;
@@ -43,9 +42,7 @@ Simulation(game_info_t *game, int starting_color, std::mt19937_64 *mt, LGR& lgr,
   // 終局まで対局をシミュレート
   while (length-- && pass_count < 2) {
     // 着手を生成する
-    pos = RatingMove(game, color, mt, lgr);
-    // Store context hash
-    ctx.store(game, pos);
+    pos = RatingMove(game, color, mt);
     // 石を置く
     PoPutStone(game, pos, color);
     // パスの確認
@@ -88,8 +85,6 @@ SimulationGenmove(game_info_t *game, int color)
   // 確率分布を表示
   PrintRate(game);
 
-  LGR lgr;
-
   // 着手を生成する
-  return RatingMove(game, color, &mt, lgr);
+  return RatingMove(game, color, &mt);
 }

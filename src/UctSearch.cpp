@@ -20,7 +20,6 @@
 #include "GoBoard.h"
 #include "Ladder.h"
 #include "Message.h"
-#include "MoveCache.h"
 #include "PatternHash.h"
 #include "Point.h"
 #include "Rating.h"
@@ -162,10 +161,6 @@ double bonus_weight = BONUS_WEIGHT;
 
 // 乱数生成器
 std::vector<std::unique_ptr<std::mt19937_64>> mt;
-
-// Last-Good-Reply
-LGR lgr;
-std::vector<LGRContext> lgr_ctx;
 
 // Criticalityの上限値
 int criticality_max = CRITICALITY_MAX;
@@ -513,10 +508,6 @@ InitializeSearchSetting( void )
 
   // 乱数の初期化
   InitRand();
-
-  // Initialize Last-Good-Reply
-  lgr.reset();
-  lgr_ctx.resize(threads);
 
   // 持ち時間の初期化
   for (int i = 0; i < 3; i++) {
@@ -1603,23 +1594,6 @@ UctSearch(game_info_t *game, int color, mt19937_64 *mt, LGR& lgrf, LGRContext& l
   LOCK_NODE(current);
   // UCB値最大の手を求める
   next_index = SelectMaxUcbChild(game, current, color);
-  // Store context hash
-  {
-    int child_num = uct_node[current].child_num;
-    int index = -1;
-    int max = 0;
-    for (int i = 0; i < child_num; i++) {
-      if (uct_child[i].move_count > max) {
-        max = uct_child[i].move_count;
-        index = i;
-      }
-    }
-    if (index == -1 || uct_child[index].move_count < 10) {
-      lgrctx.store(game, PASS);
-    } else {
-      lgrctx.store(game, uct_child[index].pos);
-    }
-  }
   // 選んだ手を着手
   PutStone(game, uct_child[next_index].pos, color);
   // 色を入れ替える
@@ -1667,8 +1641,8 @@ UctSearch(game_info_t *game, int color, mt19937_64 *mt, LGR& lgrf, LGRContext& l
     }
 
     // 終局まで対局のシミュレーション
-    Simulation(game, color, mt, lgr, lgrctx);
-    
+    Simulation(game, color, mt);
+
     // コミを含めない盤面のスコアを求める
     score = (double)CalculateScore(game);
     
@@ -1692,8 +1666,6 @@ UctSearch(game_info_t *game, int color, mt19937_64 *mt, LGR& lgrf, LGRContext& l
     }
     // 統計情報の記録
     Statistic(game, *winner);
-
-    lgr.update(game, start, *winner, lgrctx);
   } else {
     path.push_back(current);
     // Virtual Lossを加算
