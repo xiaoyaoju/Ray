@@ -20,7 +20,6 @@
 #include "GoBoard.h"
 #include "Ladder.h"
 #include "Message.h"
-#include "MoveCache.h"
 #include "PatternHash.h"
 #include "Point.h"
 #include "Rating.h"
@@ -162,10 +161,6 @@ double bonus_weight = BONUS_WEIGHT;
 // 乱数生成器
 std::vector<std::unique_ptr<std::mt19937_64>> mt;
 
-// Last-Good-Reply
-LGR lgr;
-std::vector<LGRContext> lgr_ctx;
-
 // Criticalityの上限値
 int criticality_max = CRITICALITY_MAX;
 
@@ -285,7 +280,7 @@ static int SelectMaxUcbChild(const game_info_t *game, int current, int color );
 static void Statistic( game_info_t *game, int winner );
 
 // UCT探索(1回の呼び出しにつき, 1回の探索)
-static int UctSearch(game_info_t *game, int color, mt19937_64 *mt, LGR& lgrf, LGRContext& lgrctx, int current, int *winner, std::vector<int>& path);
+static int UctSearch(game_info_t *game, int color, mt19937_64 *mt, int current, int *winner, std::vector<int>& path);
 
 // 各ノードの統計情報の更新
 static void UpdateNodeStatistic( game_info_t *game, int winner, statistic_t *node_statistic );
@@ -343,8 +338,6 @@ void
 SetThread( int new_thread )
 {
   threads = new_thread;
-
-  lgr_ctx.resize(threads);
 
   InitRand();
 }
@@ -516,10 +509,6 @@ InitializeSearchSetting( void )
 
   // 乱数の初期化
   InitRand();
-
-  // Initialize Last-Good-Reply
-  lgr.reset();
-  lgr_ctx.resize(threads);
 
   // 持ち時間の初期化
   for (int i = 0; i < 3; i++) {
@@ -1506,7 +1495,7 @@ ParallelUctSearch( thread_arg_t *arg )
       CopyGame(game, targ->game);
       // 1回プレイアウトする
       std::vector<int> path;
-      UctSearch(game, color, mt[targ->thread_id].get(), lgr, lgr_ctx[targ->thread_id], current_root, &winner, path);
+      UctSearch(game, color, mt[targ->thread_id].get(), current_root, &winner, path);
       // 探索を打ち切るか確認
       interruption = InterruptionCheck();
       // ハッシュに余裕があるか確認
@@ -1531,7 +1520,7 @@ ParallelUctSearch( thread_arg_t *arg )
       CopyGame(game, targ->game);
       // 1回プレイアウトする
 	  std::vector<int> path;
-      UctSearch(game, color, mt[targ->thread_id].get(), lgr, lgr_ctx[targ->thread_id], current_root, &winner, path);
+      UctSearch(game, color, mt[targ->thread_id].get(), current_root, &winner, path);
       // 探索を打ち切るか確認
       interruption = InterruptionCheck();
       // ハッシュに余裕があるか確認
@@ -1575,7 +1564,7 @@ ParallelUctSearchPondering( thread_arg_t *arg )
       CopyGame(game, targ->game);
       // 1回プレイアウトする
       std::vector<int> path;
-      UctSearch(game, color, mt[targ->thread_id].get(), lgr, lgr_ctx[targ->thread_id], current_root, &winner, path);
+      UctSearch(game, color, mt[targ->thread_id].get(), current_root, &winner, path);
       // ハッシュに余裕があるか確認
       enough_size = CheckRemainingHashSize();
       // OwnerとCriticalityを計算する
@@ -1596,7 +1585,7 @@ ParallelUctSearchPondering( thread_arg_t *arg )
       CopyGame(game, targ->game);
       // 1回プレイアウトする
       std::vector<int> path;
-      UctSearch(game, color, mt[targ->thread_id].get(), lgr, lgr_ctx[targ->thread_id], current_root, &winner, path);
+      UctSearch(game, color, mt[targ->thread_id].get(), current_root, &winner, path);
       // ハッシュに余裕があるか確認
       enough_size = CheckRemainingHashSize();
     } while (!pondering_stop && enough_size);
@@ -1613,7 +1602,7 @@ ParallelUctSearchPondering( thread_arg_t *arg )
 //  1回の呼び出しにつき, 1プレイアウトする    //
 //////////////////////////////////////////////
 static int
-UctSearch(game_info_t *game, int color, mt19937_64 *mt, LGR& lgrf, LGRContext& lgrctx, int current, int *winner, std::vector<int>& path)
+UctSearch(game_info_t *game, int color, mt19937_64 *mt, int current, int *winner, std::vector<int>& path)
 {
   int result = 0, next_index;
   double score;
@@ -1623,23 +1612,6 @@ UctSearch(game_info_t *game, int color, mt19937_64 *mt, LGR& lgrf, LGRContext& l
   LOCK_NODE(current);
   // UCB値最大の手を求める
   next_index = SelectMaxUcbChild(game, current, color);
-  // Store context hash
-  {
-    int child_num = uct_node[current].child_num;
-    int index = -1;
-    int max = 0;
-    for (int i = 0; i < child_num; i++) {
-      if (uct_child[i].move_count > max) {
-        max = uct_child[i].move_count;
-        index = i;
-      }
-    }
-    if (index == -1 || uct_child[index].move_count < 10) {
-      lgrctx.store(game, PASS);
-    } else {
-      lgrctx.store(game, uct_child[index].pos);
-    }
-  }
   // 選んだ手を着手
   PutStone(game, uct_child[next_index].pos, color);
   // 色を入れ替える
@@ -1687,7 +1659,7 @@ UctSearch(game_info_t *game, int color, mt19937_64 *mt, LGR& lgrf, LGRContext& l
     }
 
     // 終局まで対局のシミュレーション
-    Simulation(game, color, mt, lgr, lgrctx);
+    Simulation(game, color, mt);
 
     // コミを含めない盤面のスコアを求める
     score = (double)CalculateScore(game);
@@ -1733,8 +1705,6 @@ UctSearch(game_info_t *game, int color, mt19937_64 *mt, LGR& lgrf, LGRContext& l
 
     // 統計情報の記録
     Statistic(game, *winner);
-
-    lgr.update(game, start, *winner, lgrctx);
   } else {
     path.push_back(current);
     // Virtual Lossを加算
@@ -1752,7 +1722,7 @@ UctSearch(game_info_t *game, int color, mt19937_64 *mt, LGR& lgrf, LGRContext& l
     // 現在見ているノードのロックを解除
     UNLOCK_NODE(current);
     // 手番を入れ替えて1手深く読む
-    result = UctSearch(game, color, mt, lgrf, lgrctx, uct_child[next_index].index, winner, path);
+    result = UctSearch(game, color, mt, uct_child[next_index].index, winner, path);
     //
     // double v = uct_node[current].value;
     // if (*value_result < 0 && v >= 0) {
