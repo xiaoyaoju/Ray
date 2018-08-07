@@ -586,6 +586,17 @@ UctSearchGenmove( game_info_t *game, int color )
   double finish_time, pass_wp, best_wp;
   child_node_t *uct_child;
 
+  if (game->moves == 1 && pure_board_size == 9) {
+    vector<int> candidates{
+      POS(4 + OB_SIZE, 4 + OB_SIZE),
+      POS(5 + OB_SIZE, 4 + OB_SIZE), POS(5 + OB_SIZE, 3 + OB_SIZE),
+      POS(6 + OB_SIZE, 4 + OB_SIZE), POS(6 + OB_SIZE, 3 + OB_SIZE), POS(6 + OB_SIZE, 2 + OB_SIZE),
+    };
+    cerr << "Use random pos" << endl;
+    uniform_int_distribution<int> dist(0, candidates.size() - 1);
+    return candidates[dist(*mt[0])];
+  }
+
   // 探索情報をクリア
   if (!pondered) {
     memset(statistic, 0, sizeof(statistic_t) * board_max);
