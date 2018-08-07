@@ -807,7 +807,7 @@ UctSearchGenmove( game_info_t *game, int color )
 	     game->record[game->moves - 1].pos == PASS &&
 	     game->record[game->moves - 3].pos == PASS) {
     pos = PASS;
-  } else if (!early_pass && count == 0 && best_wp < pass_wp && max_count < uct_child[PASS_INDEX].move_count) {
+  } else if (!early_pass && count == 0 && pass_wp >= PASS_THRESHOLD && max_count < uct_child[PASS_INDEX].move_count) {
     pos = PASS;
   } else if (best_wp <= resign_threshold && (!use_nn || best_wpv < resign_threshold)) {
     pos = RESIGN;
@@ -1930,9 +1930,14 @@ UpdatePolicyRate(int current)
     n++;
   } while (t > 0 && t < 10 && rate > policy_top_rate_max);
 
+  uct_child[0].nnrate = 0.001;
   for (int i = 1; i < child_num; i++) {
     double rate = exp((uct_child[i].nnrate0 + offset) / t) / sum;
     uct_child[i].nnrate = max(rate, 0.0);
+    if (uct_child[i].rate < uct_child[0].rate
+        && uct_child[0].nnrate < uct_child[i].nnrate) {
+      uct_child[0].nnrate = min(0.05, uct_child[i].nnrate);
+    }
   }
 }
 
@@ -2054,7 +2059,7 @@ SelectMaxUcbChild( const game_info_t *game, int current, int color )
       double value_move_count = 0;
 
 #if 1
-      if (uct_child[i].index >= 0 && i != 0) {
+      if (uct_child[i].index >= 0) {
 	auto node = &uct_node[uct_child[i].index];
 	if (node->value_move_count > 0) {
 	  //p2 = 1 - (double)node->value_win / node->value_move_count;

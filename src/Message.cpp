@@ -648,7 +648,7 @@ PrintMoveStat( std::ostream& out, const game_info_t *game, const uct_node_t *uct
     double value_win = 0;
     double value_move_count = 0;
 
-    if (uct_child[i].index >= 0 && i != 0) {
+    if (uct_child[i].index >= 0) {
       auto node = &uct_node[uct_child[i].index];
       if (node->value_move_count > 0) {
         //p2 = 1 - (double)node->value_win / node->value_move_count;
