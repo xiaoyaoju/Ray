@@ -1435,7 +1435,7 @@ ExtendTime( void )
 
 
 static void
-WaitForEvaluationQueue()
+WaitForEvaluationQueue(bool ponderingmode)
 {
   static std::atomic<int> queue_full;
 
@@ -1444,7 +1444,12 @@ WaitForEvaluationQueue()
   // Wait if dcnn queue is full
   mutex_queue.lock();
   while (eval_value_queue.size() > value_batch_size * 3 || eval_policy_queue.size() > policy_batch_size * 3) {
-    if (GetSpendTime(begin_time) > time_limit || !running) break;
+    if (!running) break;
+    if (ponderingmode) {
+      if (pondering_stop) break;
+    } else {
+      if (GetSpendTime(begin_time) > time_limit) break;
+    }
     std::atomic_fetch_add(&queue_full, 1);
     value_evaluation_threshold = min(0.5, value_evaluation_threshold + 0.01);
     mutex_queue.unlock();
@@ -1478,7 +1483,7 @@ ParallelUctSearch( thread_arg_t *arg )
   if (targ->thread_id == 0) {
     do {
       // Wait if dcnn queue is full
-      WaitForEvaluationQueue();
+      WaitForEvaluationQueue(false);
       // 探索回数を1回増やす
       atomic_fetch_add(&po_info.count, 1);
       // 盤面のコピー
@@ -1503,7 +1508,7 @@ ParallelUctSearch( thread_arg_t *arg )
   } else {
     do {
       // Wait if dcnn queue is full
-      WaitForEvaluationQueue();
+      WaitForEvaluationQueue(false);
       // 探索回数を1回増やす
       atomic_fetch_add(&po_info.count, 1);
       // 盤面のコピー
@@ -1547,7 +1552,7 @@ ParallelUctSearchPondering( thread_arg_t *arg )
   if (targ->thread_id == 0) {
     do {
       // Wait if dcnn queue is full
-      WaitForEvaluationQueue();
+      WaitForEvaluationQueue(true);
       // 探索回数を1回増やす
       atomic_fetch_add(&po_info.count, 1);
       // 盤面のコピー
@@ -1568,7 +1573,7 @@ ParallelUctSearchPondering( thread_arg_t *arg )
   } else {
     do {
       // Wait if dcnn queue is full
-      WaitForEvaluationQueue();
+      WaitForEvaluationQueue(true);
       // 探索回数を1回増やす
       atomic_fetch_add(&po_info.count, 1);
       // 盤面のコピー
