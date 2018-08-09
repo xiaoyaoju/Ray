@@ -64,7 +64,6 @@ struct value_eval_req {
 
 struct policy_eval_req {
   int index;
-  int depth;
   int color;
   int trans;
   std::vector<float> data_basic;
@@ -1255,7 +1254,6 @@ RatingNode( game_info_t *game, int color, int index, int depth )
 
     auto req = make_shared<policy_eval_req>();
     req->color = color;
-    req->depth = depth;
     req->index = index;
     req->trans = rand() / (RAND_MAX / 8 + 1);
     //req.path.swap(path);
@@ -2632,7 +2630,6 @@ EvalPolicy(
 
     LOCK_NODE(index);
 
-    int depth = req->depth;
 #if 0
     if (index == current_root) {
       for (int i = 0; i < pure_board_max; i++) {
