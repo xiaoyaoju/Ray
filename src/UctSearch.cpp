@@ -776,6 +776,11 @@ UctSearchGenmove( game_info_t *game, int color )
     cerr << "Count Captured     :  " << setw(7) << count << endl;
     cerr << "Score              :  " << setw(7) << score << endl;
     PrintMoveStat(cerr, game, uct_node, current_root);
+    if (uct_child[select_index].index >= 0) {
+      cerr << "Opponent Moves" << endl;
+      PrintMoveStat(cerr, game, uct_node, uct_child[select_index].index);
+
+    }
     //PrintOwnerNN(S_BLACK, owner_nn);
   }
 
