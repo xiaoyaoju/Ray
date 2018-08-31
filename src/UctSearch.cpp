@@ -1833,7 +1833,7 @@ SelectMaxUcbChild( const game_info_t *game, int current, int color )
   int max_index;
   double max_rate;
   double dynamic_parameter;
-  rate_order_t order[PURE_BOARD_MAX + 1];  
+  rate_order_t order[PURE_BOARD_MAX + 1];
   int width;
   double child_ucb[UCT_CHILD_MAX];
   double child_lcb[UCT_CHILD_MAX];
@@ -1910,6 +1910,16 @@ SelectMaxUcbChild( const game_info_t *game, int current, int color )
     }
   }
 
+  double sum_visited_nnrate = 0;
+  for (int i = start_child; i < child_num; i++) {
+    if (uct_child[i].index >= 0) {
+      sum_visited_nnrate += uct_child[i].nnrate;
+    }
+  }
+
+  double cfg_fpu_reduction = 0.25f;
+  double fpu_reduction = cfg_fpu_reduction * sqrt(sum_visited_nnrate);
+
   int max_move_count = 0;
   int max_move_child = 0;
 
@@ -1948,7 +1958,7 @@ SelectMaxUcbChild( const game_info_t *game, int current, int color )
 	    << setw(10) << (uct_child[i].nnrate  * 100) << " ";
 	}
 	if (move_count == 0) {
-	  p = p_p * (1 - scale) + p_v * scale;
+	  p = p_p * (1 - scale) + p_v * scale - fpu_reduction;
 	} else {
 	  double p0 = win / move_count;
 	  if (value_move_count > 0) {
@@ -1963,7 +1973,7 @@ SelectMaxUcbChild( const game_info_t *game, int current, int color )
 		cerr << " LM:" << scale << " ";
 	    }
 	  } else {
-	    p = p0 * (1 - scale) + p_v * scale;
+	    p = p0 * (1 - scale) + p_v * scale - fpu_reduction;
 	  }
 	}
 
