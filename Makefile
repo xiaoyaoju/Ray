@@ -1,19 +1,15 @@
 TARGET=ray
-# you need to use g++ 4.9 for both CNTK and C++14 features
 CXX = mpic++
 OPTIMIZE = -O3
 CPP11 = -std=c++11 -std=c++1y
 WARNING = -Wall
 DEBUG = #-g
-CNTKDIR = ~/cntk
-CNTK_VERSION=2.4
-CFLAGS = ${OPTIMIZE} ${WARNING} ${CPP11} ${DEBUG}  -I ${CNTKDIR}/Include/
-CNTK_LIBS = -lCntk.Core-${CNTK_VERSION} -lCntk.Math-${CNTK_VERSION} -lCntk.Eval-${CNTK_VERSION}
-LIBS = -lm -pthread -L ${CNTKDIR}/cntk/lib -L ${CNTKDIR}/cntk/dependencies/lib ${CNTK_LIBS}
+CFLAGS = ${OPTIMIZE} ${WARNING} ${CPP11} ${DEBUG}
+LIBS = -lm -pthread -lOpenCL -lz -lcblas -lopenblas
 RM = rm
 
-SRCS=${shell ls src/*.cpp}
-HEDS=${shell ls src/*.h}
+SRCS=${shell ls src/*.cpp src/lz/*.cpp}
+HEDS=${shell ls src/*.h src/lz/*.h}
 OBJS=${SRCS:.cpp=.o}
 
 .SUFFIXES:.cpp .o .h
@@ -72,7 +68,7 @@ Rating.o: src/Rating.h src/GoBoard.h src/Pattern.h src/UctRating.h \
  src/PatternHash.h
 RayMain.o: src/RayMain.cpp src/Command.h src/GoBoard.h src/Pattern.h \
  src/Gtp.h src/PatternHash.h src/Rating.h src/UctRating.h src/Semeai.h \
- src/UctSearch.h src/ZobristHash.h
+ src/UctSearch.h src/ZobristHash.h src/lz/Leela.h
 SearchBoard.o: src/SearchBoard.cpp src/SearchBoard.h src/GoBoard.h \
  src/Pattern.h
 SearchBoard.o: src/SearchBoard.h src/GoBoard.h src/Pattern.h
@@ -95,7 +91,9 @@ UctRating.o: src/UctRating.h src/GoBoard.h src/Pattern.h \
 UctSearch.o: src/UctSearch.cpp src/DynamicKomi.h src/GoBoard.h \
  src/Pattern.h src/UctSearch.h src/ZobristHash.h src/Ladder.h \
  src/Message.h src/PatternHash.h src/Seki.h src/Simulation.h \
- src/UctRating.h src/Utility.h
+ src/UctRating.h src/Utility.h src/lz/Leela.h src/lz/GameState.h \
+ src/lz/FastBoard.h src/lz/FastState.h src/lz/Network.h src/lz/GTP.h \
+ src/lz/Random.h src/lz/Zobrist.h src/lz/Utils.h
 UctSearch.o: src/UctSearch.h src/GoBoard.h src/Pattern.h \
  src/ZobristHash.h
 Utility.o: src/Utility.cpp src/Utility.h
