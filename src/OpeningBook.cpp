@@ -7,7 +7,7 @@
 #include <iostream>
 #include <fstream>
 #include <sstream>
-#include <vector>
+#include <map>
 
 using namespace std;
 
@@ -18,7 +18,7 @@ struct book_element_t {
 };
 
 static string kifu_dir = "kifu";
-static vector<book_element_t> opening_books;
+static multimap<unsigned long long, book_element_t> opening_books;
 
 static int path_hash(const vector<int> &path)
 {
@@ -91,7 +91,7 @@ LoadOpeningBook(int size)
       cerr << FormatMove(m.pos) << "(" << m.win << "/" << m.move_count << ") ";
     cerr << endl;
     */
-    opening_books.push_back(e);
+    opening_books.emplace(e.hash, e);
   }
 
   //cerr << "OK " << opening_books.size() << endl;
@@ -101,7 +101,9 @@ const vector<book_move_t>*
 LookupOpeningBook(const game_info_t * game)
 {
   int h = path_hash(game);
-  for (auto &e : opening_books) {
+  auto r = opening_books.equal_range(h);
+  for (auto it = r.first; it != r.second; it++) {
+    auto& e = it->second;
     if (e.hash != h)
       continue;
     bool match = true;
