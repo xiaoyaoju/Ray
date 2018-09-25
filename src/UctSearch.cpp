@@ -2036,7 +2036,7 @@ SelectMaxUcbChild( const game_info_t *game, int current, int color )
   //const double scale = std::max(0.2, std::min(1.0, 1.0 - (game->moves - 200) / 50.0)) * value_scale;
   double scale;
   if (pure_board_size == 9) {
-    scale = max(0.2, std::min(1.0, 1.0 - (game->moves - 30) / 30.0)) * value_scale;
+    scale = max(0.5, std::min(1.0, 1.0 - (game->moves - 30) / 30.0)) * value_scale;
   } else {
     scale = value_scale;
   }

@@ -644,12 +644,14 @@ PartialRating( game_info_t *game, int color, long long *sum_rate, long long *sum
   // 3手前の着手の12近傍の更新
   if (pm3 != PASS) Neighbor12Update(game, color, sum_rate, sum_rate_row, rate, 1, &pm3, flag);
 
+#if 0
   // 3, 5, 7
   for (int i = 0; i < 3; i++) {
     int n = (i + 1) * 2 + 1;
     if (game->moves > n)
       PoCheckFeatures(game, color, game->record[game->moves - n].pos, update_pos, update_num);
   }
+#endif
 
   // 以前の着手で戦術的特徴が現れた箇所の更新
   OtherUpdate(game, color, sum_rate, sum_rate_row, rate, prev_feature, prev_feature_pos, flag);

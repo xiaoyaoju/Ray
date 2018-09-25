@@ -525,7 +525,8 @@ UctCheckFeatures( const game_info_t *game, int color, uct_features_t *uct_featur
       }
       if (already_checked) continue;
       if (string[id].libs == 1) {
-	ladder = CheckLadderExtension(game, color, neighbor4[i]);
+        if (pure_board_size != 9)
+          ladder = CheckLadderExtension(game, color, neighbor4[i]);
 	UctCheckFeaturesLib1(game, color, id, ladder, uct_features);
       } else if (string[id].libs == 2) {
 	UctCheckFeaturesLib2(game, color, id, uct_features);
