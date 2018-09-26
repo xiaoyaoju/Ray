@@ -57,21 +57,11 @@ struct uct_search_context_t {
   std::vector<int> path;
 };
 
-struct value_eval_req {
+struct nn_eval_req {
   int index;
-  child_node_t *uct_child;
   int color;
   int trans;
   std::vector<int> path;
-  std::vector<float> data_basic;
-  std::vector<float> data_features;
-  std::vector<float> data_history;
-};
-
-struct policy_eval_req {
-  int index;
-  int color;
-  int trans;
   std::vector<float> data_basic;
   std::vector<float> data_features;
   std::vector<float> data_history;
@@ -225,13 +215,11 @@ static bool early_pass = true;
 
 static bool use_nn = true;
 static int device_id = -2;
-static std::queue<std::shared_ptr<policy_eval_req>> eval_policy_queue;
-static std::queue<std::shared_ptr<value_eval_req>> eval_value_queue;
-static int eval_count_policy, eval_count_value;
+static std::queue<std::shared_ptr<nn_eval_req>> eval_nn_queue;
+static int eval_count;
 static double owner_nn[BOARD_MAX];
 
-static CNTK::FunctionPtr nn_policy;
-static CNTK::FunctionPtr nn_value;
+static CNTK::FunctionPtr nn_model;
 
 //template<double>
 double atomic_fetch_add(std::atomic<double> *obj, double arg) {
@@ -244,12 +232,10 @@ double atomic_fetch_add(std::atomic<double> *obj, double arg) {
 static void
 ClearEvalQueue()
 {
-  mutex_queue.lock();
-  queue<shared_ptr<value_eval_req>> empty_value;
-  eval_value_queue.swap(empty_value);
-  queue<shared_ptr<policy_eval_req>> empty_policy;
-  eval_policy_queue.swap(empty_policy);
-  mutex_queue.unlock();
+  lock_guard<mutex> lock(mutex_queue);
+  
+  queue<shared_ptr<nn_eval_req>> empty;
+  eval_nn_queue.swap(empty);
 }
 
 // Opening book scale
@@ -543,7 +529,7 @@ InitializeUctSearch( void )
     exit(1);
   }
 
-  if (use_nn && !nn_policy)
+  if (use_nn && !nn_model)
     ReadWeights();
 }
 
@@ -671,8 +657,7 @@ UctSearchGenmove( game_info_t *game, int color )
 
   ClearEvalQueue();
 
-  eval_count_policy = 0;
-  eval_count_value = 0;
+  eval_count = 0;
 
   // 探索開始時刻の記録
   begin_time = ray_clock::now();
@@ -827,9 +812,7 @@ UctSearchGenmove( game_info_t *game, int color )
   ClearEvalQueue();
 
   if (use_nn && GetDebugMessageMode()) {
-    cerr << "Eval NN Policy     :  " << setw(7) << (eval_count_policy + eval_policy_queue.size()) << endl;
-    cerr << "Eval NN Value      :  " << setw(7) << (eval_count_value + eval_value_queue.size()) << endl;
-    cerr << "Eval NN            :  " << setw(7) << eval_count_policy << "/" << eval_count_value << "/" << value_evaluation_threshold << endl;
+    cerr << "Eval NN            :  " << setw(7) << eval_count << "/" << value_evaluation_threshold << endl;
     cerr << "Count Captured     :  " << setw(7) << count << endl;
     cerr << "Score              :  " << setw(7) << score << endl;
     PrintMoveStat(cerr, game, uct_node, current_root);
@@ -1325,18 +1308,16 @@ RatingNode( game_info_t *game, int color, int index, int depth )
       //cerr << "Eval unevaluated node " << index << endl;
       //int color = game->record[game->moves - 1].color;
 
-      uct_node_t *root = &uct_node[current_root];
-
-      auto req = make_shared<policy_eval_req>();
+      auto req = make_shared<nn_eval_req>();
       req->color = color;
       req->index = index;
       req->trans = rand() / (RAND_MAX / 8 + 1);
       //req.path.swap(path);
       WritePlanes(req->data_basic, req->data_features, req->data_history, nullptr,
-        game, root, color, req->trans);
+        game, nullptr, color, req->trans);
 #if 1
       mutex_queue.lock();
-      eval_policy_queue.push(req);
+      eval_nn_queue.push(req);
       mutex_queue.unlock();
       //push_back(u);
 #else
@@ -1542,7 +1523,7 @@ WaitForEvaluationQueue(bool ponderingmode)
 
   // Wait if dcnn queue is full
   mutex_queue.lock();
-  while (eval_value_queue.size() > value_batch_size * 3 || eval_policy_queue.size() > policy_batch_size * 3) {
+  while (eval_nn_queue.size() > value_batch_size * 3) {
     if (!running) break;
     if (ponderingmode) {
       if (pondering_stop) break;
@@ -1735,16 +1716,15 @@ UctSearch(uct_search_context_t& ctx, game_info_t *game, int color, mt19937_64 *m
 
     next_node_index = uct_child[next_index].index;
 
-    auto req = make_shared<value_eval_req>();
+    auto req = make_shared<nn_eval_req>();
     req->index = uct_child[next_index].index;
-    req->uct_child = uct_child + next_index;
     req->color = color;
     copy(ctx.path.begin(), ctx.path.end(), back_inserter(req->path));
     req->trans = rand() / (RAND_MAX / 8 + 1);
     WritePlanes(req->data_basic, req->data_features, req->data_history, nullptr,
       game, nullptr, color, req->trans);
     mutex_queue.lock();
-    eval_value_queue.push(req);
+    eval_nn_queue.push(req);
     mutex_queue.unlock();
   }
 
@@ -2628,17 +2608,9 @@ ReadWeights()
     cerr << "Unsupported board size " << pure_board_size << endl;
     abort();
   }
-  nn_policy = CNTK::Function::Load(policy_name, device);
+  nn_model = CNTK::Function::Load(policy_name, device);
 
-#if 0
-  wstring value_name = path;
-  value_name += L"/model6.bin";
-  nn_value = CNTK::Function::Load(value_name, device);
-#else
-  nn_value = nn_policy;
-#endif
-
-  if (!nn_policy || !nn_value)
+  if (!nn_model)
   {
     cerr << "Get EvalModel failed\n";
     abort();
@@ -2653,10 +2625,10 @@ ReadWeights()
     wcerr << var.AsString() << endl;
   }
   wcerr << L"***VALUE" << endl;
-  for (auto var : nn_value->Inputs()) {
+  for (auto var : nn_model->Inputs()) {
     wcerr << var.AsString() << endl;
   }
-  for (auto var : nn_value->Outputs()) {
+  for (auto var : nn_model->Outputs()) {
     wcerr << var.AsString() << endl;
   }
 #endif
@@ -2692,121 +2664,10 @@ GetOutputVaraiableByName(CNTK::FunctionPtr evalFunc, wstring varName, CNTK::Vari
   return GetVariableByName(evalFunc->Outputs(), varName, var);
 }
 
-void
-EvalPolicy(
-  const std::vector<std::shared_ptr<policy_eval_req>>& requests,
-  std::vector<float>& data_basic, std::vector<float>& data_features, std::vector<float>& data_history,
-  std::vector<float>& data_color, std::vector<float>& data_komi)
-{
-  if (requests.size() == 0)
-    return;
-
-  auto device = GetDevice();
-
-  CNTK::Variable var_basic, var_features, var_history, var_color, var_komi;
-  GetInputVariableByName(nn_policy, L"basic", var_basic);
-  GetInputVariableByName(nn_policy, L"features", var_features);
-  GetInputVariableByName(nn_policy, L"history", var_history);
-  GetInputVariableByName(nn_policy, L"color", var_color);
-  //GetInputVariableByName(nn_policy, L"komi", var_komi);
-
-  CNTK::Variable var_ol;
-  GetOutputVaraiableByName(nn_policy, L"ol", var_ol);
-
-  size_t num_req = requests.size();
-
-  CNTK::NDShape shape_basic = var_basic.Shape().AppendShape({ 1, num_req });
-  CNTK::ValuePtr value_basic = CNTK::MakeSharedObject<CNTK::Value>(CNTK::MakeSharedObject<CNTK::NDArrayView>(shape_basic, data_basic, true));
-  CNTK::NDShape shape_features = var_features.Shape().AppendShape({ 1, num_req });
-  CNTK::ValuePtr value_features = CNTK::MakeSharedObject<CNTK::Value>(CNTK::MakeSharedObject<CNTK::NDArrayView>(shape_features, data_features, true));
-  CNTK::NDShape shape_history = var_history.Shape().AppendShape({ 1, num_req });
-  CNTK::ValuePtr value_history = CNTK::MakeSharedObject<CNTK::Value>(CNTK::MakeSharedObject<CNTK::NDArrayView>(shape_history, data_history, true));
-  CNTK::NDShape shape_color = var_color.Shape().AppendShape({ 1, num_req });
-  CNTK::ValuePtr value_color = CNTK::MakeSharedObject<CNTK::Value>(CNTK::MakeSharedObject<CNTK::NDArrayView>(shape_color, data_color, true));
-  //CNTK::NDShape shape_komi = var_komi.Shape().AppendShape({ 1, num_req });
-  //CNTK::ValuePtr value_komi = CNTK::MakeSharedObject<CNTK::Value>(CNTK::MakeSharedObject<CNTK::NDArrayView>(shape_komi, data_komi, true));
-
-  CNTK::ValuePtr value_ol;
-
-  std::unordered_map<CNTK::Variable, CNTK::ValuePtr> inputs = {
-    { var_basic, value_basic },
-    { var_features, value_features },
-    { var_history, value_history },
-    { var_color, value_color },
-    //{ var_komi, value_komi },
-  };
-  std::unordered_map<CNTK::Variable, CNTK::ValuePtr> outputs = { { var_ol, value_ol } };
-
-  try {
-    nn_policy->Forward(inputs, outputs, device);
-  } catch (const std::exception& err) {
-    fprintf(stderr, "Evaluation failed. EXCEPTION occurred: %s\n", err.what());
-    abort();
-  } catch (...) {
-    fprintf(stderr, "Evaluation failed. Unknown ERROR occurred.\n");
-    abort();
-  }
-
-  value_ol = outputs[var_ol];
-  CNTK::NDShape shape_ol = var_ol.Shape().AppendShape({ 1, num_req });
-  vector<float> moves(shape_ol.TotalSize());
-  CNTK::NDArrayViewPtr cpu_moves = CNTK::MakeSharedObject<CNTK::NDArrayView>(shape_ol, moves, false);
-  cpu_moves->CopyFrom(*value_ol->Data());
-
-  if (moves.size() != pure_board_max * num_req) {
-    cerr << "Eval move error " << moves.size() << endl;
-    return;
-  }
-
-  for (int j = 0; j < requests.size(); j++) {
-    const auto req = requests[j];
-    const int index = req->index;
-    const int child_num = uct_node[index].child_num;
-    child_node_t *uct_child = uct_node[index].child;
-    const int ofs = pure_board_max * j;
-
-    LOCK_NODE(index);
-
-#if 0
-    if (index == current_root) {
-      for (int i = 0; i < pure_board_max; i++) {
-	int x = i % pure_board_size;
-	int y = i / pure_board_size;
-	owner_nn[POS(x + OB_SIZE, y + OB_SIZE)] = ownern[i + ofs];
-      }
-    }
-#endif
-
-    for (int i = 1; i < child_num; i++) {
-      int pos = RevTransformMove(uct_child[i].pos, req->trans);
-
-      int x = X(pos) - OB_SIZE;
-      int y = Y(pos) - OB_SIZE;
-      int n = x + y * pure_board_size;
-      double score = moves[n + ofs];
-      //cerr << "RAW POLICY " << uct_child[i].pos << " " << req->trans << " " << FormatMove(pos) << " " << x << "," << y << " " << ofs << " -> " << score << endl;
-      //if (depth == 1) cerr << "RAW POLICY " << uct_child[i].pos << " " << req->trans << " " << FormatMove(pos) << " " << x << "," << y << " " << ofs << " -> " << score << endl;
-      if (isnan(score) || isinf(score))
-        score = -10;
-      if (uct_child[i].ladder) {
-        score -= 4; // ~= 1.83%
-      }
-
-      uct_child[i].nnrate0 = score;
-    }
-
-    UpdatePolicyRate(index);
-    uct_node[index].evaled = true;
-
-    UNLOCK_NODE(index);
-  }
-  eval_count_policy += requests.size();
-}
-
 
 void
 EvalValue(
-  const std::vector<std::shared_ptr<value_eval_req>>& requests,
+  const std::vector<std::shared_ptr<nn_eval_req>>& requests,
   std::vector<float>& data_basic, std::vector<float>& data_features, std::vector<float>& data_history,
   std::vector<float>& data_color, std::vector<float>& data_komi, std::vector<float>& data_safety)
 {
@@ -2816,16 +2677,16 @@ EvalValue(
   auto device = GetDevice();
 
   CNTK::Variable var_basic, var_features, var_history, var_color, var_komi;
-  GetInputVariableByName(nn_value, L"basic", var_basic);
-  GetInputVariableByName(nn_value, L"features", var_features);
-  GetInputVariableByName(nn_value, L"history", var_history);
-  GetInputVariableByName(nn_value, L"color", var_color);
-  //GetInputVariableByName(nn_value, L"komi", var_komi);
+  GetInputVariableByName(nn_model, L"basic", var_basic);
+  GetInputVariableByName(nn_model, L"features", var_features);
+  GetInputVariableByName(nn_model, L"history", var_history);
+  GetInputVariableByName(nn_model, L"color", var_color);
+  //GetInputVariableByName(nn_model, L"komi", var_komi);
 
   CNTK::Variable var_p;
-  GetOutputVaraiableByName(nn_value, L"p2", var_p);
+  GetOutputVaraiableByName(nn_model, L"p2", var_p);
   CNTK::Variable var_ol;
-  GetOutputVaraiableByName(nn_value, L"ol", var_ol);
+  GetOutputVaraiableByName(nn_model, L"ol", var_ol);
 
   size_t num_req = requests.size();
 
@@ -2856,7 +2717,7 @@ EvalValue(
   };
 
   try {
-    nn_value->Forward(inputs, outputs, device);
+    nn_model->Forward(inputs, outputs, device);
   } catch (const std::exception& err) {
     fprintf(stderr, "Evaluation failed. EXCEPTION occurred: %s\n", err.what());
     abort();
@@ -2942,7 +2803,7 @@ EvalValue(
       value = 1 - value;
     }
   }
-  eval_count_value += requests.size();
+  eval_count += requests.size();
 }
 
 void EvalNode() {
@@ -2959,7 +2820,7 @@ void EvalNode() {
   while (true) {
     mutex_queue.lock();
     if (!running
-      && (allow_skip || (eval_policy_queue.empty() && eval_value_queue.empty()))) {
+      && (allow_skip || eval_nn_queue.empty())) {
       mutex_queue.unlock();
       if (GetDebugMessageMode()) {
         cerr << "Eval " << num_eval << endl;
@@ -2969,7 +2830,7 @@ void EvalNode() {
       break;
     }
 
-    if (eval_policy_queue.empty() && eval_value_queue.empty()) {
+    if (eval_nn_queue.empty()) {
       value_evaluation_threshold = max(0.0, value_evaluation_threshold - 0.01);
       mutex_queue.unlock();
       this_thread::sleep_for(chrono::milliseconds(1));
@@ -2977,43 +2838,15 @@ void EvalNode() {
       continue;
     }
 
-    if (eval_policy_queue.size() == 0) {
-    } else {
-      std::vector<std::shared_ptr<policy_eval_req>> requests;
-
-      for (int i = 0; i < policy_batch_size && !eval_policy_queue.empty(); i++) {
-        auto req = eval_policy_queue.front();
-        requests.push_back(req);
-        eval_policy_queue.pop();
-      }
-      mutex_queue.unlock();
-
-      eval_input_data_basic.resize(0);
-      eval_input_data_features.resize(0);
-      eval_input_data_history.resize(0);
-      eval_input_data_color.resize(0);
-      eval_input_data_komi.resize(0);
-      for (auto& req : requests) {
-        std::copy(req->data_basic.begin(), req->data_basic.end(), std::back_inserter(eval_input_data_basic));
-        std::copy(req->data_features.begin(), req->data_features.end(), std::back_inserter(eval_input_data_features));
-        std::copy(req->data_history.begin(), req->data_history.end(), std::back_inserter(eval_input_data_history));
-        eval_input_data_color.push_back(req->color - 1);
-        eval_input_data_komi.push_back(komi[0]);
-      }
-      num_eval += requests.size();
-      EvalPolicy(requests, eval_input_data_basic, eval_input_data_features, eval_input_data_history, eval_input_data_color, eval_input_data_komi);
-      mutex_queue.lock();
-    }
-
-    if (eval_value_queue.size() == 0) {
+    if (eval_nn_queue.size() == 0) {
       mutex_queue.unlock();
     } else {
-      std::vector<std::shared_ptr<value_eval_req>> requests;
+      std::vector<std::shared_ptr<nn_eval_req>> requests;
 
-      for (int i = 0; i < value_batch_size && !eval_value_queue.empty(); i++) {
-        auto req = eval_value_queue.front();
+      for (int i = 0; i < value_batch_size && !eval_nn_queue.empty(); i++) {
+        auto req = eval_nn_queue.front();
         requests.push_back(req);
-        eval_value_queue.pop();
+        eval_nn_queue.pop();
       }
       mutex_queue.unlock();
 
