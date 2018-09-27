@@ -2028,6 +2028,18 @@ SelectMaxUcbChild( const game_info_t *game, int current, int color )
     }
   }
 
+
+  double sum_visited_nnrate = 0;
+  for (int i = start_child; i < child_num; i++) {
+    if (uct_child[i].index >= 0) {
+      sum_visited_nnrate += uct_child[i].nnrate;
+    }
+  }
+
+  const double cfg_fpu_reduction = 0.125f;
+  double fpu_reduction = cfg_fpu_reduction * sqrt(sum_visited_nnrate);
+  double fpu_eval = p_v0 - fpu_reduction;
+
   int max_move_count = 0;
   int max_move_child = 0;
 
@@ -2064,15 +2076,15 @@ SelectMaxUcbChild( const game_info_t *game, int current, int color )
 	}
         double p_po;
 	if (move_count == 0) {
-          //p_po = p_p0;
-          p_po = 0;
+          p_po = p_p0 - fpu_reduction;
+          //p_po = 0;
         } else {
           p_po = win / move_count;
         }
         double p_vn;
         if (value_move_count == 0) {
-          //p_vn = p_v0;
-          p_vn = 0;
+          p_vn = p_v0 - fpu_reduction;
+          //p_vn = 0;
         } else {
           p_vn = value_win / value_move_count;
         }
