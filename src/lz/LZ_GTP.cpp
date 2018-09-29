@@ -66,7 +66,7 @@ bool cfg_tune_only;
 float cfg_puct;
 float cfg_softmax_temp;
 float cfg_fpu_reduction;
-std::string cfg_weightsfile;
+//std::string cfg_weightsfile; // this is now set by ../Command.cpp
 std::string cfg_logfile;
 FILE* cfg_logfile_handle;
 bool cfg_quiet;

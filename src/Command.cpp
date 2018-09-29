@@ -11,6 +11,8 @@
 #include "UctSearch.h"
 #include "ZobristHash.h"
 
+#include "lz/GTP.h"
+
 using namespace std;
 
 
@@ -38,6 +40,7 @@ const string command[COMMAND_MAX] = {
   "--no-gpu",
   "--no-expand",
   "--device-id",
+  "--weights",
 };
 
 //  コマンドの説明
@@ -60,8 +63,10 @@ const string errmessage[COMMAND_MAX] = {
   "Don't use GPU",
   "No MCTS",
   "Set GPU to use",
+  "Set location of weights file (default uct_params/lz.bin)",
 };
 
+std::string cfg_weightsfile;
 
 //////////////////////
 //  コマンドの処理  //
@@ -156,6 +161,9 @@ AnalyzeCommand( int argc, char **argv )
       case COMMAND_DEVICE_ID:
         SetDeviceId(atoi(argv[++i]));
         break;
+      case COMMAND_WEIGHTS_FILE:
+        cfg_weightsfile = argv[++i];
+	break;
       default:
 	for (int j = 0; j < COMMAND_MAX; j++){
 	  fprintf(stderr, "%-22s : %s\n", command[j].c_str(), errmessage[j].c_str());

@@ -364,8 +364,10 @@ int InitializeLeela() {
         //license_blurb();
     //}
 
-  cfg_weightsfile = uct_params_path;
-  cfg_weightsfile += "/lz.bin";
+  if (cfg_weightsfile.empty()) {
+    cfg_weightsfile = uct_params_path;
+    cfg_weightsfile += "/lz.bin";
+  }
 
   int device_id = GetDeviceId();
   if (device_id >= 0)
@@ -458,3 +460,4 @@ Netresult EvaluateLeela(int moves, record_t *record) {
 
   return Network::get_scored_moves(maingame.get(), Network::Ensemble::RANDOM_SYMMETRY, -1, true);
 }
+
