@@ -48,19 +48,13 @@ using namespace std;
 #define LOCK_EXPAND mutex_expand.lock();
 #define UNLOCK_EXPAND mutex_expand.unlock();
 
-struct value_eval_req {
+struct nn_eval_req {
   int index;
-  child_node_t *uct_child;
   int moves;
   std::vector<int> path;
   record_t record[MAX_RECORDS];
 };
 
-struct policy_eval_req {
-  int index;
-  int moves;
-  record_t record[MAX_RECORDS];
-};
 
 void EvalNode();
 //void EvalUctNode(std::vector<int>& indices, std::vector<int>& color, std::vector<int>& trans, std::vector<float>& data, std::vector<int>& path);
@@ -174,7 +168,6 @@ double policy_top_rate_max = 0.90;
 double seach_threshold_policy_rate = 0.005;
 
 double pass_po_limit = 0.5;
-int policy_batch_size = 16;
 int value_batch_size = 64;
 
 ray_clock::time_point begin_time;
@@ -183,9 +176,8 @@ static bool early_pass = true;
 
 static bool use_nn = true;
 static int device_id = -2;
-static std::queue<std::shared_ptr<policy_eval_req>> eval_policy_queue;
-static std::queue<std::shared_ptr<value_eval_req>> eval_value_queue;
-static int eval_count_policy, eval_count_value;
+static std::queue<std::shared_ptr<nn_eval_req>> eval_nn_queue;
+static int eval_count_value;
 static double owner_nn[BOARD_MAX];
 
 
@@ -201,10 +193,8 @@ static void
 ClearEvalQueue()
 {
   mutex_queue.lock();
-  queue<shared_ptr<value_eval_req>> empty_value;
-  eval_value_queue.swap(empty_value);
-  queue<shared_ptr<policy_eval_req>> empty_policy;
-  eval_policy_queue.swap(empty_policy);
+  queue<shared_ptr<nn_eval_req>> empty_value;
+  eval_nn_queue.swap(empty_value);
   mutex_queue.unlock();
 }
 
@@ -591,7 +581,6 @@ UctSearchGenmove( game_info_t *game, int color )
 
   ClearEvalQueue();
 
-  eval_count_policy = 0;
   eval_count_value = 0;
 
   // 探索開始時刻の記録
@@ -745,9 +734,8 @@ UctSearchGenmove( game_info_t *game, int color )
   ClearEvalQueue();
  
   if (use_nn && GetDebugMessageMode()) {
-    cerr << "Eval NN Policy     :  " << setw(7) << (eval_count_policy + eval_policy_queue.size()) << endl;
-    cerr << "Eval NN Value      :  " << setw(7) << (eval_count_value + eval_value_queue.size()) << endl;
-    cerr << "Eval NN            :  " << setw(7) << eval_count_policy << "/" << eval_count_value << "/" << value_evaluation_threshold << endl;
+    cerr << "Eval NN Value      :  " << setw(7) << (eval_count_value + eval_nn_queue.size()) << endl;
+    cerr << "Eval NN            :  " << setw(7) << eval_count_value << "/" << value_evaluation_threshold << endl;
     cerr << "Count Captured     :  " << setw(7) << count << endl;
     cerr << "Score              :  " << setw(7) << score << endl;
     PrintMoveStat(cerr, game, uct_node, current_root);
@@ -1235,14 +1223,14 @@ RatingNode( game_info_t *game, int color, int index, int depth )
 
     uct_node_t *root = &uct_node[current_root];
 
-    auto req = make_shared<policy_eval_req>();
+    auto req = make_shared<nn_eval_req>();
     req->index = index;
     req->moves = game->moves;
     memcpy(req->record, game->record, sizeof(record_t) * MAX_RECORDS);
 
 #if 1
     mutex_queue.lock();
-    eval_policy_queue.push(req);
+    eval_nn_queue.push(req);
     mutex_queue.unlock();
     //push_back(u);
 #else
@@ -1422,7 +1410,7 @@ WaitForEvaluationQueue(bool ponderingmode)
 
   // Wait if dcnn queue is full
   mutex_queue.lock();
-  while (eval_value_queue.size() > value_batch_size * 3 || eval_policy_queue.size() > policy_batch_size * 3) {
+  while (eval_nn_queue.size() > value_batch_size * 3) {
     if (!running) break;
     if (ponderingmode) {
       if (pondering_stop) break;
@@ -1617,15 +1605,14 @@ UctSearch( game_info_t *game, int color, mt19937_64 *mt, int current, int *winne
 
       uct_node_t *root = &uct_node[current_root];
 
-      auto req = make_shared<value_eval_req>();
+      auto req = make_shared<nn_eval_req>();
       req->index = uct_child[next_index].index;
-      req->uct_child = uct_child + next_index;
       copy(path.begin(), path.end(), back_inserter(req->path));
       req->moves = game->moves;
       memcpy(req->record, game->record, sizeof(record_t) * MAX_RECORDS);
 
       mutex_queue.lock();
-      eval_value_queue.push(req);
+      eval_nn_queue.push(req);
       mutex_queue.unlock();
     }
 
@@ -2452,69 +2439,7 @@ CorrectDescendentNodes(vector<int> &indexes, int index)
 
 
 void
-EvalPolicy(
-  const std::shared_ptr<policy_eval_req>& req)
-{
-  auto result = EvaluateLeela(req->moves, req->record);
-  vector<float> &moves = result.policy;
-
-  if (moves.size() != pure_board_max) {
-    cerr << "Eval move error " << moves.size() << endl;
-    return;
-  }
-
-  const int index = req->index;
-  const int child_num = uct_node[index].child_num;
-  child_node_t *uct_child = uct_node[index].child;
-  const int ofs = 0;
-
-  LOCK_NODE(index);
-
-#if 0
-  if (index == current_root) {
-    for (int i = 0; i < pure_board_max; i++) {
-      int x = i % pure_board_size;
-      int y = i / pure_board_size;
-      owner_nn[POS(x + OB_SIZE, y + OB_SIZE)] = ownern[i + ofs];
-    }
-  }
-#endif
-
-  double sum = 0;
-  uct_child[0].nnrate = min(result.policy_pass, 0.1f);
-  sum += uct_child[0].nnrate;
-  for (int i = 1; i < child_num; i++) {
-    int pos = uct_child[i].pos;
-
-    int x = X(pos) - OB_SIZE;
-    int y = Y(pos) - OB_SIZE;
-    int n = x + y * pure_board_size;
-    double score = moves[n + ofs];
-    //if (depth == 1) cerr << "RAW POLICY " << uct_child[i].pos << " " << req->trans << " " << FormatMove(pos) << " " << x << "," << y << " " << ofs << " -> " << score << endl;
-    if (uct_child[i].ladder) {
-      score = min(score, 0.01);
-    }
-
-    uct_child[i].nnrate = score;
-    sum += uct_child[i].nnrate;
-  }
-
-  //cerr << "sum:" << sum << endl;
-  for (int i = 0; i < child_num; i++) {
-    uct_child[i].nnrate /= sum;
-  }
-
-  UpdatePolicyRate(index);
-  uct_node[index].evaled = true;
-
-  UNLOCK_NODE(index);
-
-  eval_count_policy++;
-}
-
-
-void
-EvalValue(const std::shared_ptr<value_eval_req>& req)
+EvalValue(const std::shared_ptr<nn_eval_req>& req)
 {
   auto result = EvaluateLeela(req->moves, req->record);
   float win = result.winrate;
@@ -2565,7 +2490,6 @@ EvalValue(const std::shared_ptr<value_eval_req>& req)
 
   double value = 1 - p;// color[j] == S_BLACK ? p : 1 - p;
 
-  req->uct_child->value = value;
   for (int i = req->path.size() - 1; i >= 0; i--) {
     int current = req->path[i];
     if (current < 0)
@@ -2586,13 +2510,13 @@ void EvalNode() {
   while (true) {
     mutex_queue.lock();
     if (!running
-      && (allow_skip || (eval_policy_queue.empty() && eval_value_queue.empty()))) {
+      && (allow_skip || eval_nn_queue.empty())) {
       mutex_queue.unlock();
       cerr << "Eval " << num_eval << endl;
       break;
     }
 
-    if (eval_policy_queue.empty() && eval_value_queue.empty()) {
+    if (eval_nn_queue.empty()) {
       value_evaluation_threshold = max(0.0, value_evaluation_threshold - 0.01);
       mutex_queue.unlock();
       this_thread::sleep_for(chrono::milliseconds(1));
@@ -2600,23 +2524,11 @@ void EvalNode() {
       continue;
     }
 
-    if (eval_policy_queue.size() == 0) {
-    } else {
-      auto req = eval_policy_queue.front();
-      eval_policy_queue.pop();
-
-      mutex_queue.unlock();
-
-      num_eval++;
-      EvalPolicy(req);
-      mutex_queue.lock();
-    }
-
-    if (eval_value_queue.size() == 0) {
+    if (eval_nn_queue.size() == 0) {
       mutex_queue.unlock();
     } else {
-      auto req = eval_value_queue.front();
-      eval_value_queue.pop();
+      auto req = eval_nn_queue.front();
+      eval_nn_queue.pop();
 
       mutex_queue.unlock();
 

@@ -74,7 +74,6 @@ extern double policy_top_rate_max;
 extern double seach_threshold_policy_rate;
 
 extern double pass_po_limit;
-extern int policy_batch_size;
 extern int value_batch_size;
 
 
