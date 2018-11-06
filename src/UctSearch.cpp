@@ -59,6 +59,18 @@ struct nn_eval_req {
 void EvalNode();
 //void EvalUctNode(std::vector<int>& indices, std::vector<int>& color, std::vector<int>& trans, std::vector<float>& data, std::vector<int>& path);
 
+
+////////////
+//  定数  //
+////////////
+
+// ノード展開の閾値
+const int EXPAND_THRESHOLD_9 = 20;
+const int EXPAND_THRESHOLD_13 = 25;
+//const int EXPAND_THRESHOLD_19 = 40;
+const int EXPAND_THRESHOLD_19 = 4;
+
+
 ////////////////
 //  大域変数  //
 ////////////////
@@ -619,7 +631,9 @@ UctSearchGenmove( game_info_t *game, int color )
   }
 
   if (use_nn) {
-    handle.push_back(make_unique<thread>(EvalNode));
+    for (int i = 0; i < min(4, threads); i++) {
+      handle.push_back(make_unique<thread>(EvalNode));
+    }
   }
 
   for (auto &t : handle) {
@@ -642,7 +656,9 @@ UctSearchGenmove( game_info_t *game, int color )
     }
 
     if (use_nn) {
-      handle.push_back(make_unique<thread>(EvalNode));
+      for (int i = 0; i < min(4, threads); i++) {
+        handle.push_back(make_unique<thread>(EvalNode));
+      }
     }
 
     for (auto &t : handle) {
@@ -802,7 +818,9 @@ UctSearchPondering(game_info_t *game, int color)
   }
 
   if (use_nn) {
-    handle.push_back(make_unique<thread>(EvalNode));
+    for (int i = 0; i < min(4, threads); i++) {
+      handle.push_back(make_unique<thread>(EvalNode));
+    }
   }
 
   return ;

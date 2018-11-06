@@ -37,10 +37,6 @@ const double FPU = 5.0;
 const double PROGRESSIVE_WIDENING = 1.8;
 
 // ノード展開の閾値
-const int EXPAND_THRESHOLD_9  = 20;
-const int EXPAND_THRESHOLD_13 = 25;
-//const int EXPAND_THRESHOLD_19 = 40;
-const int EXPAND_THRESHOLD_19 = 15;
 extern int custom_expand_threshold;
 
 
