@@ -11,6 +11,7 @@
 #include <iostream>
 #include <iterator>
 #include <mutex>
+#include <condition_variable>
 #include <numeric>
 #include <thread>
 #include <random>
@@ -108,6 +109,7 @@ mutex mutex_nodes[MAX_NODES];
 mutex mutex_expand;       // ノード展開を排他処理するためのmutex
 
 mutex mutex_queue;
+condition_variable cond_queue;
 
 // 探索の設定
 enum SEARCH_MODE mode = CONST_TIME_MODE;
@@ -212,10 +214,10 @@ double atomic_fetch_add(std::atomic<double> *obj, double arg) {
 static void
 ClearEvalQueue()
 {
-  mutex_queue.lock();
+  lock_guard<mutex> lock(mutex_queue);
   queue<shared_ptr<nn_eval_req>> empty_value;
   eval_nn_queue.swap(empty_value);
-  mutex_queue.unlock();
+  cond_queue.notify_all();
 }
 
 ////////////
@@ -1259,10 +1261,9 @@ RatingNode( game_info_t *game, int color, int index, int depth )
     memcpy(req->record, game->record, sizeof(record_t) * MAX_RECORDS);
 
 #if 1
-    mutex_queue.lock();
+    lock_guard<mutex> lock(mutex_queue);
     eval_nn_queue.push(req);
-    mutex_queue.unlock();
-    //push_back(u);
+    cond_queue.notify_all();
 #else
     std::vector<int> indices;
     indices.push_back(index);
@@ -1502,7 +1503,9 @@ ParallelUctSearch( thread_arg_t *arg )
       if (GetSpendTime(begin_time) > time_limit) break;
       if (!enough_size) cerr << "HASH TABLE FULL" << endl;
     } while (po_info.count < po_info.halt && !interruption && enough_size);
+    lock_guard<mutex> lock(mutex_queue);
     running = false;
+    cond_queue.notify_all();
   } else {
     do {
       // Wait if dcnn queue is full
@@ -1568,7 +1571,9 @@ ParallelUctSearchPondering( thread_arg_t *arg )
 	interval += CRITICALITY_INTERVAL;
       }
     } while (!pondering_stop && enough_size);
+    lock_guard<mutex> lock(mutex_queue);
     running = false;
+    cond_queue.notify_all();
   } else {
     do {
       // Wait if dcnn queue is full
@@ -1643,9 +1648,9 @@ UctSearch( uct_search_context_t& ctx, game_info_t *game, int color, mt19937_64 *
       req->moves = game->moves;
       memcpy(req->record, game->record, sizeof(record_t) * MAX_RECORDS);
 
-      mutex_queue.lock();
+      lock_guard<mutex> lock(mutex_queue);
       eval_nn_queue.push(req);
-      mutex_queue.unlock();
+      cond_queue.notify_all();
     }
 
     // 終局まで対局のシミュレーション
@@ -2549,30 +2554,31 @@ void EvalNode() {
   int num_eval = 0;
   bool allow_skip = (!reuse_subtree && !ponder) || time_limit <= 1.0;
 
+  int num_wait = 0;
+  double sum_wait = 0;
+
   while (true) {
-    mutex_queue.lock();
+    unique_lock<mutex> lock(mutex_queue);
+
+    auto begin_time = ray_clock::now();
+    cond_queue.wait(lock, [=] {
+      bool abort = !running && (allow_skip || eval_nn_queue.empty());
+      return abort || !eval_nn_queue.empty();
+    });
+    sum_wait += GetSpendTime(begin_time);
+    num_wait++;
+
     if (!running
       && (allow_skip || eval_nn_queue.empty())) {
-      mutex_queue.unlock();
       cerr << "Eval " << num_eval << endl;
+      cerr << (sum_wait / num_wait) << "sec " << num_wait << endl;
       break;
     }
 
-    if (eval_nn_queue.empty()) {
-      value_evaluation_threshold = max(0.0, value_evaluation_threshold - 0.01);
-      mutex_queue.unlock();
-      this_thread::sleep_for(chrono::milliseconds(1));
-      //cerr << "EMPTY QUEUE" << endl;
-      continue;
-    }
-
-    if (eval_nn_queue.size() == 0) {
-      mutex_queue.unlock();
-    } else {
+    if (eval_nn_queue.size() > 0) {
       auto req = eval_nn_queue.front();
       eval_nn_queue.pop();
-
-      mutex_queue.unlock();
+      lock.unlock();
 
       num_eval++;
       EvalValue(req);
