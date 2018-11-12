@@ -907,8 +907,8 @@ GTP_ray_param()
     resign_threshold = value;
   } else if (name == "policy_top_rate_max") {
     policy_top_rate_max = value;
-  } else if (name == "seach_threshold_policy_rate") {
-    seach_threshold_policy_rate = value;
+  } else if (name == "search_threshold_policy_rate") {
+    search_threshold_policy_rate = value;
   } else if (name == "pass_po_limit") {
     pass_po_limit = value;
   } else if (name == "value_batch_size") {

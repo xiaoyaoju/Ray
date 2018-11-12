@@ -67,7 +67,7 @@ extern double policy_temperature;
 extern double policy_temperature_inc;
 
 extern double policy_top_rate_max;
-extern double seach_threshold_policy_rate;
+extern double search_threshold_policy_rate;
 
 extern double pass_po_limit;
 extern int value_batch_size;
@@ -108,7 +108,6 @@ struct child_node_t {
   double rate; // 着手のレート
   //double nnrate0; // ニューラルネットワークでのレート
   double nnrate; // ニューラルネットワークでのレート
-  std::atomic<double> value;
   bool flag;   // Progressive Wideningのフラグ
   bool open;   // 常に探索候補に入れるかどうかのフラグ
   bool ladder; // シチョウのフラグ

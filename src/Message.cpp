@@ -658,7 +658,7 @@ PrintMoveStat( std::ostream& out, const game_info_t *game, const uct_node_t *uct
 
   sort(idx.begin(), idx.end(), idxComp);
 
-  out << "|Move|Count|Simulation|Policy    |Value     |Win       |Best Sequence" << endl;
+  out << "|Move|#PO  |#VN  |Simulation|Policy    |Value     |Win       |Best Sequence" << endl;
   // UCB値最大の手を求める  
   for (int j = 0; j < std::min(10, child_num); j++) {
     size_t i = idx[j];
@@ -680,10 +680,6 @@ PrintMoveStat( std::ostream& out, const game_info_t *game, const uct_node_t *uct
       }
       //cerr << "VA:" << (value_win / value_move_count) << " VS:" << uct_child[i].value << endl;
     }
-    if (value_move_count == 0 && uct_child[i].value >= 0) {
-      value_move_count = 1;
-      value_win = uct_child[i].value;
-    }
 
     double win = uct_child[i].win;
     double move_count = uct_child[i].move_count;
@@ -691,6 +687,7 @@ PrintMoveStat( std::ostream& out, const game_info_t *game, const uct_node_t *uct
 
     out << "|" << setw(4) << FormatMove(uct_child[i].pos);
     out << "|" << setw(5) << (int) move_count;
+    out << "|" << setw(5) << (int) value_move_count;
 
     auto precision = out.precision();
     out.precision(4);
