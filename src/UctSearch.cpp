@@ -121,6 +121,8 @@ double const_thinking_time = CONST_TIME;
 int playout = CONST_PLAYOUT;
 // デフォルトの持ち時間
 double default_remaining_time = ALL_THINKING_TIME;
+// 1手当たりのNNプレイアウト数
+int nn_playout = -1;
 
 // 各スレッドに渡す引数
 vector<thread_arg_t> t_arg;
@@ -156,6 +158,7 @@ double time_limit;
 std::vector<std::unique_ptr<std::thread>> handle;    // スレッドのハンドル
 
 static volatile bool running;
+static int pre_value_move_count;
 
 // UCB Bonusの等価パラメータ
 double bonus_equivalence = BONUS_EQUIVALENCE;
@@ -319,6 +322,12 @@ void
 SetPlayout( int po )
 {
   playout = po;
+}
+
+void
+SetNNPlayout( int po )
+{
+  nn_playout = po;
 }
 
 
@@ -525,8 +534,11 @@ InitializeSearchSetting( void )
   // 制限時間を設定
   // プレイアウト回数の初期化
   if (mode == CONST_PLAYOUT_MODE) {
-    time_limit = 100000.0;
-    po_info.num = playout;
+    time_limit = std::numeric_limits<double>::max();
+    if (nn_playout > 0)
+      po_info.num = std::numeric_limits<int>::max();
+    else
+      po_info.num = playout;
     extend_time = false;
   } else if (mode == CONST_TIME_MODE) {
     time_limit = const_thinking_time;
@@ -620,6 +632,7 @@ UctSearchGenmove( game_info_t *game, int color )
 
   // 前回から持ち込んだ探索回数を記録
   pre_simulated = uct_node[current_root].move_count;
+  pre_value_move_count = uct_node[current_root].value_move_count;
 
   // 子ノードが1つ(パスのみ)ならPASSを返す
   if (uct_node[current_root].child_num <= 1) {
@@ -769,6 +782,7 @@ UctSearchGenmove( game_info_t *game, int color )
   if (use_nn && GetDebugMessageMode()) {
     cerr << "Eval NN Value      :  " << setw(7) << (eval_count_value + eval_nn_queue.size()) << endl;
     cerr << "Eval NN            :  " << setw(7) << eval_count_value << "/" << value_evaluation_threshold << endl;
+    cerr << "NN Speed           :  " << setw(7) << (int)(eval_count_value / finish_time) << " PO/sec " << endl;
     cerr << "Count Captured     :  " << setw(7) << count << endl;
     cerr << "Score              :  " << setw(7) << score << endl;
     PrintMoveStat(cerr, game, uct_node, current_root);
@@ -894,6 +908,7 @@ UctSearchStat(game_info_t *game, int color, int num)
 
   // 前回から持ち込んだ探索回数を記録
   pre_simulated = uct_node[current_root].move_count;
+  pre_value_move_count = uct_node[current_root].value_move_count;
 
   // 子ノードが1つ(パスのみ)ならPASSを返す
   if (uct_node[current_root].child_num <= 1) {
@@ -1510,7 +1525,14 @@ ParallelUctSearch( thread_arg_t *arg )
       }
       if (GetSpendTime(begin_time) > time_limit) break;
       if (!enough_size) cerr << "HASH TABLE FULL" << endl;
-    } while (po_info.count < po_info.halt && !interruption && enough_size);
+      if (nn_playout > 0) {
+        if (uct_node[current_root].value_move_count >= nn_playout + pre_value_move_count)
+          break;
+      } else {
+        if (po_info.count >= po_info.halt || interruption || !enough_size)
+          break;
+      }
+    } while (true);
     lock_guard<mutex> lock(mutex_queue);
     running = false;
     cond_queue.notify_all();
@@ -1531,7 +1553,14 @@ ParallelUctSearch( thread_arg_t *arg )
       enough_size = CheckRemainingHashSize();
       if (GetSpendTime(begin_time) > time_limit) break;
       if (!enough_size) cerr << "HASH TABLE FULL" << endl;
-    } while (po_info.count < po_info.halt && !interruption && enough_size);
+      if (nn_playout > 0) {
+        if (uct_node[current_root].value_move_count >= nn_playout + pre_value_move_count)
+          break;
+      } else {
+        if (po_info.count >= po_info.halt || interruption || !enough_size)
+          break;
+      }
+    } while (true);
   }
 
   // メモリの解放

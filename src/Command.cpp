@@ -23,6 +23,7 @@ using namespace std;
 //  コマンド
 const string command[COMMAND_MAX] = {
   "--playout",
+  "--nn-playout",
   "--time",
   "--size",
   "--const-time",
@@ -46,6 +47,7 @@ const string command[COMMAND_MAX] = {
 //  コマンドの説明
 const string errmessage[COMMAND_MAX] = {
   "Set playouts",
+  "Set neural network playouts",
   "Set all thinking time",
   "Set board size",
   "Set mode const time, and set thinking time per move",
@@ -90,6 +92,11 @@ AnalyzeCommand( int argc, char **argv )
 	SetPlayout(atoi(argv[++i]));
 	SetMode(CONST_PLAYOUT_MODE);
 	break;
+      case COMMAND_NN_PLAYOUT:
+        // プレイアウト数固定の探索の設定
+        SetNNPlayout(atoi(argv[++i]));
+        SetMode(CONST_PLAYOUT_MODE);
+        break;
       case COMMAND_TIME:
 	// 持ち時間の設定
 	SetTime(atof(argv[++i]));

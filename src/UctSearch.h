@@ -179,6 +179,7 @@ void SetMode( enum SEARCH_MODE mode );
 
 // 1手あたりのプレイアウト回数の指定
 void SetPlayout( int po );
+void SetNNPlayout( int po );
 
 // 1手あたりの思考時間の指定
 void SetConstTime( double time );
