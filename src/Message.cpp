@@ -593,8 +593,17 @@ PrintBestSequence(std::ostream& out, const game_info_t *game, const uct_node_t *
       index = i;
     }
   }
-  if (node_hash[current].color == S_BLACK) out << "b ";
-  else if (node_hash[current].color == S_WHITE) out << "w ";
+  if (node_hash[current].color == S_BLACK) {
+    if (root->evaled)
+      out << "B ";
+    else
+      out << "b ";
+  } else if (node_hash[current].color == S_WHITE) {
+    if (root->evaled)
+      out << "W ";
+    else
+      out << "w ";
+  }
   out << FormatMove(uct_child[index].pos) << " ";
 
   current = uct_child[index].index;
@@ -615,8 +624,17 @@ PrintBestSequence(std::ostream& out, const game_info_t *game, const uct_node_t *
 
     if (index == -1) break;
 
-    if (node_hash[current].color == S_BLACK) out << "b ";
-    else if (node_hash[current].color == S_WHITE) out << "w ";
+    if (node_hash[current].color == S_BLACK) {
+      if (uct_node[current].evaled)
+        out << "B ";
+      else
+        out << "b ";
+    } else if (node_hash[current].color == S_WHITE) {
+      if (uct_node[current].evaled)
+        out << "W ";
+      else
+        out << "w ";
+    }
     out << FormatMove(uct_child[index].pos) << " ";
 
     current = uct_child[index].index;
