@@ -152,6 +152,7 @@ bool candidates[BOARD_MAX];
 
 // 投了する勝率の閾値
 double resign_threshold = 0.20;
+double resign_threshold2 = 0.30;
 
 bool pondering_mode = false;
 
@@ -799,9 +800,9 @@ UctSearchGenmove( game_info_t *game, int color )
     pos = PASS;
   } else if (!early_pass && count == 0 && best_wp < pass_wp && max_count < ValueMoveCount(current_root, PASS_INDEX)) {
     pos = PASS;
-  } else if (best_wp <= resign_threshold && (!use_nn || best_wpv < resign_threshold)) {
+  } else if (best_wp <= resign_threshold && (!use_nn || best_wpv <= resign_threshold)) {
     pos = RESIGN;
-  } else if (!use_nn || best_wpv < resign_threshold) {
+  } else if (use_nn && best_wp <= resign_threshold2 && best_wpv <= resign_threshold) {
     pos = RESIGN;
   } else {
     pos = uct_child[select_index].pos;
@@ -1771,7 +1772,7 @@ UctSearchPO( uct_search_context_t& ctx, game_info_t *game, int color, mt19937_64
     game->record[game->moves - 1].pos == PASS &&
     game->record[game->moves - 2].pos == PASS;
 
-  if (uct_child[next_index].move_count < expand_threshold || end_of_game || uct_child[next_index].index < 0) {
+  if (uct_child[next_index].move_count < expand_threshold || end_of_game) {
     int start = game->moves;
 
     // Virtual Lossを加算
@@ -2076,7 +2077,7 @@ SelectMaxUcbChild( const uct_search_context_t& ctx, const game_info_t *game, int
         double dynamic_parameter = uct_owner[o_index[i]] + uct_criticality[c_index[i]];
         order[i].rate = uct_child[i].rate + dynamic_parameter;
         order[i].index = i;
-        uct_child[i].flag |= uct_child[i].nnrate > search_threshold_policy_rate;
+        uct_child[i].flag |= uct_child[i].nnrate > max(uct_child[0].nnrate, search_threshold_policy_rate);
       }
       qsort(order, child_num, sizeof(rate_order_t), RateComp);
 
@@ -2243,7 +2244,7 @@ SelectMaxUcbChild( const uct_search_context_t& ctx, const game_info_t *game, int
           << endl;
       }
 #elif 1
-      double u_po = sqrt_sum / (1 + uct_child[i].move_count);
+      double u_po = sqrt_sum / (1 + move_count);
       double ucb_po = p_po + c_puct * u_po * rate;
 
       double u_vn = sqrt_sum_value / (1 + value_move_count);
@@ -2253,14 +2254,10 @@ SelectMaxUcbChild( const uct_search_context_t& ctx, const game_info_t *game, int
         if (sum % 2 == 0) {
           ucb_value = (1 - scale) * ucb_po + scale * p_vn;
         } else {
-          ucb_value = (1 - scale) * p_po + scale * ucb_vn;
+          ucb_value = (1 - scale) * ucb_po + scale * ucb_vn;
         }
       } else {
-        if (sum_value % 3 == 0) {
-          ucb_value = (1 - scale) * p_po + scale * ucb_vn;
-        } else {
-          ucb_value = ucb_vn;
-        }
+        ucb_value = (1 - scale) * p_po + scale * ucb_vn;
       }
       if (debug) {
         cerr << " P:" << p << " UCB:" << ucb_value
@@ -2837,7 +2834,7 @@ EvalValue(const std::shared_ptr<nn_eval_req>& req)
     }
 
     uct_child[i].nnrate = score;
-    uct_child[i].flag = uct_child[i].nnrate > result.policy_pass;//search_threshold_policy_rate;
+    uct_child[i].flag = uct_child[i].nnrate > max(result.policy_pass, (float) search_threshold_policy_rate);
     sum += uct_child[i].nnrate;
   }
   //cerr << "sum:" << sum << endl;
