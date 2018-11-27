@@ -16,27 +16,20 @@
     along with Leela Zero.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#ifndef KOSTATE_H_INCLUDED
-#define KOSTATE_H_INCLUDED
+#include "Timing.h"
 
-#include "config.h"
+#include <chrono>
 
-#include <vector>
 
-#include "FastState.h"
-#include "FullBoard.h"
+int Time::timediff_centis(Time start, Time end) {
+    return std::chrono::duration_cast<std::chrono::milliseconds>
+        (end.m_time - start.m_time).count() / 10;
+}
 
-class KoState : public FastState {
-public:
-    void init_game(int size, float komi);
-    bool superko() const;
-    void reset_game();
+double Time::timediff_seconds(Time start, Time end) {
+    return std::chrono::duration<double>(end.m_time - start.m_time).count();
+}
 
-    void play_move(int color, int vertex);
-    void play_move(int vertex);
-
-private:
-    std::vector<std::uint64_t> m_ko_hash_history;
-};
-
-#endif
+Time::Time() {
+    m_time = std::chrono::steady_clock::now();
+}

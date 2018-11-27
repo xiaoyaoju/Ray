@@ -126,6 +126,12 @@
     <ClCompile Include="..\..\src\lz\Leela.cpp">
       <Filter>lz</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\lz\Timing.cpp">
+      <Filter>lz</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\lz\CPUPipe.cpp">
+      <Filter>lz</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\src\Simulation.h">
@@ -240,6 +246,15 @@
       <Filter>lz</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\lz\Leela.h">
+      <Filter>lz</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\lz\Timing.h">
+      <Filter>lz</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\lz\CPUPipe.h">
+      <Filter>lz</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\lz\ForwardPipe.h">
       <Filter>lz</Filter>
     </ClInclude>
   </ItemGroup>

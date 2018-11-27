@@ -20,6 +20,7 @@
 
 #include <cstdint>
 #include <algorithm>
+//#include <boost/filesystem.hpp>
 //#include <boost/format.hpp>
 //#include <boost/program_options.hpp>
 #include <cstdio>
@@ -56,8 +57,8 @@ static void license_blurb() {
 static void parse_commandline(int argc, char *argv[]) {
     namespace po = boost::program_options;
     // Declare the supported options.
-    po::options_description v_desc("Allowed options");
-    v_desc.add_options()
+    po::options_description gen_desc("Generic options");
+    gen_desc.add_options()
         ("help,h", "Show commandline options.")
         ("gtp,g", "Enable GTP mode.")
         ("threads,t", po::value<int>()->default_value(cfg_num_threads),
@@ -67,46 +68,81 @@ static void parse_commandline(int argc, char *argv[]) {
                        "Requires --noponder.")
         ("visits,v", po::value<int>(),
                      "Weaken engine by limiting the number of visits.")
-        ("timemanage", po::value<std::string>()->default_value("auto"),
-                       "[auto|on|off|fast] Enable time management features.\n"
-                       "auto = off when using -m, otherwise on")
         ("lagbuffer,b", po::value<int>()->default_value(cfg_lagbuffer_cs),
                         "Safety margin for time usage in centiseconds.")
         ("resignpct,r", po::value<int>()->default_value(cfg_resignpct),
                         "Resign when winrate is less than x%.\n"
                         "-1 uses 10% but scales for handicap.")
-        ("randomcnt,m", po::value<int>()->default_value(cfg_random_cnt),
-                        "Play more randomly the first x moves.")
-        ("noise,n", "Enable policy network randomization.")
-        ("seed,s", po::value<std::uint64_t>(),
-                   "Random number generation seed.")
-        ("dumbpass,d", "Don't use heuristics for smarter passing.")
-        ("weights,w", po::value<std::string>(), "File with network weights.")
+        ("weights,w", po::value<std::string>()->default_value(cfg_weightsfile), "File with network weights.")
         ("logfile,l", po::value<std::string>(), "File to log input/output to.")
         ("quiet,q", "Disable all diagnostic output.")
+        ("timemanage", po::value<std::string>()->default_value("auto"),
+                       "[auto|on|off|fast|no_pruning] Enable time management features.\n"
+                       "auto = no_pruning when using -n, otherwise on.\n"
+                       "on = Cut off search when the best move can't change"
+                       ", but use full time if moving faster doesn't save time.\n"
+                       "fast = Same as on but always plays faster.\n"
+                       "no_pruning = For self play training use.\n")
         ("noponder", "Disable thinking on opponent's time.")
         ("benchmark", "Test network and exit. Default args:\n-v3200 --noponder "
                       "-m0 -t1 -s1.")
+        ("cpu-only", "Use CPU-only implementation and do not use GPU.")
+        ;
 #ifdef USE_OPENCL
+    po::options_description gpu_desc("GPU options");
+    gpu_desc.add_options()
         ("gpu",  po::value<std::vector<int> >(),
                 "ID of the OpenCL device(s) to use (disables autodetection).")
         ("full-tuner", "Try harder to find an optimal OpenCL tuning.")
         ("tune-only", "Tune OpenCL only and then exit.")
+#ifdef USE_HALF
+        ("precision", po::value<std::string>(), "Floating-point precision (single/half/auto).\n"
+                                                "Default is to auto which automatically determines which one to use.")
 #endif
+        ;
+#endif
+    po::options_description selfplay_desc("Self-play options");
+    selfplay_desc.add_options()
+        ("noise,n", "Enable policy network randomization.")
+        ("seed,s", po::value<std::uint64_t>(),
+                   "Random number generation seed.")
+        ("dumbpass,d", "Don't use heuristics for smarter passing.")
+        ("randomcnt,m", po::value<int>()->default_value(cfg_random_cnt),
+                        "Play more randomly the first x moves.")
+        ("randomvisits",
+            po::value<int>()->default_value(cfg_random_min_visits),
+            "Don't play random moves if they have <= x visits.")
+        ("randomtemp",
+            po::value<float>()->default_value(cfg_random_temp),
+            "Temperature to use for random move selection.")
+        ;
 #ifdef USE_TUNER
+    po::options_description tuner_desc("Tuning options");
+    tuner_desc.add_options()
         ("puct", po::value<float>())
         ("softmax_temp", po::value<float>())
         ("fpu_reduction", po::value<float>())
-#endif
         ;
+#endif
     // These won't be shown, we use them to catch incorrect usage of the
     // command line.
     po::options_description h_desc("Hidden options");
     h_desc.add_options()
         ("arguments", po::value<std::vector<std::string>>());
+    po::options_description visible;
+    visible.add(gen_desc)
+#ifdef USE_OPENCL
+       .add(gpu_desc)
+#endif
+       .add(selfplay_desc)
+#ifdef USE_TUNER
+       .add(tuner_desc);
+#else
+        ;
+#endif
     // Parse both the above, we will check if any of the latter are present.
-    po::options_description all("All options");
-    all.add(v_desc).add(h_desc);
+    po::options_description all;
+    all.add(visible).add(h_desc);
     po::positional_options_description p_desc;
     p_desc.add("arguments", -1);
     po::variables_map vm;
@@ -117,7 +153,7 @@ static void parse_commandline(int argc, char *argv[]) {
     }  catch(const boost::program_options::error& e) {
         printf("ERROR: %s\n", e.what());
         license_blurb();
-        std::cout << v_desc << std::endl;
+        std::cout << visible << std::endl;
         exit(EXIT_FAILURE);
     }
 
@@ -133,7 +169,7 @@ static void parse_commandline(int argc, char *argv[]) {
             ev = EXIT_FAILURE;
         }
         license_blurb();
-        std::cout << v_desc << std::endl;
+        std::cout << visible << std::endl;
         exit(ev);
     }
 
@@ -163,10 +199,10 @@ static void parse_commandline(int argc, char *argv[]) {
         cfg_logfile_handle = fopen(cfg_logfile.c_str(), "a");
     }
 
-    if (vm.count("weights")) {
-        cfg_weightsfile = vm["weights"].as<std::string>();
-    } else {
+    cfg_weightsfile = vm["weights"].as<std::string>();
+    if (vm["weights"].defaulted() && !boost::filesystem::exists(cfg_weightsfile)) {
         printf("A network weights file is required to use the program.\n");
+        printf("By default, Leela Zero looks for it in %s.\n", cfg_weightsfile.c_str());
         exit(EXIT_FAILURE);
     }
 
@@ -174,13 +210,48 @@ static void parse_commandline(int argc, char *argv[]) {
         cfg_gtp_mode = true;
     }
 
+#ifdef USE_OPENCL
+    if (vm.count("gpu")) {
+        cfg_gpus = vm["gpu"].as<std::vector<int> >();
+        // if we use OpenCL, we probably need more threads for the max
+        // so that we can saturate the GPU.
+        cfg_max_threads *= cfg_gpus.size();
+        // we can't exceed MAX_CPUS
+        cfg_max_threads = std::min(cfg_max_threads, MAX_CPUS);
+    }
+
+    if (vm.count("full-tuner")) {
+        cfg_sgemm_exhaustive = true;
+    }
+
+    if (vm.count("tune-only")) {
+        cfg_tune_only = true;
+    }
+
+#ifdef USE_HALF
+    if (vm.count("precision")) {
+        auto precision = vm["precision"].as<std::string>();
+        if ("single" == precision) {
+            cfg_precision = precision_t::SINGLE;
+        } else if ("half" == precision) {
+            cfg_precision = precision_t::HALF;
+        } else if ("auto" == precision) {
+            cfg_precision = precision_t::AUTO;
+        } else {
+            printf("Unexpected option for --precision, expecting single/half/auto\n");
+            exit(EXIT_FAILURE);
+        }
+    }
+#endif
+#endif
+
     if (!vm["threads"].defaulted()) {
         auto num_threads = vm["threads"].as<int>();
         if (num_threads > cfg_max_threads) {
             myprintf("Clamping threads to maximum = %d\n", cfg_max_threads);
-        } else if (num_threads != cfg_num_threads) {
-            cfg_num_threads = num_threads;
+            num_threads = cfg_max_threads;
         }
+        cfg_num_threads = num_threads;
     }
     myprintf("Using %d thread(s).\n", cfg_num_threads);
 
@@ -203,6 +274,10 @@ static void parse_commandline(int argc, char *argv[]) {
 
     if (vm.count("dumbpass")) {
         cfg_dumbpass = true;
+    }
+
+    if (vm.count("cpu-only")) {
+        cfg_cpu_only = true;
     }
 
     if (vm.count("playouts")) {
@@ -237,6 +312,14 @@ static void parse_commandline(int argc, char *argv[]) {
         cfg_random_cnt = vm["randomcnt"].as<int>();
     }
 
+    if (vm.count("randomvisits")) {
+        cfg_random_min_visits = vm["randomvisits"].as<int>();
+    }
+
+    if (vm.count("randomtemp")) {
+        cfg_random_temp = vm["randomtemp"].as<float>();
+    }
+
     if (vm.count("timemanage")) {
         auto tm = vm["timemanage"].as<std::string>();
         if (tm == "auto") {
@@ -247,6 +330,8 @@ static void parse_commandline(int argc, char *argv[]) {
             cfg_timemanage = TimeManagement::OFF;
         } else if (tm == "fast") {
             cfg_timemanage = TimeManagement::FAST;
+        } else if (tm == "no_pruning") {
+            cfg_timemanage = TimeManagement::NO_PRUNING;
         } else {
             printf("Invalid timemanage value.\n");
             exit(EXIT_FAILURE);
@@ -254,31 +339,17 @@ static void parse_commandline(int argc, char *argv[]) {
     }
     if (cfg_timemanage == TimeManagement::AUTO) {
         cfg_timemanage =
-            cfg_random_cnt ? TimeManagement::OFF : TimeManagement::ON;
+            cfg_noise ? TimeManagement::NO_PRUNING : TimeManagement::ON;
     }
 
     if (vm.count("lagbuffer")) {
         int lagbuffer = vm["lagbuffer"].as<int>();
         if (lagbuffer != cfg_lagbuffer_cs) {
-            myprintf("Using per-move time margin of %.2fs.\n", lagbuffer/100.0f);
+            myprintf("Using per-move time margin of %.2fs.\n",
+                     lagbuffer/100.0f);
             cfg_lagbuffer_cs = lagbuffer;
         }
     }
-
-#ifdef USE_OPENCL
-    if (vm.count("gpu")) {
-        cfg_gpus = vm["gpu"].as<std::vector<int> >();
-    }
-
-    if (vm.count("full-tuner")) {
-        cfg_sgemm_exhaustive = true;
-    }
-
-    if (vm.count("tune-only")) {
-        cfg_tune_only = true;
-    }
-#endif
-
     if (vm.count("benchmark")) {
         // These must be set later to override default arguments.
         cfg_allow_pondering = false;
@@ -295,6 +366,10 @@ static void parse_commandline(int argc, char *argv[]) {
         }
     }
 
+    // Do not lower the expected eval for root moves that are likely not
+    // the best if we have introduced noise there exactly to explore more.
+    cfg_fpu_root_reduction = cfg_noise ? 0.0f : cfg_fpu_reduction;
+
     auto out = std::stringstream{};
     for (auto i = 1; i < argc; i++) {
         out << " " << argv[i];
@@ -305,6 +380,18 @@ static void parse_commandline(int argc, char *argv[]) {
     cfg_options_str = out.str();
 }
 #endif
+
+static void initialize_network() {
+    auto network = std::make_unique<Network>();
+#if 0
+    auto playouts = std::min(cfg_max_playouts, cfg_max_visits);
+#else
+    auto playouts = 1;
+#endif
+    network->initialize(playouts, cfg_weightsfile);
+
+    GTP::initialize(std::move(network));
+}
 
 // Setup global objects after command line has been parsed
 void init_global_objects() {
@@ -319,21 +406,17 @@ void init_global_objects() {
     // improves reproducibility across platforms.
     Random::get_Rng().seedrandom(cfg_rng_seed);
 
-#if 0
-    // When visits are limited ensure cache size is still limited.
-    auto playouts = std::min(cfg_max_playouts, cfg_max_visits);
-    NNCache::get_NNCache().set_size_from_playouts(playouts);
-#endif
-
-    // Initialize network
-    Network::initialize();
+    initialize_network();
 }
 
 #if 0
 void benchmark(GameState& game) {
     game.set_timecontrol(0, 1, 0, 0);  // Set infinite time.
-    game.play_textmove("b", "q16");
-    auto search = std::make_unique<UCTSearch>(game);
+    game.play_textmove("b", "r16");
+    game.play_textmove("w", "d4");
+    game.play_textmove("b", "c3");
+
+    auto search = std::make_unique<UCTSearch>(game, *GTP::s_network);
     game.set_to_move(FastBoard::WHITE);
     search->think(FastBoard::WHITE);
 }
@@ -343,12 +426,11 @@ extern char uct_params_path[1024];
 extern int GetDeviceId();
 
 int InitializeLeela() {
-  auto input = std::string{};
-
   // Set up engine parameters
   GTP::setup_default_parameters();
   //parse_commandline(argc, argv);
 
+#if 0
   // Disable IO buffering as much as possible
   //std::cout.setf(std::ios::unitbuf);
   //std::cerr.setf(std::ios::unitbuf);
@@ -356,8 +438,9 @@ int InitializeLeela() {
 
   //setbuf(stdout, nullptr);
   //setbuf(stderr, nullptr);
-#ifndef WIN32
-    //setbuf(stdin, nullptr);
+#ifndef _WIN32
+  //setbuf(stdin, nullptr);
+#endif
 #endif
 
     //if (!cfg_gtp_mode && !cfg_benchmark) {
@@ -406,6 +489,7 @@ int InitializeLeela() {
             std::cout << "Leela: ";
         }
 
+        auto input = std::string{};
         if (std::getline(std::cin, input)) {
             Utils::log_input(input);
             GTP::execute(*maingame, input);
@@ -458,6 +542,13 @@ Netresult EvaluateLeela(int moves, record_t *record) {
   }
   maingame->set_to_move(who);
 
-  return Network::get_scored_moves(maingame.get(), Network::Ensemble::RANDOM_SYMMETRY, -1, true);
+  auto r =  GTP::s_network->get_output(maingame.get(), Network::Ensemble::RANDOM_SYMMETRY, -1, true);
+
+  Netresult result;
+  result.policy = r.policy;
+  result.policy_pass = r.policy_pass;
+  result.winrate = r.winrate;
+
+  return result;
 }
 

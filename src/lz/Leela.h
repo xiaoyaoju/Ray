@@ -1,5 +1,7 @@
 #pragma once
 
+#include <array>
+
 #ifdef LEELA
 
 struct record_t {
@@ -10,9 +12,14 @@ struct record_t {
 
 #else
 
+#endif
+
+
+#define NUM_INTERSECTIONS (19 * 19)
+
 struct Netresult {
   // 19x19 board positions
-  std::vector<float> policy;
+  std::array<float, NUM_INTERSECTIONS> policy;
 
   // pass
   float policy_pass;
@@ -20,10 +27,10 @@ struct Netresult {
   // winrate
   float winrate;
 
-  Netresult();
+  Netresult() : policy_pass(0.0f), winrate(0.0f) {
+    policy.fill(0.0f);
+  }
 };
-
-#endif
 
 int InitializeLeela();
 

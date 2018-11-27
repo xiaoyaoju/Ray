@@ -2809,7 +2809,7 @@ EvalValue(const std::shared_ptr<nn_eval_req>& req)
   auto result = EvaluateLeela(req->moves, req->record);
   float win = result.winrate;
   //cerr << "color:" << req->color << "\twin:" << win << endl;
-  vector<float> &moves = result.policy;
+  array<float, PURE_BOARD_MAX> &moves = result.policy;
 
   const int index = req->index;
   const int child_num = uct_node[index].child_num;
