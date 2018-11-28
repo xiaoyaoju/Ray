@@ -198,7 +198,7 @@ static bool live_best_sequence = false;
 double policy_temperature = 0.49;
 double policy_temperature_inc = 0.056;
 double c_puct = 0.8;
-double value_scale = 0.98;
+double value_scale = 0.90;
 int custom_expand_threshold = -1;
 
 double policy_top_rate_max = 0.90;
@@ -2119,9 +2119,8 @@ SelectMaxUcbChild( const uct_search_context_t& ctx, const game_info_t *game, int
   }
 
   double cfg_fpu_reduction = 0.25f;
-  double fpu_reduction = 0;
-  if (current != current_root)
-    cfg_fpu_reduction * sqrt(sum_visited_nnrate);
+  double fpu_reduction0 = cfg_fpu_reduction * sqrt(sum_visited_nnrate);
+  double fpu_reduction = current == current_root ? 0 : fpu_reduction0;
 
   int max_move_count = 0;
   int max_move_child = 0;
