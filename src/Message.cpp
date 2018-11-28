@@ -652,7 +652,10 @@ PrintMoveStat( std::ostream& out, const game_info_t *game, const uct_node_t *uct
   vector<size_t> idx(child_num);
   iota(idx.begin(), idx.end(), 0);
 
-  auto idxComp = [&uct_child](size_t i1, size_t i2) {
+  auto idxComp = [=](size_t i1, size_t i2) {
+    int cmp = ValueMoveCount(current_root, i1) - ValueMoveCount(current_root, i2);
+    if (cmp != 0)
+      return cmp > 0;
     return uct_child[i1].move_count > uct_child[i2].move_count;
   };
 
@@ -660,7 +663,8 @@ PrintMoveStat( std::ostream& out, const game_info_t *game, const uct_node_t *uct
 
   out << "|Move|#PO  |#VN  |Simulation|Policy    |Value     |Win       |Best Sequence" << endl;
   // UCB値最大の手を求める  
-  for (int j = 0; j < std::min(10, child_num); j++) {
+  //for (int j = 0; j < std::min(10, child_num); j++) {
+  for (int j = 0; j < child_num; j++) {
     size_t i = idx[j];
     if (uct_child[i].move_count == 0)
       continue;

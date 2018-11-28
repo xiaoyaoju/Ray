@@ -236,25 +236,6 @@ ClearEvalQueue()
   cond_queue.notify_all();
 }
 
-static int
-ValueMoveCount(int node, int child)
-{
-  int index = uct_node[node].child[child].index;
-  if (index < 0)
-    return 0;
-  return uct_node[index].value_move_count;
-}
-
-
-static double
-ValueWin(int node, int child)
-{
-  int index = uct_node[node].child[child].index;
-  if (index < 0)
-    return 0;
-  return uct_node[index].value_win;
-}
-
 
 ////////////
 //  関数  //

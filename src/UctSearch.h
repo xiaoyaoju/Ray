@@ -243,4 +243,24 @@ void SetDeviceId( const int id );
 
 int GetDeviceId();
 
+
+inline int
+ValueMoveCount(int node, int child)
+{
+  int index = uct_node[node].child[child].index;
+  if (index < 0)
+    return 0;
+  return uct_node[index].value_move_count;
+}
+
+
+inline double
+ValueWin(int node, int child)
+{
+  int index = uct_node[node].child[child].index;
+  if (index < 0)
+    return 0;
+  return uct_node[index].value_win;
+}
+
 #endif
