@@ -151,7 +151,7 @@ int criticality_index[BOARD_MAX];
 bool candidates[BOARD_MAX];  
 
 // 投了する勝率の閾値
-double resign_threshold = 0.20;
+double resign_threshold = 0.10;
 double resign_threshold2 = 0.30;
 
 bool pondering_mode = false;
@@ -198,7 +198,7 @@ static bool live_best_sequence = false;
 double policy_temperature = 0.49;
 double policy_temperature_inc = 0.056;
 double c_puct = 0.8;
-double value_scale = 0.90;
+double value_scale = 0.95;
 int custom_expand_threshold = -1;
 
 double policy_top_rate_max = 0.90;
@@ -781,10 +781,15 @@ UctSearchGenmove( game_info_t *game, int color )
     pos = PASS;
   } else if (!early_pass && count == 0 && best_wp < pass_wp && max_count < ValueMoveCount(current_root, PASS_INDEX)) {
     pos = PASS;
+#if 0
   } else if (best_wp <= resign_threshold && (!use_nn || best_wpv <= resign_threshold)) {
     pos = RESIGN;
   } else if (use_nn && best_wp <= resign_threshold2 && best_wpv <= resign_threshold) {
     pos = RESIGN;
+#else
+  } else if (best_wpv < resign_threshold) {
+    pos = RESIGN;
+#endif
   } else {
     pos = uct_child[select_index].pos;
   }
@@ -1805,6 +1810,27 @@ UctSearchNN( uct_search_context_t& ctx, game_info_t *game, int color, mt19937_64
 
   // 現在見ているノードをロック
   LOCK_NODE(current);
+  /*
+  static int block_count[10] = { 0 };
+  if (!mutex_nodes[(current)].try_lock()) {
+    atomic_fetch_add(&count_uct_block, 1);
+    cerr << "+" << (int) uct_node[current].state.load();
+    LOCK_NODE(current);
+  }
+  */
+  if (uct_node[current].state != NODE_STATE::EVALUATED) {
+    for (int i = 0; i < 1000; i++) {
+      UNLOCK_NODE(current);
+      this_thread::sleep_for(chrono::milliseconds(1));
+      LOCK_NODE(current);
+      if (uct_node[current].state == NODE_STATE::EVALUATED)
+        break;
+    }
+    if (uct_node[current].state != NODE_STATE::EVALUATED) {
+      cerr << "#";
+      return;
+    }
+  }
   // UCB値最大の手を求める
   int next_index = SelectMaxUcbChild(ctx, game, current, color);
   // 選んだ手を着手
@@ -1891,7 +1917,7 @@ UctSearchNN( uct_search_context_t& ctx, game_info_t *game, int color, mt19937_64
       auto req = make_shared<nn_eval_req>();
       req->index = uct_child[next_index].index;
       copy(ctx.path.begin(), ctx.path.end(), back_inserter(req->path));
-      req->path.push_back(uct_child[next_index].index);
+      req->path.push_back(next_node_index);
       req->moves = game->moves;
       memcpy(req->record, game->record, sizeof(record_t) * MAX_RECORDS);
       ctx.expanded = true;
@@ -1989,7 +2015,7 @@ UpdatePolicyRate(int current)
   for (int i = 1; i < child_num; i++) {
     max_nnrate0 = max(uct_child[i].nnrate0, max_nnrate0);
   }
-  double offset = 10 - max_nnrate0;
+  double offset = - max_nnrate0;
 
   // TODO cleanup
   do {
@@ -2039,7 +2065,7 @@ SelectMaxUcbChild( const uct_search_context_t& ctx, const game_info_t *game, int
   double ucb_bonus_weight = bonus_weight * sqrt(bonus_equivalence / (sum + bonus_equivalence));
   const bool debug = current == current_root
     && GetDebugMessageMode() && GetVerbose()
-    && ((ctx.search_mode == PO && sum % 10000 == 0) || (ctx.search_mode == NN && sum_value == 1000));
+    && ((ctx.search_mode == PO && sum % 10000 == 0) || (ctx.search_mode == NN && sum_value % 1000 == 0));
 
   if (live_best_sequence && current == current_root && sum % 1000 == 0) {
     PrintBestSequenceGFX(cerr, game, uct_node, current_root, color);
@@ -2049,16 +2075,23 @@ SelectMaxUcbChild( const uct_search_context_t& ctx, const game_info_t *game, int
 //  } else 
   {
     // 128回ごとにOwnerとCriticalityでソートし直す  
-    if (ctx.search_mode == PO && (sum & 0x7f) == 0 && sum != 0 && !evaled) {
+    if (((sum & 0x7f) == 0 && sum != 0) || (ctx.search_mode == NN && sum_value <= 1)) {
       int o_index[UCT_CHILD_MAX], c_index[UCT_CHILD_MAX];
-      CalculateCriticalityIndex(&uct_node[current], uct_node[current].statistic, color, c_index);
-      CalculateOwnerIndex(&uct_node[current], uct_node[current].statistic, color, o_index);
+      if (sum == 0) {
+        fill_n(o_index, child_num, 0);
+        fill_n(c_index, child_num, 0);
+      } else {
+        CalculateCriticalityIndex(&uct_node[current], uct_node[current].statistic, color, c_index);
+        CalculateOwnerIndex(&uct_node[current], uct_node[current].statistic, color, o_index);
+      }
+      double thr = max(uct_child[0].nnrate, search_threshold_policy_rate);
       for (int i = 0; i < child_num; i++) {
         int pos = uct_child[i].pos;
         double dynamic_parameter = uct_owner[o_index[i]] + uct_criticality[c_index[i]];
-        order[i].rate = uct_child[i].rate + dynamic_parameter;
+        order[i].rate = uct_child[i].rate + dynamic_parameter + uct_child[i].nnrate * 10;
         order[i].index = i;
-        uct_child[i].flag |= uct_child[i].nnrate > max(uct_child[0].nnrate, search_threshold_policy_rate);
+        uct_child[i].flag = uct_child[i].nnrate >= thr;
+        //uct_child[i].flag = false;
       }
       qsort(order, child_num, sizeof(rate_order_t), RateComp);
 
@@ -2072,6 +2105,31 @@ SelectMaxUcbChild( const uct_search_context_t& ctx, const game_info_t *game, int
 
       if (evaled && policy_temperature_inc > 0)
         UpdatePolicyRate(current);
+
+#if 1
+      if (current == current_root) {
+        if (nn_playout > 0) {
+          int max_value_move_count = 0;
+          for (int i = 0; i < child_num; i++) {
+            int m = ValueMoveCount(current, order[i].index);
+            if (m > max_value_move_count)
+              max_value_move_count = m;
+          }
+          int done = uct_node[current].value_move_count;
+          int rest = nn_playout + pre_value_move_count - done;
+          for (int i = 0; i < child_num; i++) {
+            if (!uct_child[order[i].index].flag && !uct_child[order[i].index].open)
+              continue;
+            int m = ValueMoveCount(current, order[i].index);
+            if (m + rest < max_value_move_count) {
+              //cerr << "prune  " << FormatMove(uct_child[order[i].index].pos) << endl;
+              uct_child[order[i].index].flag = false;
+            }
+          }
+        }
+        // TODO Other mode
+      }
+#endif
     }
 
     // Progressive Wideningの閾値を超えたら, 
@@ -2101,7 +2159,7 @@ SelectMaxUcbChild( const uct_search_context_t& ctx, const game_info_t *game, int
 
   const double p_po0 = (double)uct_node[current].win / (uct_node[current].move_count + 1);
   const double p_vn0 = (double)uct_node[current].value_win / (uct_node[current].value_move_count + 1);
-  const double scale = std::max(0.5, std::min(1.0, 1.0 - (game->moves - 200) / 50.0)) * value_scale;
+  const double scale = std::max(0.5, std::min(1.0, 1.0 - (game->moves - 250) / 200.0)) * value_scale;
   //const double scale = value_scale;
 
   int start_child = 0;
@@ -2130,8 +2188,17 @@ SelectMaxUcbChild( const uct_search_context_t& ctx, const game_info_t *game, int
 
   // UCB値最大の手を求める  
   for (int i = start_child; i < child_num; i++) {
+#if 0
     if (!uct_child[i].flag && !uct_child[i].open)
       continue;
+#else
+    if (ctx.search_mode == PO && !uct_child[i].flag && !uct_child[i].open)
+      continue;
+    //if (ctx.search_mode == NN && uct_child[i].nnrate < max(uct_child[0].nnrate, search_threshold_policy_rate))
+    //continue;
+    if (ctx.search_mode == NN && !uct_child[i].flag && !uct_child[i].open)
+      continue;
+#endif
 
     double value_win = 0;
     double value_move_count = 0;
@@ -2177,53 +2244,6 @@ SelectMaxUcbChild( const uct_search_context_t& ctx, const game_info_t *game, int
 
       const double rate = uct_child[i].nnrate;
 #if 0
-      double u1 = sqrt_sum_value / (1 + value_move_count);
-      double u2 = sqrt_sum / (1 + uct_child[i].move_count) * (1 - scale);// *expand_threshold / (sum + expand_threshold);
-
-      double u = u1 + u2;
-      ucb_value = p + c_puct * u * rate;
-      lcb_value = p - c_puct * u * rate;
-
-      if (debug) {
-        cerr << " P:" << p << " UCB:" << ucb_value
-          << " u1:" << u1 << " u2:" << u2
-          << endl;
-      }
-#elif 0
-      double u_po = sqrt(log(sum + 1) / (move_count + 1));
-      double ucb_po = p_po + c_puct * u_po * rate;
-      double lcb_po = p_po - c_puct * u_po * rate;
-
-      double u_vn = sqrt(log(sum_value + 1) / (value_move_count + 1));
-      double ucb_vn = p_vn + c_puct * u_vn * rate;
-      double lcb_vn = p_vn - c_puct * u_vn * rate;
-
-      if (ctx.search_mode == PO)
-        ucb_value = (1 - scale) * ucb_po + scale * p_vn;
-      else
-        ucb_value = (1 - scale) * p_po + scale * ucb_vn;
-      if (debug) {
-        cerr << " P:" << p << " UCB:" << ucb_value
-          << endl;
-      }
-#elif 0
-      double u_po = sqrt(log(sum + 1) / (move_count + 1));
-      double ucb_po = p_po + c_puct * u_po * rate;
-      double lcb_po = p_po - c_puct * u_po * rate;
-
-      double u_vn = sqrt(log(sum_value + 1) / (value_move_count + 1));
-      double ucb_vn = p_vn + c_puct * u_vn * rate;
-      double lcb_vn = p_vn - c_puct * u_vn * rate;
-
-      if (ctx.search_mode == PO)
-        ucb_value = (1 - scale) * ucb_po + scale * p_vn;
-      else
-        ucb_value = (1 - scale) * p_po + scale * ucb_vn;
-      if (debug) {
-        cerr << " P:" << p << " UCB:" << ucb_value
-          << endl;
-      }
-#elif 1
       double u_po = sqrt_sum / (1 + move_count);
       double ucb_po = p_po + c_puct * u_po * rate;
 
@@ -2238,6 +2258,42 @@ SelectMaxUcbChild( const uct_search_context_t& ctx, const game_info_t *game, int
         }
       } else {
         ucb_value = (1 - scale) * p_po + scale * ucb_vn;
+      }
+      if (debug) {
+        cerr << " P:" << p << " UCB:" << ucb_value
+          << endl;
+      }
+#elif 1
+      double cp = 10.0 / (move_count + 10.0);
+      double p_po2 = p_po0 * cp + p_po * (1.0 - cp);
+
+      //double cv = 5.0 / (value_move_count + 5.0);
+      //double p_vn2 = p_vn0 * cv + p_vn * (1.0 - cv);
+
+      if (ctx.search_mode == PO) {
+        if (sum % 2 == 0 && sum > sum_value * 2) {
+          double u_po = sqrt_sum / (1 + move_count);
+          double ucb_po = p_po2 + c_puct * u_po * rate;
+          double diff = value_move_count / (sum_value + 1.0) - move_count / (sum + 1.0);
+
+          //ucb_value = (1 - scale) * ucb_po + scale * p_vn + diff;
+          ucb_value = diff + 1.0;
+        } else {
+          double u_po = sqrt(log(sum + 1) / (1 + move_count));
+          double ucb_po = p_po2 + u_po;
+          if (value_move_count == 0) {
+            p_vn = p_vn0;
+          }
+          double u_vn = sqrt_sum_value / (1 + value_move_count);
+          double lcb_vn = p_vn - c_puct * u_vn * rate;
+
+          ucb_value = (1 - scale) * ucb_po + scale * lcb_vn;
+        }
+      } else {
+        double u_vn = sqrt_sum_value / (1 + value_move_count);
+        double ucb_vn = p_vn + c_puct * u_vn * rate;
+
+        ucb_value = (1 - scale) * p_po2 + scale * ucb_vn;
       }
       if (debug) {
         cerr << " P:" << p << " UCB:" << ucb_value
@@ -2790,9 +2846,10 @@ EvalValue(const std::shared_ptr<nn_eval_req>& req)
   const int child_num = uct_node[index].child_num;
   child_node_t *uct_child = uct_node[index].child;
 
+  auto result = EvaluateLeela(req->moves, req->record);
+
   LOCK_NODE(index);
 
-  auto result = EvaluateLeela(req->moves, req->record);
   float win = result.winrate;
   //cerr << "color:" << req->color << "\twin:" << win << endl;
   array<float, PURE_BOARD_MAX> &moves = result.policy;
@@ -2815,7 +2872,7 @@ EvalValue(const std::shared_ptr<nn_eval_req>& req)
     }
 
     uct_child[i].nnrate = score;
-    uct_child[i].flag = uct_child[i].nnrate > max(result.policy_pass, (float) search_threshold_policy_rate);
+    // uct_child[i].flag = uct_child[i].nnrate > max(result.policy_pass, (float) search_threshold_policy_rate);
     sum += uct_child[i].nnrate;
   }
   //cerr << "sum:" << sum << endl;

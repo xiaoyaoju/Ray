@@ -658,9 +658,11 @@ void Network::compare_net_outputs(const Netresult& data,
     error = std::sqrt(error);
 
     if (error > max_error || std::isnan(error)) {
-        printf("Error in OpenCL calculation: Update your GPU drivers "
-               "or reduce the amount of games played simultaneously.\n");
-        throw std::runtime_error("OpenCL self-check mismatch.");
+      myprintf_error("Error in OpenCL calculation: Update your GPU drivers "
+               "or reduce the amount of games played simultaneously.\n"
+               "error %d\n",
+               error);
+        //throw std::runtime_error("OpenCL self-check mismatch.");
     }
 }
 #endif
