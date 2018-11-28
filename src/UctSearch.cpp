@@ -1836,7 +1836,7 @@ UctSearchNN( uct_search_context_t& ctx, game_info_t *game, int color, mt19937_64
     for (int i = ctx.path.size() - 1; i >= 0; i--) {
       int node = ctx.path[i];
 
-      atomic_fetch_add(&uct_node[node].value_move_count, 1 - VIRTUAL_LOSS);
+      atomic_fetch_add(&uct_node[node].value_move_count, 1);
       atomic_fetch_add(&uct_node[node].value_win, value);
       value = 1 - value;
     }
