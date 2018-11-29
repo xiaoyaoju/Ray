@@ -48,7 +48,7 @@ LadderExtension( const game_info_t *game, int color, bool *ladder_pos )
             PutStoneForSearch(ladder_game, string[neighbor].lib[0], color);
             int max_size = string[i].origin;
             if (IsLadderCaptured(0, ladder_game, string[i].origin, FLIP_COLOR(color), max_size) == DEAD) {
-              if (max_size >= 7) {
+              if (max_size >= 4) {
                 ladder_pos[string[neighbor].lib[0]] = true;
               }
             } else {
@@ -66,7 +66,7 @@ LadderExtension( const game_info_t *game, int color, bool *ladder_pos )
 	  PutStoneForSearch(ladder_game, ladder, color);
           int max_size = string[i].size;
 	  if (IsLadderCaptured(0, ladder_game, ladder, FLIP_COLOR(color), max_size) == DEAD) {
-            if (max_size >= 7) {
+            if (max_size >= 4) {
               ladder_pos[ladder] = true;
             }
 	  }
