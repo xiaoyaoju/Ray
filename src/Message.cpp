@@ -582,17 +582,20 @@ PrintBestSequence(std::ostream& out, const game_info_t *game, const uct_node_t *
   auto uct_child = uct_node[current].child;
   int child_num = uct_node[current].child_num;
 
-  if (root->move_count == 0)
+  if (root->move_count == 0 && root->value_move_count == 0)
     return;
 
   int index = -1;
-  int max = 0;
+  double max = 0;
   for (int i = 0; i < child_num; i++) {
-    if (uct_child[i].move_count > max) {
-      max = uct_child[i].move_count;
+    double m = ValueMoveCount(current, i) + uct_child[i].move_count * 0.0001;
+    if (m > max) {
+      max = m;
       index = i;
     }
   }
+  if (index == -1)
+    return;
   if (node_hash[current].color == S_BLACK) {
     if (root->evaled)
       out << "B ";
@@ -612,12 +615,13 @@ PrintBestSequence(std::ostream& out, const game_info_t *game, const uct_node_t *
     uct_child = uct_node[current].child;
     child_num = uct_node[current].child_num;
 
-    max = 50;
+    max = 0;
     index = -1;
 
     for (int i = 0; i < child_num; i++) {
-      if (uct_child[i].move_count > max) {
-        max = uct_child[i].move_count;
+      double m = ValueMoveCount(current, i) + uct_child[i].move_count * 0.0001;
+      if (m > max) {
+        max = m;
         index = i;
       }
     }
@@ -668,13 +672,13 @@ PrintMoveStat( std::ostream& out, const game_info_t *game, const uct_node_t *uct
     size_t i = idx[j];
     if (uct_child[i].move_count == 0)
       continue;
-    if (!uct_child[i].flag && !uct_child[i].open)
-      continue;
+    //if (!uct_child[i].flag && !uct_child[i].open)
+    //continue;
     //double p2 = -1;
     double value_win = 0;
     double value_move_count = 0;
 
-    if (uct_child[i].index >= 0 && i != 0) {
+    if (uct_child[i].index >= 0) {
       auto node = &uct_node[uct_child[i].index];
       if (node->value_move_count > 0) {
         //p2 = 1 - (double)node->value_win / node->value_move_count;
