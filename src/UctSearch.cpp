@@ -1899,6 +1899,9 @@ UctSearchNN( uct_search_context_t& ctx, game_info_t *game, int color, mt19937_64
       for (int n : req->path)
         atomic_fetch_add(&uct_node[n].value_move_count, VIRTUAL_LOSS);
 
+      // 現在見ているノードのロックを解除
+      UNLOCK_NODE(current);
+
 #if ASYNC_NN
       lock_guard<mutex> lock(mutex_queue);
       eval_nn_queue.push(req);
@@ -1906,9 +1909,6 @@ UctSearchNN( uct_search_context_t& ctx, game_info_t *game, int color, mt19937_64
 #else
       EvalValue(req);
 #endif
-
-      // 現在見ているノードのロックを解除
-      UNLOCK_NODE(current);
 
       return;
     }
@@ -2786,17 +2786,18 @@ CorrectDescendentNodes(vector<int> &indexes, int index)
 void
 EvalValue(const std::shared_ptr<nn_eval_req>& req)
 {
+  const int index = req->index;
+  const int child_num = uct_node[index].child_num;
+  child_node_t *uct_child = uct_node[index].child;
+
+  LOCK_NODE(index);
+
   auto result = EvaluateLeela(req->moves, req->record);
   float win = result.winrate;
   //cerr << "color:" << req->color << "\twin:" << win << endl;
   array<float, PURE_BOARD_MAX> &moves = result.policy;
 
-  const int index = req->index;
-  const int child_num = uct_node[index].child_num;
-  child_node_t *uct_child = uct_node[index].child;
   const int ofs = 0;
-
-  LOCK_NODE(index);
 
   double sum = 0;
   uct_child[0].nnrate = min(result.policy_pass, 0.1f);
