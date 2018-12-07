@@ -60,6 +60,7 @@ extern double resign_threshold;
 
 // Virtual Loss (Best Parameter)
 const int VIRTUAL_LOSS = 1;
+const int VIRTUAL_LOSS_NN = 3;
 
 extern double c_puct;
 extern double value_scale;

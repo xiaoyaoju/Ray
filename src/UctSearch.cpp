@@ -242,7 +242,7 @@ ClearEvalQueue()
 ////////////
 
 // Virtual Lossを加算
-static int AddVirtualLoss( const uct_search_context_t& ctx, child_node_t *child, int current );
+static int AddVirtualLoss( child_node_t *child, int current );
 
 // 次のプレイアウト回数の設定
 static void CalculateNextPlayouts( game_info_t *game, int color, double best_wp, double finish_time );
@@ -1308,7 +1308,7 @@ RatingNode( game_info_t *game, int color, int index, const std::vector<int>& pat
     req->path.push_back(index);
 
     for (int n : req->path)
-      atomic_fetch_add(&uct_node[n].value_move_count, VIRTUAL_LOSS);
+      atomic_fetch_add(&uct_node[n].value_move_count, VIRTUAL_LOSS_NN);
 
 #if ASYNC_NN
     lock_guard<mutex> lock(mutex_queue);
@@ -1762,7 +1762,7 @@ UctSearchPO( uct_search_context_t& ctx, game_info_t *game, int color, mt19937_64
     int start = game->moves;
 
     // Virtual Lossを加算
-    int n = AddVirtualLoss(ctx, &uct_child[next_index], current);
+    int n = AddVirtualLoss(&uct_child[next_index], current);
 
     memcpy(game->seki, uct_node[current].seki, sizeof(bool) * BOARD_MAX);
     
@@ -1776,7 +1776,7 @@ UctSearchPO( uct_search_context_t& ctx, game_info_t *game, int color, mt19937_64
     Statistic(game, *winner);
   } else {
     // Virtual Lossを加算
-    AddVirtualLoss(ctx, &uct_child[next_index], current);
+    AddVirtualLoss(&uct_child[next_index], current);
     // ノードの展開の確認
     if (uct_child[next_index].index == -1) {
       // ノードの展開中はロック
@@ -1840,9 +1840,6 @@ UctSearchNN( uct_search_context_t& ctx, game_info_t *game, int color, mt19937_64
 
   ctx.path.push_back(current);
 
-  // Virtual Lossを加算
-  //AddVirtualLoss(ctx, &uct_child[next_index], current);
-
   bool end_of_game = game->moves > 2 &&
     game->record[game->moves - 1].pos == PASS &&
     game->record[game->moves - 2].pos == PASS;
@@ -1866,33 +1863,6 @@ UctSearchNN( uct_search_context_t& ctx, game_info_t *game, int color, mt19937_64
       atomic_fetch_add(&uct_node[node].value_win, value);
       value = 1 - value;
     }
-#if 0
-  } else if (uct_child[next_index].index >= 0 && !uct_node[uct_child[next_index].index].evaled
-             && atomic_compare_exchange_strong(&uct_child[next_index].eval_value, &expected, true)) {
-    // 現在見ているノードのロックを解除
-    UNLOCK_NODE(current);
-
-    auto req = make_shared<nn_eval_req>();
-    req->index = uct_child[next_index].index;
-    copy(ctx.path.begin(), ctx.path.end(), back_inserter(req->path));
-    req->path.push_back(uct_child[next_index].index);
-    req->moves = game->moves;
-    memcpy(req->record, game->record, sizeof(record_t) * MAX_RECORDS);
-    ctx.expanded = true;
-    //AddVirtualLoss(ctx, nullptr, uct_child[next_index].index);
-
-    for (int n : req->path)
-      atomic_fetch_add(&uct_node[n].value_move_count, VIRTUAL_LOSS);
-
-#if ASYNC_NN
-    lock_guard<mutex> lock(mutex_queue);
-    eval_nn_queue.push(req);
-    cond_queue.notify_all();
-#else
-    EvalValue(req);
-#endif
-    //cerr << "Eval" << endl;
-#endif
   } else {
     /*
     cerr << "Serach "
@@ -1910,9 +1880,6 @@ UctSearchNN( uct_search_context_t& ctx, game_info_t *game, int color, mt19937_64
       UNLOCK_EXPAND;
     }
 
-    // 現在見ているノードのロックを解除
-    //UNLOCK_NODE(current);
-
     if (atomic_compare_exchange_strong(&uct_child[next_index].eval_value, &expected, true)) {
       auto req = make_shared<nn_eval_req>();
       req->index = uct_child[next_index].index;
@@ -1923,7 +1890,7 @@ UctSearchNN( uct_search_context_t& ctx, game_info_t *game, int color, mt19937_64
       ctx.expanded = true;
 
       for (int n : req->path)
-        atomic_fetch_add(&uct_node[n].value_move_count, VIRTUAL_LOSS);
+        atomic_fetch_add(&uct_node[n].value_move_count, VIRTUAL_LOSS_NN);
 
       // 現在見ているノードのロックを解除
       UNLOCK_NODE(current);
@@ -1938,6 +1905,7 @@ UctSearchNN( uct_search_context_t& ctx, game_info_t *game, int color, mt19937_64
 
       return;
     }
+
     // 現在見ているノードのロックを解除
     UNLOCK_NODE(current);
     // 手番を入れ替えて1手深く読む
@@ -1950,16 +1918,10 @@ UctSearchNN( uct_search_context_t& ctx, game_info_t *game, int color, mt19937_64
 //  Virtual Lossの加算  //
 //////////////////////////
 static int
-AddVirtualLoss(const uct_search_context_t& ctx, child_node_t *child, int current)
+AddVirtualLoss( child_node_t *child, int current )
 {
-  int org;
-  if (ctx.search_mode == PO) {
-    atomic_fetch_add(&uct_node[current].move_count, VIRTUAL_LOSS);
-    org = atomic_fetch_add(&child->move_count, VIRTUAL_LOSS);
-  } else {
-    //org = atomic_fetch_add(&uct_node[current].value_move_count, VIRTUAL_LOSS);
-    //org = atomic_fetch_add(&child->move_count, VIRTUAL_LOSS);
-  }
+  atomic_fetch_add(&uct_node[current].move_count, VIRTUAL_LOSS);
+  int org = atomic_fetch_add(&child->move_count, VIRTUAL_LOSS);
   return org;
 }
 
@@ -1974,10 +1936,6 @@ UpdateResult( child_node_t *child, int result, int current )
   atomic_fetch_add(&uct_node[current].move_count, 1 - VIRTUAL_LOSS);
   atomic_fetch_add(&child->win, result);
   atomic_fetch_add(&child->move_count, 1 - VIRTUAL_LOSS);
-  // if (value >= 0) {
-  //   atomic_fetch_add(&uct_node[current].value_win, value);
-  //   atomic_fetch_add(&uct_node[current].value_move_count, 1);
-  // }
 }
 
 
@@ -2897,8 +2855,7 @@ EvalValue(const std::shared_ptr<nn_eval_req>& req)
   for (int i = req->path.size() - 1; i >= 0; i--) {
     int current = req->path[i];
 
-    atomic_fetch_add(&uct_node[current].value_move_count, 1 - VIRTUAL_LOSS);
-    //atomic_fetch_add(&uct_node[current].value_move_count, 1);
+    atomic_fetch_add(&uct_node[current].value_move_count, 1 - VIRTUAL_LOSS_NN);
     atomic_fetch_add(&uct_node[current].value_win, value);
     value = 1 - value;
   }
