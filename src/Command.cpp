@@ -26,6 +26,7 @@ const string command[COMMAND_MAX] = {
   "--size",
   "--const-time",
   "--thread",
+  "--nn-thread",
   "--komi",
   "--handicap",
   "--reuse-subtree",
@@ -52,6 +53,7 @@ const string errmessage[COMMAND_MAX] = {
   "Set board size",
   "Set mode const time, and set thinking time per move",
   "Set threads",
+  "Set NN threads",
   "Set komi",
   "Set the number of handicap stones (for testing)",
   "Reuse subtree",
@@ -119,6 +121,10 @@ AnalyzeCommand( int argc, char **argv )
 	// 探索スレッド数の設定
 	SetThread(atoi(argv[++i]));
 	break;
+      case COMMAND_NN_THREAD:
+        // NN探索スレッド数の設定
+        SetNNThread(atoi(argv[++i]));
+        break;
       case COMMAND_KOMI:
 	// コミの設定
 	SetKomi(atof(argv[++i]));

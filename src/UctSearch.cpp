@@ -113,6 +113,7 @@ int current_root; // 現在のルートのインデックス
 mutex mutex_nodes[MAX_NODES];
 mutex mutex_expand;       // ノード展開を排他処理するためのmutex
 mutex mutex_uctrating;
+mutex mutex_cntk;
 
 mutex mutex_queue;
 condition_variable cond_queue;
@@ -121,6 +122,7 @@ condition_variable cond_queue;
 static enum SEARCH_MODE mode = TIME_SETTING_MODE;
 // 使用するスレッド数
 int threads = 1;
+int nn_threads = 1;
 // 1手あたりの試行時間
 double const_thinking_time = CONST_TIME;
 // 1手当たりのプレイアウト数
@@ -392,7 +394,17 @@ SetThread( int new_thread )
   threads = new_thread;
   batch_size = max(new_thread, batch_size);
 
-  ctx.resize(threads);
+  ctx.resize(threads + nn_threads);
+
+  InitRand();
+}
+
+void
+SetNNThread( int new_thread )
+{
+  nn_threads = new_thread;
+
+  ctx.resize(threads + nn_threads);
 
   InitRand();
 }
@@ -527,7 +539,7 @@ InitRand()
 {
   mt.clear();
   random_device rd;
-  for (int i = 0; i < threads; i++) {
+  for (int i = 0; i < threads + nn_threads; i++) {
     mt.push_back(make_unique<mt19937_64>(rd()));
   }
   mt_root.seed(rd());
@@ -583,7 +595,7 @@ InitializeSearchSetting( void )
   InitRand();
 
   // Initialize
-  ctx.resize(threads);
+  ctx.resize(threads + nn_threads);
 
   // 持ち時間の初期化
   for (int i = 0; i < 3; i++) {
@@ -728,7 +740,7 @@ UctSearchGenmove( game_info_t *game, int color )
   // 探索時間とプレイアウト回数の予定値を出力
   PrintPlayoutLimits(time_limit, po_info.halt);
 
-  t_arg.resize(threads);
+  t_arg.resize(threads + nn_threads);
   running = true;
   for (int i = 0; i < threads; i++) {
     t_arg[i].thread_id = i;
@@ -738,7 +750,9 @@ UctSearchGenmove( game_info_t *game, int color )
   }
 
   if (use_nn) {
-    handle.push_back(make_unique<thread>(EvalNode));
+    for (int i = 0; i < min(4, nn_threads); i++) {
+      handle.push_back(make_unique<thread>(EvalNode));
+    }
   }
 
   for (auto &t : handle) {
@@ -761,7 +775,9 @@ UctSearchGenmove( game_info_t *game, int color )
     }
 
     if (use_nn) {
-      handle.push_back(make_unique<thread>(EvalNode));
+      for (int i = 0; i < min(4, nn_threads); i++) {
+        handle.push_back(make_unique<thread>(EvalNode));
+      }
     }
 
     for (auto &t : handle) {
@@ -985,7 +1001,7 @@ UctSearchPondering(game_info_t *game, int color)
   // Dynamic Komiの算出(置碁のときのみ)
   DynamicKomi(game, &uct_node[current_root], color);
 
-  t_arg.resize(threads);
+  t_arg.resize(threads + nn_threads);
   running = true;
   for (int i = 0; i < threads; i++) {
     t_arg[i].thread_id = i;
@@ -995,7 +1011,9 @@ UctSearchPondering(game_info_t *game, int color)
   }
 
   if (use_nn) {
-    handle.push_back(make_unique<thread>(EvalNode));
+    for (int i = 0; i < min(4, nn_threads); i++) {
+      handle.push_back(make_unique<thread>(EvalNode));
+    }
   }
 
   return ;
@@ -1727,7 +1745,6 @@ ParallelUctSearch( thread_arg_t *arg )
   bool interruption = false;
   bool enough_size = true;
   int winner = 0;
-  int interval = CRITICALITY_INTERVAL;
 
   uct_search_context_t& c = ctx[targ->thread_id];
 
@@ -1736,6 +1753,8 @@ ParallelUctSearch( thread_arg_t *arg )
   // スレッドIDが0のスレッドだけ別の処理をする
   // 探索回数が閾値を超える, または探索が打ち切られたらループを抜ける
   if (targ->thread_id == 0) {
+    int interval = CRITICALITY_INTERVAL;
+
     do {
       // Wait if dcnn queue is full
       WaitForEvaluationQueue(false);
@@ -1800,7 +1819,6 @@ ParallelUctSearchPondering( thread_arg_t *arg )
   int color = targ->color;
   bool enough_size = true;
   int winner = 0;
-  int interval = CRITICALITY_INTERVAL;
   uct_search_context_t& c = ctx[targ->thread_id];
 
   game = AllocateGame();
@@ -1808,6 +1826,8 @@ ParallelUctSearchPondering( thread_arg_t *arg )
   // スレッドIDが0のスレッドだけ別の処理をする
   // 探索回数が閾値を超える, または探索が打ち切られたらループを抜ける
   if (targ->thread_id == 0) {
+    int interval = CRITICALITY_INTERVAL;
+
     do {
       // Wait if dcnn queue is full
       WaitForEvaluationQueue(true);
@@ -1822,11 +1842,12 @@ ParallelUctSearchPondering( thread_arg_t *arg )
       enough_size = CheckRemainingHashSize();
       // OwnerとCriticalityを計算する
       if (po_info.count > interval) {
-	CalculateOwner(color, po_info.count);
-	CalculateCriticality(color);
-	interval += CRITICALITY_INTERVAL;
+        CalculateOwner(color, po_info.count);
+        CalculateCriticality(color);
+        interval += CRITICALITY_INTERVAL;
       }
     } while (!pondering_stop && enough_size);
+
     lock_guard<mutex> lock(mutex_queue);
     running = false;
     cond_queue.notify_all();
@@ -1850,6 +1871,7 @@ ParallelUctSearchPondering( thread_arg_t *arg )
   FreeGame(game);
   return;
 }
+
 
 
 //////////////////////////////////////////////
@@ -2979,127 +3001,132 @@ EvalValue(
   std::vector<float>& data_basic, std::vector<float>& data_features, std::vector<float>& data_history,
   std::vector<float>& data_color, std::vector<float>& data_komi, std::vector<float>& data_safety)
 {
-  if (requests.size() == 0)
-    return;
-
-  auto device = GetDevice();
-
   size_t num_req = requests.size();
-
-  CNTK::NDShape shape_basic = var_basic.Shape().AppendShape({ 1, num_req });
-  CNTK::ValuePtr value_basic = CNTK::MakeSharedObject<CNTK::Value>(CNTK::MakeSharedObject<CNTK::NDArrayView>(shape_basic, data_basic, true));
-  CNTK::NDShape shape_features = var_features.Shape().AppendShape({ 1, num_req });
-  CNTK::ValuePtr value_features = CNTK::MakeSharedObject<CNTK::Value>(CNTK::MakeSharedObject<CNTK::NDArrayView>(shape_features, data_features, true));
-  CNTK::NDShape shape_history = var_history.Shape().AppendShape({ 1, num_req });
-  CNTK::ValuePtr value_history = CNTK::MakeSharedObject<CNTK::Value>(CNTK::MakeSharedObject<CNTK::NDArrayView>(shape_history, data_history, true));
-  CNTK::NDShape shape_color = var_color.Shape().AppendShape({ 1, num_req });
-  CNTK::ValuePtr value_color = CNTK::MakeSharedObject<CNTK::Value>(CNTK::MakeSharedObject<CNTK::NDArrayView>(shape_color, data_color, true));
-  //CNTK::NDShape shape_komi = var_komi.Shape().AppendShape({ 1, num_req });
-  //CNTK::ValuePtr value_komi = CNTK::MakeSharedObject<CNTK::Value>(CNTK::MakeSharedObject<CNTK::NDArrayView>(shape_komi, data_komi, true));
-
-  CNTK::ValuePtr value_p;
-  CNTK::ValuePtr value_p2;
-  CNTK::ValuePtr value_ol;
-  CNTK::ValuePtr value_score;
-
-  std::unordered_map<CNTK::Variable, CNTK::ValuePtr> inputs = {
-    { var_basic, value_basic },
-    { var_features, value_features },
-    { var_history, value_history },
-    { var_color, value_color },
-    //{ var_komi, value_komi },
-  };
-  std::unordered_map<CNTK::Variable, CNTK::ValuePtr> outputs = {
-    { var_ol, value_ol },
-  };
-  if (var_score.IsInitialized())
-    outputs[var_score] = value_score;
-  if (var_p.IsInitialized())
-    outputs[var_p] = value_p;
-  if (var_p2.IsInitialized())
-    outputs[var_p2] = value_p2;
-
-  try {
-    nn_model->Forward(inputs, outputs, device);
-  } catch (const std::exception& err) {
-    fprintf(stderr, "Evaluation failed. EXCEPTION occurred: %s\n", err.what());
-    abort();
-  } catch (...) {
-    fprintf(stderr, "Evaluation failed. Unknown ERROR occurred.\n");
-    abort();
-  }
-
-  vector<float> win;
-  if (var_p.IsInitialized()) {
-    value_p = outputs[var_p];
-    CNTK::NDShape shape_p = var_p.Shape().AppendShape({ 1, num_req });
-    win.resize(shape_p.TotalSize());
-    CNTK::NDArrayViewPtr cpu_p = CNTK::MakeSharedObject<CNTK::NDArrayView>(shape_p, win, false);
-    cpu_p->CopyFrom(*value_p->Data());
-
-    if (win.size() != requests.size()) {
-      cerr << "Eval win error " << win.size() << endl;
-      return;
-    }
-  }
-  if (var_p2.IsInitialized()) {
-    value_p2 = outputs[var_p2];
-    CNTK::NDShape shape_p2 = var_p2.Shape().AppendShape({ 1, num_req });
-    vector<float> win2(shape_p2.TotalSize());
-    CNTK::NDArrayViewPtr cpu_p2 = CNTK::MakeSharedObject<CNTK::NDArrayView>(shape_p2, win2, false);
-    cpu_p2->CopyFrom(*value_p2->Data());
-
-    if (win2.size() != requests.size() * SCORE_DIM) {
-      cerr << "Eval win error " << win2.size() << endl;
-      return;
-    }
-
-    int komi_min = clip((int)round(dynamic_komi[0] - SCORE_WIN_OFFSET - 0.4), 0, SCORE_DIM - 1);
-    int komi_max = clip((int)round(dynamic_komi[0] - SCORE_WIN_OFFSET + 0.4), 0, SCORE_DIM - 1);
-
-    for (int i = 0; i < requests.size(); i++) {
-      float v_min = win2[SCORE_DIM * i + komi_min];
-      float v_max = win2[SCORE_DIM * i + komi_max];
-      if (rand() % 1000 == 0) {
-        cerr << "Use komi:" << dynamic_komi[0] << " " <<  komi_min + SCORE_WIN_OFFSET << ".." << komi_max + SCORE_WIN_OFFSET
-             << " value:" << v_min << ".." << v_max
-             << endl;
-      }
-      win.push_back((v_min + v_max) / 2);
-    }
-  }
-
-  value_ol = outputs[var_ol];
-  CNTK::NDShape shape_ol = var_ol.Shape().AppendShape({ 1, num_req });
-  vector<float> moves(shape_ol.TotalSize());
-  CNTK::NDArrayViewPtr cpu_moves = CNTK::MakeSharedObject<CNTK::NDArrayView>(shape_ol, moves, false);
-  cpu_moves->CopyFrom(*value_ol->Data());
-
-  if (moves.size() != pure_board_max * num_req) {
-    cerr << "Eval move error " << moves.size() << endl;
+  if (num_req == 0)
     return;
-  }
 
+  vector<float> moves;
   vector<float> score;
-  if (var_score.IsInitialized()) {
-    value_score = outputs[var_score];
-    CNTK::NDShape shape_score = var_score.Shape().AppendShape({ 1, num_req });
-    score.resize(shape_score.TotalSize());
-    CNTK::NDArrayViewPtr cpu_score = CNTK::MakeSharedObject<CNTK::NDArrayView>(shape_score, score, false);
-    cpu_score->CopyFrom(*value_score->Data());
+  vector<float> win;
 
-    if (score.size() != requests.size() * SCORE_DIM) {
-      cerr << "Eval score error " << score.size() << endl;
+  {
+    unique_lock<mutex> lock(mutex_cntk);
+
+    auto device = GetDevice();
+
+    CNTK::NDShape shape_basic = var_basic.Shape().AppendShape({ 1, num_req });
+    CNTK::ValuePtr value_basic = CNTK::MakeSharedObject<CNTK::Value>(CNTK::MakeSharedObject<CNTK::NDArrayView>(shape_basic, data_basic, true));
+    CNTK::NDShape shape_features = var_features.Shape().AppendShape({ 1, num_req });
+    CNTK::ValuePtr value_features = CNTK::MakeSharedObject<CNTK::Value>(CNTK::MakeSharedObject<CNTK::NDArrayView>(shape_features, data_features, true));
+    CNTK::NDShape shape_history = var_history.Shape().AppendShape({ 1, num_req });
+    CNTK::ValuePtr value_history = CNTK::MakeSharedObject<CNTK::Value>(CNTK::MakeSharedObject<CNTK::NDArrayView>(shape_history, data_history, true));
+    CNTK::NDShape shape_color = var_color.Shape().AppendShape({ 1, num_req });
+    CNTK::ValuePtr value_color = CNTK::MakeSharedObject<CNTK::Value>(CNTK::MakeSharedObject<CNTK::NDArrayView>(shape_color, data_color, true));
+    //CNTK::NDShape shape_komi = var_komi.Shape().AppendShape({ 1, num_req });
+    //CNTK::ValuePtr value_komi = CNTK::MakeSharedObject<CNTK::Value>(CNTK::MakeSharedObject<CNTK::NDArrayView>(shape_komi, data_komi, true));
+
+    CNTK::ValuePtr value_p;
+    CNTK::ValuePtr value_p2;
+    CNTK::ValuePtr value_ol;
+    CNTK::ValuePtr value_score;
+
+    std::unordered_map<CNTK::Variable, CNTK::ValuePtr> inputs = {
+      { var_basic, value_basic },
+      { var_features, value_features },
+      { var_history, value_history },
+      { var_color, value_color },
+      //{ var_komi, value_komi },
+    };
+    std::unordered_map<CNTK::Variable, CNTK::ValuePtr> outputs = {
+      { var_ol, value_ol },
+    };
+    if (var_score.IsInitialized())
+      outputs[var_score] = value_score;
+    if (var_p.IsInitialized())
+      outputs[var_p] = value_p;
+    if (var_p2.IsInitialized())
+      outputs[var_p2] = value_p2;
+
+    try {
+      nn_model->Forward(inputs, outputs, device);
+    } catch (const std::exception& err) {
+      fprintf(stderr, "Evaluation failed. EXCEPTION occurred: %s\n", err.what());
+      abort();
+    } catch (...) {
+      fprintf(stderr, "Evaluation failed. Unknown ERROR occurred.\n");
+      abort();
+    }
+
+    if (var_p.IsInitialized()) {
+      value_p = outputs[var_p];
+      CNTK::NDShape shape_p = var_p.Shape().AppendShape({ 1, num_req });
+      win.resize(shape_p.TotalSize());
+      CNTK::NDArrayViewPtr cpu_p = CNTK::MakeSharedObject<CNTK::NDArrayView>(shape_p, win, false);
+      cpu_p->CopyFrom(*value_p->Data());
+
+      if (win.size() != requests.size()) {
+        cerr << "Eval win error " << win.size() << endl;
+        return;
+      }
+    }
+    if (var_p2.IsInitialized()) {
+      value_p2 = outputs[var_p2];
+      CNTK::NDShape shape_p2 = var_p2.Shape().AppendShape({ 1, num_req });
+      vector<float> win2(shape_p2.TotalSize());
+      CNTK::NDArrayViewPtr cpu_p2 = CNTK::MakeSharedObject<CNTK::NDArrayView>(shape_p2, win2, false);
+      cpu_p2->CopyFrom(*value_p2->Data());
+
+      if (win2.size() != requests.size() * SCORE_DIM) {
+        cerr << "Eval win error " << win2.size() << endl;
+        return;
+      }
+
+      int komi_min = clip((int)round(dynamic_komi[0] - SCORE_WIN_OFFSET - 0.4), 0, SCORE_DIM - 1);
+      int komi_max = clip((int)round(dynamic_komi[0] - SCORE_WIN_OFFSET + 0.4), 0, SCORE_DIM - 1);
+
+      for (int i = 0; i < requests.size(); i++) {
+        float v_min = win2[SCORE_DIM * i + komi_min];
+        float v_max = win2[SCORE_DIM * i + komi_max];
+        if (rand() % 1000 == 0) {
+          cerr << "Use komi:" << dynamic_komi[0] << " " << komi_min + SCORE_WIN_OFFSET << ".." << komi_max + SCORE_WIN_OFFSET
+            << " value:" << v_min << ".." << v_max
+            << endl;
+        }
+        win.push_back((v_min + v_max) / 2);
+      }
+    }
+
+    value_ol = outputs[var_ol];
+    CNTK::NDShape shape_ol = var_ol.Shape().AppendShape({ 1, num_req });
+    moves.resize(shape_ol.TotalSize());
+    CNTK::NDArrayViewPtr cpu_moves = CNTK::MakeSharedObject<CNTK::NDArrayView>(shape_ol, moves, false);
+    cpu_moves->CopyFrom(*value_ol->Data());
+
+    if (moves.size() != pure_board_max * num_req) {
+      cerr << "Eval move error " << moves.size() << endl;
       return;
     }
 
-    double sum = 0;
-    for (int i = 0; i < SCORE_DIM; i++) {
-      //score[i] = exp(score[i]);
-      sum += score[i];
-    }
-    for (int i = 0; i < SCORE_DIM; i++) {
-      score[i] /= sum;
+    if (var_score.IsInitialized()) {
+      value_score = outputs[var_score];
+      CNTK::NDShape shape_score = var_score.Shape().AppendShape({ 1, num_req });
+      score.resize(shape_score.TotalSize());
+      CNTK::NDArrayViewPtr cpu_score = CNTK::MakeSharedObject<CNTK::NDArrayView>(shape_score, score, false);
+      cpu_score->CopyFrom(*value_score->Data());
+
+      if (score.size() != requests.size() * SCORE_DIM) {
+        cerr << "Eval score error " << score.size() << endl;
+        return;
+      }
+
+      double sum = 0;
+      for (int i = 0; i < SCORE_DIM; i++) {
+        //score[i] = exp(score[i]);
+        sum += score[i];
+      }
+      for (int i = 0; i < SCORE_DIM; i++) {
+        score[i] /= sum;
+      }
     }
   }
 
