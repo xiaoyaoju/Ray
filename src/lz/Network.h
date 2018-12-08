@@ -135,9 +135,7 @@ private:
     std::unique_ptr<ForwardPipe> m_forward_cpu;
 #endif
 
-#if 0
     NNCache m_nncache;
-#endif
 
     size_t estimated_size{0};
 

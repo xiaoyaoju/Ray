@@ -542,7 +542,7 @@ Netresult EvaluateLeela(int moves, record_t *record) {
   }
   maingame->set_to_move(who);
 
-  auto r =  GTP::s_network->get_output(maingame.get(), Network::Ensemble::RANDOM_SYMMETRY, -1, true);
+  auto r =  GTP::s_network->get_output(maingame.get(), Network::Ensemble::RANDOM_SYMMETRY);
 
   Netresult result;
   result.policy = r.policy;

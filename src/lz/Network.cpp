@@ -56,7 +56,7 @@
 #include "FullBoard.h"
 #include "GameState.h"
 #include "GTP.h"
-//#include "NNCache.h"
+#include "NNCache.h"
 #include "Random.h"
 #include "ThreadPool.h"
 #include "Timing.h"
@@ -482,6 +482,8 @@ void Network::initialize(int playouts, const std::string & weightsfile) {
     // Make a guess at a good size as long as the user doesn't
     // explicitly set a maximum memory usage.
     m_nncache.set_size_from_playouts(playouts);
+#else
+    m_nncache.resize(10000);
 #endif
 
     // Prepare symmetry table
@@ -688,12 +690,12 @@ std::vector<float> softmax(const std::vector<float>& input,
     return output;
 }
 
-#if 0
 bool Network::probe_cache(const GameState* const state,
                           Network::Netresult& result) {
     if (m_nncache.lookup(state->board.get_hash(), result)) {
         return true;
     }
+#if 0
     // If we are not generating a self-play game, try to find
     // symmetries if we are in the early opening.
     if (!cfg_noise && !cfg_random_cnt
@@ -715,10 +717,10 @@ bool Network::probe_cache(const GameState* const state,
             }
         }
     }
+#endif
 
     return false;
 }
-#endif
 
 Network::Netresult Network::get_output(
     const GameState* const state, const Ensemble ensemble,
@@ -728,14 +730,13 @@ Network::Netresult Network::get_output(
         return result;
     }
 
-#if 0
     if (!skip_cache) {
+        // if (Random::get_Rng().randfix<100>() == 0) m_nncache.dump_stats();
         // See if we already have this in the cache.
         if (probe_cache(state, result)) {
             return result;
         }
     }
-#endif
 
     if (ensemble == DIRECT) {
         assert(symmetry >= 0 && symmetry < NUM_SYMMETRIES);
@@ -781,10 +782,8 @@ Network::Netresult Network::get_output(
         }
     }
 
-#if 0
     // Insert result into cache.
     m_nncache.insert(state->board.get_hash(), result);
-#endif
 
     return result;
 }
@@ -1018,7 +1017,6 @@ size_t Network::get_estimated_size() {
     return estimated_size = result;
 }
 
-#if 0
 size_t Network::get_estimated_cache_size() {
     return m_nncache.get_estimated_size();
 }
@@ -1026,4 +1024,3 @@ size_t Network::get_estimated_cache_size() {
 void Network::nncache_resize(int max_count) {
     return m_nncache.resize(max_count);
 }
-#endif

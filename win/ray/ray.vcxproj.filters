@@ -132,6 +132,9 @@
     <ClCompile Include="..\..\src\lz\CPUPipe.cpp">
       <Filter>lz</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\lz\NNCache.cpp">
+      <Filter>lz</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\src\Simulation.h">
