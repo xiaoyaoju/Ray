@@ -168,7 +168,6 @@ double time_limit;
 std::vector<std::unique_ptr<std::thread>> handle;    // スレッドのハンドル
 
 static volatile bool running;
-static int pre_value_move_count;
 
 // UCB Bonusの等価パラメータ
 double bonus_equivalence = BONUS_EQUIVALENCE;
@@ -561,14 +560,18 @@ InitializeSearchSetting( void )
   // プレイアウト回数の初期化
   if (mode == CONST_PLAYOUT_MODE) {
     time_limit = std::numeric_limits<double>::max();
-    if (nn_playout > 0)
+    if (nn_playout > 0) {
       po_info.num = std::numeric_limits<int>::max();
-    else
+      po_info.nn_num = nn_playout;
+    } else {
       po_info.num = playout;
+      po_info.nn_num = std::numeric_limits<int>::max();
+    }
     extend_time = false;
   } else if (mode == CONST_TIME_MODE) {
     time_limit = const_thinking_time;
     po_info.num = std::numeric_limits<int>::max();
+    po_info.nn_num = std::numeric_limits<int>::max();
     extend_time = false;
   } else if (mode == TIME_SETTING_MODE ||
 	     mode == TIME_SETTING_WITH_BYOYOMI_MODE) {
@@ -583,6 +586,7 @@ InitializeSearchSetting( void )
       extend_time = true;
     }
     po_info.num = std::numeric_limits<int>::max();
+    po_info.nn_num = std::numeric_limits<int>::max();
   }
 
   pondered = false;
@@ -617,7 +621,7 @@ StopPondering( void )
 int
 UctSearchGenmove( game_info_t *game, int color )
 {
-  int pos, select_index, max_count, pre_simulated;
+  int pos, select_index, max_count;
   double finish_time, pass_wp, best_wp;
   child_node_t *uct_child;
 
@@ -630,6 +634,7 @@ UctSearchGenmove( game_info_t *game, int color )
     }
   }
   po_info.count = 0;
+  po_info.nn_count = 0;
 
   for (int i = 0; i < pure_board_max; i++) {
     pos = onboard_pos[i];
@@ -656,8 +661,8 @@ UctSearchGenmove( game_info_t *game, int color )
   current_root = ExpandRoot(game, color);
 
   // 前回から持ち込んだ探索回数を記録
-  pre_simulated = uct_node[current_root].move_count;
-  pre_value_move_count = uct_node[current_root].value_move_count;
+  int pre_simulated = uct_node[current_root].move_count;
+  int pre_value_move_count = uct_node[current_root].value_move_count;
 
   // 子ノードが1つ(パスのみ)ならPASSを返す
   if (uct_node[current_root].child_num <= 1) {
@@ -666,6 +671,7 @@ UctSearchGenmove( game_info_t *game, int color )
 
   // 探索回数の閾値を設定
   po_info.halt = po_info.num;
+  po_info.nn_halt = po_info.nn_num;
 
   // 自分の手番を設定
   my_color = color;
@@ -674,7 +680,7 @@ UctSearchGenmove( game_info_t *game, int color )
   DynamicKomi(game, &uct_node[current_root], color);
 
   // 探索時間とプレイアウト回数の予定値を出力
-  PrintPlayoutLimits(time_limit, po_info.halt);
+  PrintPlayoutLimits(time_limit, po_info.halt, po_info.nn_halt);
 
   t_arg.resize(threads + nn_threads);
   running = true;
@@ -712,6 +718,7 @@ UctSearchGenmove( game_info_t *game, int color )
       extend_time &&
       ExtendTime()) {
     po_info.halt = (int)(1.5 * po_info.halt);
+    po_info.nn_halt = (int)(1.5 * po_info.nn_halt);
     time_limit *= 1.5;
     running = true;
     for (int i = 0; i < threads; i++) {
@@ -866,6 +873,7 @@ UctSearchPondering(game_info_t *game, int color)
   }
 
   po_info.count = 0;
+  po_info.nn_count = 0;
 
   for (int i = 0; i < pure_board_max; i++) {
     pos = onboard_pos[i];
@@ -931,7 +939,6 @@ UctSearchStat(game_info_t *game, int color, int num)
   double pass_wp;
   double best_wp;
   child_node_t *uct_child;
-  int pre_simulated;
 
 
   // 探索情報をクリア
@@ -939,6 +946,7 @@ UctSearchStat(game_info_t *game, int color, int num)
   memset(criticality_index, 0, sizeof(int) * board_max); 
   memset(criticality, 0, sizeof(double) * board_max);    
   po_info.count = 0;
+  po_info.nn_count = 0;
 
   for (i = 0; i < pure_board_max; i++) {
     pos = onboard_pos[i];
@@ -963,8 +971,8 @@ UctSearchStat(game_info_t *game, int color, int num)
   current_root = ExpandRoot(game, color);
 
   // 前回から持ち込んだ探索回数を記録
-  pre_simulated = uct_node[current_root].move_count;
-  pre_value_move_count = uct_node[current_root].value_move_count;
+  int pre_simulated = uct_node[current_root].move_count;
+  int pre_value_move_count = uct_node[current_root].value_move_count;
 
   // 子ノードが1つ(パスのみ)ならPASSを返す
   if (uct_node[current_root].child_num <= 1) {
@@ -1425,6 +1433,7 @@ InterruptionCheck( void )
   int max = 0, second = 0;
   const int child_num = uct_node[current_root].child_num;
   const int rest = po_info.halt - po_info.count;
+  const int nn_rest = po_info.nn_halt - po_info.nn_count;
   child_node_t *uct_child = uct_node[current_root].child;
 
   if (mode != CONST_PLAYOUT_MODE && 
@@ -1545,7 +1554,6 @@ ParallelUctSearch( thread_arg_t *arg )
   thread_arg_t *targ = (thread_arg_t *)arg;
   game_info_t *game;
   int color = targ->color;
-  bool interruption = false;
   bool enough_size = true;
   int winner = 0;
   uct_search_context_t& c = ctx[targ->thread_id];
@@ -1570,7 +1578,7 @@ ParallelUctSearch( thread_arg_t *arg )
       c.expanded = false;
       UctSearchPO(c, game, color, mt[targ->thread_id].get(), current_root, &winner);
       // 探索を打ち切るか確認
-      interruption = InterruptionCheck();
+      bool interruption = InterruptionCheck();
       // ハッシュに余裕があるか確認
       enough_size = CheckRemainingHashSize();
       // OwnerとCriticalityを計算する
@@ -1583,13 +1591,10 @@ ParallelUctSearch( thread_arg_t *arg )
       if (!enough_size) cerr << "HASH TABLE FULL" << endl;
       if (interruption || !enough_size)
         break;
-      if (nn_playout > 0) {
-        if (uct_node[current_root].value_move_count >= nn_playout + pre_value_move_count)
-          break;
-      } else {
-        if (po_info.count >= po_info.halt)
-          break;
-      }
+      if (po_info.count >= po_info.halt)
+        break;
+      if (po_info.nn_count >= po_info.nn_halt)
+        break;
     } while (true);
     lock_guard<mutex> lock(mutex_queue);
     running = false;
@@ -1607,20 +1612,17 @@ ParallelUctSearch( thread_arg_t *arg )
       c.expanded = false;
       UctSearchPO(c, game, color, mt[targ->thread_id].get(), current_root, &winner);
       // 探索を打ち切るか確認
-      interruption = InterruptionCheck();
+      bool interruption = InterruptionCheck();
       // ハッシュに余裕があるか確認
       enough_size = CheckRemainingHashSize();
       if (GetSpendTime(begin_time) > time_limit) break;
       if (!enough_size) cerr << "HASH TABLE FULL" << endl;
       if (interruption || !enough_size)
         break;
-      if (nn_playout > 0) {
-        if (uct_node[current_root].value_move_count >= nn_playout + pre_value_move_count)
-          break;
-      } else {
-        if (po_info.count >= po_info.halt)
-          break;
-      }
+      if (po_info.count >= po_info.halt)
+        break;
+      if (po_info.nn_count >= po_info.nn_halt)
+        break;
     } while (true);
   }
 
@@ -1635,7 +1637,6 @@ ParallelUctSearchNN( thread_arg_t *arg )
   thread_arg_t *targ = (thread_arg_t *)arg;
   game_info_t *game;
   int color = targ->color;
-  bool interruption = false;
   bool enough_size = true;
   uct_search_context_t& c = ctx[targ->thread_id];
   c.search_mode = NN;
@@ -1647,7 +1648,7 @@ ParallelUctSearchNN( thread_arg_t *arg )
     // Wait if dcnn queue is full
     WaitForEvaluationQueue(false);
     // 探索回数を1回増やす
-    c.move_count = atomic_fetch_add(&po_info.count, 1);
+    c.move_count = atomic_fetch_add(&po_info.nn_count, 1);
     // 盤面のコピー
     CopyGame(game, targ->game);
     // 1回プレイアウトする
@@ -1655,20 +1656,17 @@ ParallelUctSearchNN( thread_arg_t *arg )
     c.expanded = false;
     UctSearchNN(c, game, color, mt[targ->thread_id].get(), current_root);
     // 探索を打ち切るか確認
-    interruption = InterruptionCheck();
+    bool interruption = InterruptionCheck();
     // ハッシュに余裕があるか確認
     enough_size = CheckRemainingHashSize();
     if (GetSpendTime(begin_time) > time_limit) break;
     if (!enough_size) cerr << "HASH TABLE FULL" << endl;
     if (interruption || !enough_size)
       break;
-    if (nn_playout > 0) {
-      if (uct_node[current_root].value_move_count >= nn_playout + pre_value_move_count)
-        break;
-    } else {
-      if (po_info.count >= po_info.halt)
-        break;
-    }
+    if (po_info.count >= po_info.halt)
+      break;
+    if (po_info.nn_count >= po_info.nn_halt)
+      break;
   } while (true);
 
   // メモリの解放
@@ -1762,7 +1760,7 @@ ParallelUctSearchPonderingNN( thread_arg_t *arg )
     // Wait if dcnn queue is full
     WaitForEvaluationQueue(true);
     // 探索回数を1回増やす
-    c.move_count = atomic_fetch_add(&po_info.count, 1);
+    c.move_count = atomic_fetch_add(&po_info.nn_count, 1);
     // 盤面のコピー
     CopyGame(game, targ->game);
     // 1回プレイアウトする
@@ -2163,26 +2161,25 @@ SelectMaxUcbChild( const uct_search_context_t& ctx, const game_info_t *game, int
 
 #if 1
       if (current == current_root) {
-        if (nn_playout > 0) {
-          int max_value_move_count = 0;
-          for (int i = 0; i < child_num; i++) {
-            int m = ValueMoveCount(current, order[i].index);
-            if (m > max_value_move_count)
-              max_value_move_count = m;
-          }
-          int done = uct_node[current].value_move_count;
-          int rest = nn_playout + pre_value_move_count - done;
-          for (int i = 0; i < child_num; i++) {
-            if (!uct_child[order[i].index].flag && !uct_child[order[i].index].open)
-              continue;
-            int m = ValueMoveCount(current, order[i].index);
-            if (m + rest < max_value_move_count) {
-              //cerr << "prune  " << FormatMove(uct_child[order[i].index].pos) << endl;
-              uct_child[order[i].index].flag = false;
-            }
+        int max_value_move_count = 0;
+        for (int i = 0; i < child_num; i++) {
+          int m = ValueMoveCount(current, order[i].index);
+          if (m > max_value_move_count)
+            max_value_move_count = m;
+        }
+        int rest = po_info.nn_halt - po_info.nn_count;
+        for (int i = 0; i < child_num; i++) {
+          if (!uct_child[order[i].index].flag && !uct_child[order[i].index].open)
+            continue;
+          int m = ValueMoveCount(current, order[i].index);
+          if (m + rest < max_value_move_count) {
+            /*
+            cerr << "prune  " << FormatMove(uct_child[order[i].index].pos)
+                 << " " << m << " + " << rest << " < " << max_value_move_count << endl;
+            */
+            uct_child[order[i].index].flag = false;
           }
         }
-        // TODO Other mode
       }
 #endif
     }
@@ -2632,19 +2629,24 @@ static void
 CalculateNextPlayouts( game_info_t *game, int color, double best_wp, double finish_time )
 {
   double po_per_sec;
+  double nn_per_sec;
 
   if (finish_time != 0.0) {
     po_per_sec = po_info.count / finish_time;
+    nn_per_sec = po_info.nn_count / finish_time;
   } else {
     po_per_sec = PLAYOUT_SPEED * threads;
+    nn_per_sec = PLAYOUT_SPEED;
   }
 
   // 次の探索の時の探索回数を求める
   if (mode == CONST_TIME_MODE) {
     if (best_wp > 0.90) {
-      po_info.num = (int)(po_info.count / finish_time * const_thinking_time / 2);
+      po_info.num = (int)(po_per_sec * const_thinking_time * 1.5 / 2);
+      po_info.nn_num = (int)(nn_per_sec * const_thinking_time * 1.5 / 2);
     } else {
-      po_info.num = (int)(po_info.count / finish_time * const_thinking_time);
+      po_info.num = (int)(po_per_sec * const_thinking_time * 1.5);
+      po_info.nn_num = (int)(nn_per_sec * const_thinking_time * 1.5);
     }
   } else if (mode == TIME_SETTING_MODE ||
 	     mode == TIME_SETTING_WITH_BYOYOMI_MODE) {
@@ -2657,10 +2659,11 @@ CalculateNextPlayouts( game_info_t *game, int color, double best_wp, double fini
       time_limit = remaining_time[color] / (TIME_C_19 + ((TIME_MAXPLY_19 - (game->moves + 1) > 0) ? TIME_MAXPLY_19 - (game->moves + 1) : 0));
     }
     if (mode == TIME_SETTING_WITH_BYOYOMI_MODE &&
-	time_limit < (const_thinking_time * 0.5)) {
+        time_limit < (const_thinking_time * 0.5)) {
       time_limit = const_thinking_time * 0.5;
     }
-    po_info.num = (int)(po_per_sec * time_limit);	
+    po_info.num = (int)(po_per_sec * time_limit * 1.5);
+    po_info.nn_num = (int)(nn_per_sec * time_limit * 1.5);
   } 
 }
 

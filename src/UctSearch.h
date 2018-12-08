@@ -135,8 +135,11 @@ struct uct_node_t {
 
 struct po_info_t {
   int num;   // 次の手の探索回数
+  int nn_num;
   int halt;  // 探索を打ち切る回数
+  int nn_halt;
   std::atomic<int> count;       // 現在の探索回数
+  std::atomic<int> nn_count;
 };
 
 struct rate_order_t {

@@ -54,7 +54,7 @@ void PrintKomiValue( void );
 void PrintPonderingCount( const int count );
 
 //  探索時間の出力
-void PrintPlayoutLimits( const double time_limit, const int playout_limit );
+void PrintPlayoutLimits( const double time_limit, const int playout_limit, const int nn_limit );
 
 //  再利用した探索回数の出力
 void PrintReuseCount( const int count );

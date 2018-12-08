@@ -813,12 +813,13 @@ PrintPonderingCount( const int count )
 //  探索時間の出力  //
 /////////////////////
 void
-PrintPlayoutLimits( const double time_limit, const int playout_limit )
+PrintPlayoutLimits( const double time_limit, const int playout_limit, const int nn_limit )
 {
   if (!debug_message) return ;
 
   cerr << "Time Limit    : " << time_limit << " Sec" << endl;
   cerr << "Playout Limit : " << playout_limit << " PO" << endl; 
+  cerr << "NN Limit      : " << nn_limit << " PO" << endl; 
 }
 
 ////////////////////////////////////////
