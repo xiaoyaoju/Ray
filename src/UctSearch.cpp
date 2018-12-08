@@ -123,6 +123,7 @@ condition_variable cond_queue;
 static enum SEARCH_MODE mode = TIME_SETTING_MODE;
 // 使用するスレッド数
 int threads = 1;
+int nn_threads = 1;
 // 1手あたりの試行時間
 double const_thinking_time = CONST_TIME;
 // 1手当たりのプレイアウト数
@@ -279,9 +280,11 @@ static bool InterruptionCheck( void );
 
 // UCT探索
 static void ParallelUctSearch( thread_arg_t *arg );
+static void ParallelUctSearchNN( thread_arg_t *arg );
 
 // UCT探索(予測読み)
 static void ParallelUctSearchPondering( thread_arg_t *arg );
+static void ParallelUctSearchPonderingNN( thread_arg_t *arg );
 
 // ノードのレーティング
 static void RatingNode( game_info_t *game, int color, int index, const std::vector<int>& path );
@@ -361,7 +364,17 @@ SetThread( int new_thread )
 {
   threads = new_thread;
 
-  ctx.resize(threads);
+  ctx.resize(threads + nn_threads);
+
+  InitRand();
+}
+
+void
+SetNNThread( int new_thread )
+{
+  nn_threads = new_thread;
+
+  ctx.resize(threads + nn_threads);
 
   InitRand();
 }
@@ -486,7 +499,7 @@ InitRand()
 {
   mt.clear();
   random_device rd;
-  for (int i = 0; i < threads; i++) {
+  for (int i = 0; i < threads + nn_threads; i++) {
     mt.push_back(make_unique<mt19937_64>(rd()));
   }
 }
@@ -537,7 +550,7 @@ InitializeSearchSetting( void )
   // 乱数の初期化
   InitRand();
 
-  ctx.resize(threads);
+  ctx.resize(threads + nn_threads);
 
   // 持ち時間の初期化
   for (int i = 0; i < 3; i++) {
@@ -663,7 +676,7 @@ UctSearchGenmove( game_info_t *game, int color )
   // 探索時間とプレイアウト回数の予定値を出力
   PrintPlayoutLimits(time_limit, po_info.halt);
 
-  t_arg.resize(threads);
+  t_arg.resize(threads + nn_threads);
   running = true;
   for (int i = 0; i < threads; i++) {
     t_arg[i].thread_id = i;
@@ -671,10 +684,16 @@ UctSearchGenmove( game_info_t *game, int color )
     t_arg[i].color = color;
     handle.push_back(make_unique<thread>(ParallelUctSearch, &t_arg[i]));
   }
+  for (int i = 0; i < nn_threads; i++) {
+    t_arg[threads + i].thread_id = threads + i;
+    t_arg[threads + i].game = game;
+    t_arg[threads + i].color = color;
+    handle.push_back(make_unique<thread>(ParallelUctSearchNN, &t_arg[threads + i]));
+  }
 
 #if ASYNC_NN
   if (use_nn) {
-    for (int i = 0; i < min(4, threads); i++) {
+    for (int i = 0; i < min(4, nn_threads); i++) {
       handle.push_back(make_unique<thread>(EvalNode));
     }
   }
@@ -698,10 +717,13 @@ UctSearchGenmove( game_info_t *game, int color )
     for (int i = 0; i < threads; i++) {
       handle.push_back(make_unique<thread>(ParallelUctSearch, &t_arg[i]));
     }
+    for (int i = 0; i < nn_threads; i++) {
+      handle.push_back(make_unique<thread>(ParallelUctSearchNN, &t_arg[threads + i]));
+    }
 
 #if ASYNC_NN
     if (use_nn) {
-      for (int i = 0; i < min(4, threads); i++) {
+      for (int i = 0; i < min(4, nn_threads); i++) {
         handle.push_back(make_unique<thread>(EvalNode));
       }
     }
@@ -870,7 +892,7 @@ UctSearchPondering(game_info_t *game, int color)
   // Dynamic Komiの算出(置碁のときのみ)
   DynamicKomi(game, &uct_node[current_root], color);
 
-  t_arg.resize(threads);
+  t_arg.resize(threads + nn_threads);
   running = true;
   for (int i = 0; i < threads; i++) {
     t_arg[i].thread_id = i;
@@ -878,10 +900,16 @@ UctSearchPondering(game_info_t *game, int color)
     t_arg[i].color = color;
     handle.push_back(make_unique<thread>(ParallelUctSearchPondering, &t_arg[i]));
   }
+  for (int i = 0; i < nn_threads; i++) {
+    t_arg[threads + i].thread_id = threads + i;
+    t_arg[threads + i].game = game;
+    t_arg[threads + i].color = color;
+    handle.push_back(make_unique<thread>(ParallelUctSearchPonderingNN, &t_arg[threads + i]));
+  }
 
 #if ASYNC_NN
   if (use_nn) {
-    for (int i = 0; i < min(4, threads); i++) {
+    for (int i = 0; i < min(4, nn_threads); i++) {
       handle.push_back(make_unique<thread>(EvalNode));
     }
   }
@@ -1520,29 +1548,27 @@ ParallelUctSearch( thread_arg_t *arg )
   bool interruption = false;
   bool enough_size = true;
   int winner = 0;
-  int interval = CRITICALITY_INTERVAL;
   uct_search_context_t& c = ctx[targ->thread_id];
+  c.search_mode = PO;
 
   game = AllocateGame();
 
   // スレッドIDが0のスレッドだけ別の処理をする
   // 探索回数が閾値を超える, または探索が打ち切られたらループを抜ける
   if (targ->thread_id == 0) {
+    int interval = CRITICALITY_INTERVAL;
+
     do {
       // Wait if dcnn queue is full
       WaitForEvaluationQueue(false);
       // 探索回数を1回増やす
       c.move_count = atomic_fetch_add(&po_info.count, 1);
-      c.search_mode = c.move_count % 2 == 0 ? PO : NN;
       // 盤面のコピー
       CopyGame(game, targ->game);
       // 1回プレイアウトする
       c.path.clear();
       c.expanded = false;
-      if (c.search_mode == PO)
-        UctSearchPO(c, game, color, mt[targ->thread_id].get(), current_root, &winner);
-      else
-        UctSearchNN(c, game, color, mt[targ->thread_id].get(), current_root);
+      UctSearchPO(c, game, color, mt[targ->thread_id].get(), current_root, &winner);
       // 探索を打ち切るか確認
       interruption = InterruptionCheck();
       // ハッシュに余裕があるか確認
@@ -1574,16 +1600,12 @@ ParallelUctSearch( thread_arg_t *arg )
       WaitForEvaluationQueue(false);
       // 探索回数を1回増やす
       c.move_count = atomic_fetch_add(&po_info.count, 1);
-      c.search_mode = (targ->thread_id <= 8 && targ->thread_id % 2 == 0) ? NN : PO;
       // 盤面のコピー
       CopyGame(game, targ->game);
       // 1回プレイアウトする
       c.path.clear();
       c.expanded = false;
-      if (c.search_mode == PO)
-        UctSearchPO(c, game, color, mt[targ->thread_id].get(), current_root, &winner);
-      else
-        UctSearchNN(c, game, color, mt[targ->thread_id].get(), current_root);
+      UctSearchPO(c, game, color, mt[targ->thread_id].get(), current_root, &winner);
       // 探索を打ち切るか確認
       interruption = InterruptionCheck();
       // ハッシュに余裕があるか確認
@@ -1607,6 +1629,53 @@ ParallelUctSearch( thread_arg_t *arg )
   return;
 }
 
+static void
+ParallelUctSearchNN( thread_arg_t *arg )
+{
+  thread_arg_t *targ = (thread_arg_t *)arg;
+  game_info_t *game;
+  int color = targ->color;
+  bool interruption = false;
+  bool enough_size = true;
+  uct_search_context_t& c = ctx[targ->thread_id];
+  c.search_mode = NN;
+
+  game = AllocateGame();
+
+  // 探索回数が閾値を超える, または探索が打ち切られたらループを抜ける
+  do {
+    // Wait if dcnn queue is full
+    WaitForEvaluationQueue(false);
+    // 探索回数を1回増やす
+    c.move_count = atomic_fetch_add(&po_info.count, 1);
+    // 盤面のコピー
+    CopyGame(game, targ->game);
+    // 1回プレイアウトする
+    c.path.clear();
+    c.expanded = false;
+    UctSearchNN(c, game, color, mt[targ->thread_id].get(), current_root);
+    // 探索を打ち切るか確認
+    interruption = InterruptionCheck();
+    // ハッシュに余裕があるか確認
+    enough_size = CheckRemainingHashSize();
+    if (GetSpendTime(begin_time) > time_limit) break;
+    if (!enough_size) cerr << "HASH TABLE FULL" << endl;
+    if (interruption || !enough_size)
+      break;
+    if (nn_playout > 0) {
+      if (uct_node[current_root].value_move_count >= nn_playout + pre_value_move_count)
+        break;
+    } else {
+      if (po_info.count >= po_info.halt)
+        break;
+    }
+  } while (true);
+
+  // メモリの解放
+  FreeGame(game);
+  return;
+}
+
 
 /////////////////////////////////
 //  並列処理で呼び出す関数     //
@@ -1620,38 +1689,37 @@ ParallelUctSearchPondering( thread_arg_t *arg )
   int color = targ->color;
   bool enough_size = true;
   int winner = 0;
-  int interval = CRITICALITY_INTERVAL;
   uct_search_context_t& c = ctx[targ->thread_id];
+  c.search_mode = PO;
 
   game = AllocateGame();
 
   // スレッドIDが0のスレッドだけ別の処理をする
   // 探索回数が閾値を超える, または探索が打ち切られたらループを抜ける
   if (targ->thread_id == 0) {
+    int interval = CRITICALITY_INTERVAL;
+
     do {
       // Wait if dcnn queue is full
       WaitForEvaluationQueue(true);
       // 探索回数を1回増やす
       c.move_count = atomic_fetch_add(&po_info.count, 1);
-      c.search_mode = c.move_count % 2 == 0 ? PO : NN;
       // 盤面のコピー
       CopyGame(game, targ->game);
       // 1回プレイアウトする
       c.path.clear();
       c.expanded = false;
-      if (c.search_mode == PO)
-        UctSearchPO(c, game, color, mt[targ->thread_id].get(), current_root, &winner);
-      else
-        UctSearchNN(c, game, color, mt[targ->thread_id].get(), current_root);
+      UctSearchPO(c, game, color, mt[targ->thread_id].get(), current_root, &winner);
       // ハッシュに余裕があるか確認
       enough_size = CheckRemainingHashSize();
       // OwnerとCriticalityを計算する
       if (po_info.count > interval) {
-	CalculateOwner(color, po_info.count);
-	CalculateCriticality(color);
-	interval += CRITICALITY_INTERVAL;
+        CalculateOwner(color, po_info.count);
+        CalculateCriticality(color);
+        interval += CRITICALITY_INTERVAL;
       }
     } while (!pondering_stop && enough_size);
+
     lock_guard<mutex> lock(mutex_queue);
     running = false;
     cond_queue.notify_all();
@@ -1661,20 +1729,49 @@ ParallelUctSearchPondering( thread_arg_t *arg )
       WaitForEvaluationQueue(true);
       // 探索回数を1回増やす
       c.move_count = atomic_fetch_add(&po_info.count, 1);
-      c.search_mode = (targ->thread_id <= 8 && targ->thread_id % 2 == 0) ? NN : PO;
       // 盤面のコピー
       CopyGame(game, targ->game);
       // 1回プレイアウトする
       c.path.clear();
       c.expanded = false;
-      if (c.search_mode == PO)
-        UctSearchPO(c, game, color, mt[targ->thread_id].get(), current_root, &winner);
-      else
-        UctSearchNN(c, game, color, mt[targ->thread_id].get(), current_root);
+      UctSearchPO(c, game, color, mt[targ->thread_id].get(), current_root, &winner);
       // ハッシュに余裕があるか確認
       enough_size = CheckRemainingHashSize();
     } while (!pondering_stop && enough_size);
   }
+
+  // メモリの解放
+  FreeGame(game);
+  return;
+}
+
+static void
+ParallelUctSearchPonderingNN( thread_arg_t *arg )
+{
+  thread_arg_t *targ = (thread_arg_t *)arg;
+  game_info_t *game;
+  int color = targ->color;
+  bool enough_size = true;
+  uct_search_context_t& c = ctx[targ->thread_id];
+  c.search_mode = NN;
+
+  game = AllocateGame();
+
+  // 探索回数が閾値を超える, または探索が打ち切られたらループを抜ける
+  do {
+    // Wait if dcnn queue is full
+    WaitForEvaluationQueue(true);
+    // 探索回数を1回増やす
+    c.move_count = atomic_fetch_add(&po_info.count, 1);
+    // 盤面のコピー
+    CopyGame(game, targ->game);
+    // 1回プレイアウトする
+    c.path.clear();
+    c.expanded = false;
+    UctSearchNN(c, game, color, mt[targ->thread_id].get(), current_root);
+    // ハッシュに余裕があるか確認
+    enough_size = CheckRemainingHashSize();
+  } while (!pondering_stop && enough_size);
 
   // メモリの解放
   FreeGame(game);

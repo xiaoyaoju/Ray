@@ -186,6 +186,7 @@ void SetConstTime( double time );
 
 // 使用するスレッド数の指定
 void SetThread( int new_thread );
+void SetNNThread( int new_thread );
 
 // 持ち時間の指定
 void SetTime( double time );

@@ -126,8 +126,8 @@ void GTP::setup_default_parameters() {
 #if 0
     cfg_num_threads = std::min(2, cfg_max_threads);
 #else
-    extern int threads;
-    cfg_num_threads = threads;
+    extern int nn_threads;
+    cfg_num_threads = 1 + nn_threads;
 #endif
 #else
     cfg_num_threads = cfg_max_threads;
