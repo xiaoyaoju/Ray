@@ -1428,30 +1428,36 @@ RatingNode( game_info_t *game, int color, int index, const std::vector<int>& pat
 static bool
 InterruptionCheck( void )
 {
-  int max = 0, second = 0;
   const int child_num = uct_node[current_root].child_num;
-  const int rest = po_info.halt - po_info.count;
+  //const int rest = po_info.halt - po_info.count;
   const int nn_rest = po_info.nn_halt - po_info.nn_count;
   child_node_t *uct_child = uct_node[current_root].child;
 
-  if (mode != CONST_PLAYOUT_MODE && 
+  /*
+  if (mode != CONST_PLAYOUT_MODE &&
       GetSpendTime(begin_time) * 2.0 < time_limit) {
       return false;
   }
+  */
+
+  if (mode == CONST_PLAYOUT_MODE)
+    return false;
 
   // 探索回数が最も多い手と次に多い手を求める
+  int max = 0, second = 0;
   for (int i = 0; i < child_num; i++) {
-    if (uct_child[i].move_count > max) {
+    int m = ValueMoveCount(current_root, i);
+    if (m > max) {
       second = max;
-      max = uct_child[i].move_count;
-    } else if (uct_child[i].move_count > second) {
-      second = uct_child[i].move_count;
+      max = m;
+    } else if (m > second) {
+      second = m;
     }
   }
 
   // 残りの探索を全て次善手に費やしても
   // 最善手を超えられない場合は探索を打ち切る
-  if (max - second > rest) {
+  if (max - second > nn_rest) {
     return true;
   } else {
     return false;
@@ -1587,8 +1593,10 @@ ParallelUctSearch( thread_arg_t *arg )
       }
       if (GetSpendTime(begin_time) > time_limit) break;
       if (!enough_size) cerr << "HASH TABLE FULL" << endl;
-      if (interruption || !enough_size)
+      if (interruption || !enough_size) {
+        cerr << "interrupted" << endl;
         break;
+      }
       if (po_info.count >= po_info.halt)
         break;
       if (po_info.nn_count >= po_info.nn_halt)
