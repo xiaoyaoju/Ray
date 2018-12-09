@@ -597,12 +597,12 @@ PrintBestSequence(std::ostream& out, const game_info_t *game, const uct_node_t *
   if (index == -1)
     return;
   if (node_hash[current].color == S_BLACK) {
-    if (root->evaled)
+    if (root->state == NODE_STATE::EVALUATED)
       out << "B ";
     else
       out << "b ";
   } else if (node_hash[current].color == S_WHITE) {
-    if (root->evaled)
+    if (root->state == NODE_STATE::EVALUATED)
       out << "W ";
     else
       out << "w ";
@@ -629,12 +629,12 @@ PrintBestSequence(std::ostream& out, const game_info_t *game, const uct_node_t *
     if (index == -1) break;
 
     if (node_hash[current].color == S_BLACK) {
-      if (uct_node[current].evaled)
+      if (uct_node[current].state == NODE_STATE::EVALUATED)
         out << "B ";
       else
         out << "b ";
     } else if (node_hash[current].color == S_WHITE) {
-      if (uct_node[current].evaled)
+      if (uct_node[current].state == NODE_STATE::EVALUATED)
         out << "W ";
       else
         out << "w ";
@@ -648,7 +648,7 @@ PrintBestSequence(std::ostream& out, const game_info_t *game, const uct_node_t *
 void
 PrintMoveStat( std::ostream& out, const game_info_t *game, const uct_node_t *uct_node, int current_root )
 {
-  bool evaled = uct_node[current_root].evaled;
+  bool evaled = uct_node[current_root].state == NODE_STATE::EVALUATED;
   const child_node_t *uct_child = uct_node[current_root].child;
   const int child_num = uct_node[current_root].child_num;
   const double scale = std::max(0.2, std::min(1.0, 1.0 - (game->moves - 200) / 50.0)) * value_scale;

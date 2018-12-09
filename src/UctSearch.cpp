@@ -1047,7 +1047,6 @@ InitializeCandidate( child_node_t *uct_child, int pos, bool ladder )
   uct_child->pos = pos;
   uct_child->move_count = 0;
   uct_child->win = 0;
-  uct_child->eval_value = false;
   uct_child->index = NOT_EXPANDED;
   uct_child->rate = 0.0;
   uct_child->flag = false;
@@ -1108,7 +1107,6 @@ ExpandRoot( game_info_t *game, int color )
         uct_node[index].win -= uct_child[i].win;
         uct_child[i].move_count = 0;
         uct_child[i].win = 0;
-        uct_child[i].eval_value = false;
       }
       uct_child[i].ladder = ladder[pos];
     }
@@ -1140,7 +1138,7 @@ ExpandRoot( game_info_t *game, int color )
     uct_node[index].win = 0;
     uct_node[index].width = 0;
     uct_node[index].child_num = 0;
-    uct_node[index].evaled = false;
+    uct_node[index].state = NODE_STATE::INIT;
     uct_node[index].value_move_count = 0;
     uct_node[index].value_win = 0;
     memset(uct_node[index].statistic, 0, sizeof(statistic_t) * BOARD_MAX); 
@@ -1235,7 +1233,7 @@ ExpandNode( game_info_t *game, int color, int current, const std::vector<int>& p
   uct_node[index].win = 0;
   uct_node[index].width = 0;
   uct_node[index].child_num = 0;
-  uct_node[index].evaled = false;
+  uct_node[index].state = NODE_STATE::INIT;
   uct_node[index].value_move_count = 0;
   uct_node[index].value_win = 0;
   memset(uct_node[index].statistic, 0, sizeof(statistic_t) * BOARD_MAX);  
@@ -1499,7 +1497,7 @@ ExtendTime( void )
   }
 
   // Extend time if policy value is too low 
-  if (uct_node[current_root].evaled) {
+  if (uct_node[current_root].state == NODE_STATE::EVALUATED) {
     if (uct_child[max_index].nnrate < 0.02) {
       if (GetDebugMessageMode()) {
         cerr << "Extend time "
@@ -1939,7 +1937,6 @@ UctSearchNN( uct_search_context_t& ctx, game_info_t *game, int color, mt19937_64
     game->record[game->moves - 1].pos == PASS &&
     game->record[game->moves - 2].pos == PASS;
 
-  bool expected = false;
   if (end_of_game) {
     // 現在見ているノードのロックを解除
     UNLOCK_NODE(current);
@@ -1975,9 +1972,12 @@ UctSearchNN( uct_search_context_t& ctx, game_info_t *game, int color, mt19937_64
       UNLOCK_EXPAND;
     }
 
-    if (atomic_compare_exchange_strong(&uct_child[next_index].eval_value, &expected, true)) {
+    int next_node_index = uct_child[next_index].index;
+
+    NODE_STATE expected = NODE_STATE::INIT;
+    if (atomic_compare_exchange_strong(&uct_node[next_node_index].state, &expected, NODE_STATE::EVALUATING)) {
       auto req = make_shared<nn_eval_req>();
-      req->index = uct_child[next_index].index;
+      req->index = next_node_index;
       copy(ctx.path.begin(), ctx.path.end(), back_inserter(req->path));
       req->path.push_back(next_node_index);
       req->moves = game->moves;
@@ -2107,7 +2107,7 @@ UpdatePolicyRate(int current)
 static int
 SelectMaxUcbChild( const uct_search_context_t& ctx, const game_info_t *game, int current, int color )
 {
-  bool evaled = uct_node[current].evaled;
+  bool evaled = uct_node[current].state == NODE_STATE::EVALUATED;
   child_node_t *uct_child = uct_node[current].child;
   const int child_num = uct_node[current].child_num;
   const int sum = uct_node[current].move_count;
@@ -2939,7 +2939,7 @@ EvalValue(const std::shared_ptr<nn_eval_req>& req)
   }
 
   UpdatePolicyRate(index);
-  uct_node[index].evaled = true;
+  uct_node[index].state = NODE_STATE::EVALUATED;
 
   UNLOCK_NODE(index);
 
