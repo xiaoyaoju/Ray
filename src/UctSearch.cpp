@@ -2101,7 +2101,7 @@ UpdatePolicyRate(int current)
   double rate;
   int n = 0;
 
-  double max_nnrate0 = numeric_limits<double>::min();
+  double max_nnrate0 = numeric_limits<double>::lowest();
   for (int i = 1; i < child_num; i++) {
     max_nnrate0 = max(uct_child[i].nnrate0, max_nnrate0);
   }
@@ -2225,14 +2225,15 @@ SelectMaxUcbChild( const uct_search_context_t& ctx, const game_info_t *game, int
     // レートが最大の手を読む候補を1手追加
     if (sum > pw[uct_node[current].width]) {
       int max_index = -1;
-      double max_rate = 0;
+      double max_rate = numeric_limits<double>::lowest();
       for (int i = 0; i < child_num; i++) {
         if (uct_child[i].flag == false) {
           int pos = uct_child[i].pos;
           double dynamic_parameter = uct_owner[owner_index[pos]] + uct_criticality[criticality_index[pos]];
-          if (uct_child[i].rate + dynamic_parameter > max_rate) {
+          double r = uct_child[i].rate + dynamic_parameter + uct_child[i].nnrate * 10;
+          if (r > max_rate) {
             max_index = i;
-            max_rate = uct_child[i].rate + dynamic_parameter;
+            max_rate = r;
           }
         }
       }
@@ -2243,7 +2244,7 @@ SelectMaxUcbChild( const uct_search_context_t& ctx, const game_info_t *game, int
     }
   }
 
-  double max_value = -1;
+  double max_value = numeric_limits<double>::lowest();
   int max_child = 0;
 
   const double p_po0 = (double)uct_node[current].win / (uct_node[current].move_count + 1);
