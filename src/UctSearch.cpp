@@ -1279,7 +1279,7 @@ ExpandNode( game_info_t *game, int color, int current, const std::vector<int>& p
   }
 
   // 兄弟ノードで一番レートの高い手を展開する
-  for (i = 0; i < child_num; i++) {
+  for (i = 1; i < child_num; i++) {
     if (uct_child[i].pos == max_pos) {
       if (!uct_child[i].flag) {
 	uct_child[i].open = true;
