@@ -168,14 +168,24 @@ AnalyzeCommand( int argc, char **argv )
 	SetUseNN(false);
 	break;
       case COMMAND_NO_GPU:
-	SetDeviceId(-1);
-	break;
+        SetDeviceIds({-1});
+        break;
       case COMMAND_NO_EXPAND:
         SetNoExpand(true);
         break;
       case COMMAND_DEVICE_ID:
-        SetDeviceId(atoi(argv[++i]));
+      {
+        vector<int> device_ids;
+        char copy[BUF_SIZE];
+        STRCPY(copy, BUF_SIZE, argv[++i]);
+        char* token = strtok(copy, ",");
+        while (token != NULL) {
+          device_ids.push_back(atoi(token));
+          token = strtok(NULL, ",");
+        }
+        SetDeviceIds(device_ids);
         break;
+      }
       case COMMAND_WEIGHTS_FILE:
         cfg_weightsfile = argv[++i];
         break;

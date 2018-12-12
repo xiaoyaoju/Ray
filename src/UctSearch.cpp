@@ -211,7 +211,7 @@ ray_clock::time_point begin_time;
 static bool early_pass = true;
 
 static bool use_nn = true;
-static int device_id = -2;
+static vector<int> device_ids = { -2 };
 static std::queue<std::shared_ptr<nn_eval_req>> eval_nn_queue;
 static std::atomic<int> eval_count_value;
 static std::atomic<int> eval_count_eog;
@@ -443,15 +443,15 @@ SetUseNN(bool flag)
 }
 
 void
-SetDeviceId(const int id)
+SetDeviceIds(const vector<int>& ids)
 {
-  device_id = id;
+  device_ids = ids;
 }
 
-int
-GetDeviceId()
+const vector<int>&
+GetDeviceIds()
 {
-  return device_id;
+  return device_ids;
 }
 
 void
@@ -2262,6 +2262,7 @@ SelectMaxUcbChild( const uct_search_context_t& ctx, const game_info_t *game, int
   double sum_visited_nnrate = 0;
   for (int i = start_child; i < child_num; i++) {
     if (uct_child[i].index >= 0) {
+
       sum_visited_nnrate += uct_child[i].nnrate;
     }
   }

@@ -423,7 +423,7 @@ void benchmark(GameState& game) {
 #endif
 
 extern char uct_params_path[1024];
-extern int GetDeviceId();
+extern const std::vector<int>& GetDeviceIds();
 
 int InitializeLeela() {
   // Set up engine parameters
@@ -452,9 +452,9 @@ int InitializeLeela() {
     cfg_weightsfile += "/lz.bin";
   }
 
-  int device_id = GetDeviceId();
-  if (device_id >= 0)
-    cfg_gpus.push_back(device_id);
+  auto device_ids = GetDeviceIds();
+  for (int id : device_ids)
+    cfg_gpus.push_back(id);
 
   init_global_objects();
 
