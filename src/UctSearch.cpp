@@ -1196,14 +1196,18 @@ ExpandRoot( game_info_t *game, int color )
 static int
 ExpandNode( const game_info_t *game, int color, int current )
 {
+  // ノードの展開中はロック
+  unique_lock<mutex> lock(mutex_expand);
+
   unsigned long long hash = game->move_hash;
   unsigned int index = FindSameHashIndex(hash, color, game->moves);
-  bool ladder[BOARD_MAX] = { false };  
-  int pm1 = PASS, pm2 = PASS;
-  int moves = game->moves;
 
   // 合流先が検知できれば, それを返す
   if (index != uct_hash_size) {
+    lock.unlock();
+    while (uct_node[index].child_num.load() == 0) {
+      this_thread::sleep_for(chrono::milliseconds(1));
+    }
     return index;
   }
 
@@ -1212,15 +1216,12 @@ ExpandNode( const game_info_t *game, int color, int current )
 
   assert(index != uct_hash_size);    
 
+  int moves = game->moves;
   // 直前の着手の座標を取り出す
-  pm1 = game->record[moves - 1].pos;
+  int pm1 = game->record[moves - 1].pos;
   // 2手前の着手の座標を取り出す
+  int pm2 = PASS;
   if (moves > 1) pm2 = game->record[moves - 2].pos;
-
-  // 9路盤でなければシチョウを調べる  
-  if (pure_board_size != 9) {
-    LadderExtension(game, color, ladder);
-  }
 
   // 現在のノードの初期化
   uct_node[index].previous_move1 = pm1;
@@ -1234,6 +1235,17 @@ ExpandNode( const game_info_t *game, int color, int current )
   uct_node[index].value_win = 0;
   memset(uct_node[index].statistic, 0, sizeof(statistic_t) * BOARD_MAX);  
   fill_n(uct_node[index].seki, BOARD_MAX, false);
+
+  lock.unlock();
+
+  // 現在見ているノードをロック
+  LOCK_NODE(index);
+
+  // 9路盤でなければシチョウを調べる
+  bool ladder[BOARD_MAX] = { false };
+  if (pure_board_size != 9) {
+    LadderExtension(game, color, ladder);
+  }
 
   child_node_t *uct_child = uct_node[index].child;
   int child_num = 0;
@@ -1254,6 +1266,9 @@ ExpandNode( const game_info_t *game, int color, int current )
 
   // 子ノードの個数を設定
   uct_node[index].child_num = child_num;
+
+  // 現在見ているノードのロックを解除
+  UNLOCK_NODE(index);
 
   return index;
 }
@@ -1855,6 +1870,15 @@ UctSearchPO( uct_search_context_t& ctx, game_info_t *game, int color, mt19937_64
   child_node_t *uct_child = uct_node[current].child;
   const int child_num = uct_node[current].child_num;
 
+  if (uct_node[current].state == NODE_STATE::EVALUATING) {
+    //cerr << "<";
+    for (int i = 0; i < 1000; i++) {
+      this_thread::sleep_for(chrono::milliseconds(1));
+      if (uct_node[current].state == NODE_STATE::EVALUATED)
+        break;
+    }
+  }
+
   // 現在見ているノードをロック
   LOCK_NODE(current);
   // LFR
@@ -1913,8 +1937,6 @@ UctSearchPO( uct_search_context_t& ctx, game_info_t *game, int color, mt19937_64
     AddVirtualLoss(&uct_child[next_index], current);
     // ノードの展開の確認
     if (uct_child[next_index].index == -1) {
-      // ノードの展開中はロック
-      lock_guard<mutex> lock(mutex_expand);
       // ノードの展開
       uct_child[next_index].index = ExpandNode(game, color, current);
       //cerr << "value evaluated " << result << " " << v << " " << *value_result << endl;
@@ -1940,8 +1962,6 @@ UctSearchNN( uct_search_context_t& ctx, game_info_t *game, int color, mt19937_64
 {
   child_node_t *uct_child = uct_node[current].child;
 
-  // 現在見ているノードをロック
-  LOCK_NODE(current);
   /*
   static int block_count[10] = { 0 };
   if (!mutex_nodes[(current)].try_lock()) {
@@ -1952,9 +1972,7 @@ UctSearchNN( uct_search_context_t& ctx, game_info_t *game, int color, mt19937_64
   */
   if (uct_node[current].state != NODE_STATE::EVALUATED) {
     for (int i = 0; i < 1000; i++) {
-      UNLOCK_NODE(current);
       this_thread::sleep_for(chrono::milliseconds(1));
-      LOCK_NODE(current);
       if (uct_node[current].state == NODE_STATE::EVALUATED)
         break;
     }
@@ -1963,6 +1981,9 @@ UctSearchNN( uct_search_context_t& ctx, game_info_t *game, int color, mt19937_64
       return;
     }
   }
+
+  // 現在見ているノードをロック
+  LOCK_NODE(current);
   // UCB値最大の手を求める
   int next_index = SelectMaxUcbChild(ctx, game, current, color);
   // 選んだ手を着手
@@ -2003,11 +2024,12 @@ UctSearchNN( uct_search_context_t& ctx, game_info_t *game, int color, mt19937_64
     */
     // ノードの展開の確認
     if (uct_child[next_index].index == -1) {
-      // ノードの展開中はロック
-      lock_guard<mutex> lock(mutex_expand);
       // ノードの展開
       uct_child[next_index].index = ExpandNode(game, color, current);
     }
+
+    // 現在見ているノードのロックを解除
+    UNLOCK_NODE(current);
 
     int next_node_index = uct_child[next_index].index;
 
@@ -2024,9 +2046,6 @@ UctSearchNN( uct_search_context_t& ctx, game_info_t *game, int color, mt19937_64
       for (int n : req->path)
         atomic_fetch_add(&uct_node[n].value_move_count, VIRTUAL_LOSS_NN);
 
-      // 現在見ているノードのロックを解除
-      UNLOCK_NODE(current);
-
 #if ASYNC_NN
       lock_guard<mutex> lock(mutex_queue);
       eval_nn_queue.push(req);
@@ -2038,8 +2057,6 @@ UctSearchNN( uct_search_context_t& ctx, game_info_t *game, int color, mt19937_64
       return;
     }
 
-    // 現在見ているノードのロックを解除
-    UNLOCK_NODE(current);
     // 手番を入れ替えて1手深く読む
     UctSearchNN(ctx, game, color, mt, uct_child[next_index].index);
   }
