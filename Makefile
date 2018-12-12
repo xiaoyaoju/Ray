@@ -1,11 +1,11 @@
 TARGET=ray
 CXX = mpic++
 OPTIMIZE = -O3
-CPP11 = -std=c++11 -std=c++1y
+CPP11 = -std=c++11 -std=c++1y -Isrc/lz/Eigen/
 WARNING = -Wall
 DEBUG = #-g
 CFLAGS = ${OPTIMIZE} ${WARNING} ${CPP11} ${DEBUG}
-LIBS = -lm -pthread -lOpenCL -lz -lcblas -lopenblas
+LIBS = -lm -pthread -lOpenCL -lz -lcblas -lopenblas -lboost_filesystem -lboost_system
 RM = rm
 
 SRCS=${shell ls src/*.cpp src/lz/*.cpp}
