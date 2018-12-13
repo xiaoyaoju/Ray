@@ -54,7 +54,7 @@ enum search_mode_t { PO, NN };
 
 struct uct_search_context_t {
   int move_count;
-  bool expanded;
+  int depth;
   search_mode_t search_mode;
   std::vector<int> path;
 };
@@ -216,6 +216,8 @@ static std::queue<std::shared_ptr<nn_eval_req>> eval_nn_queue;
 static std::atomic<int> eval_count_value;
 static std::atomic<int> eval_count_eog;
 static double owner_nn[BOARD_MAX];
+static std::atomic<uint64_t> depth_count;
+static std::atomic<uint64_t> depth_sum;
 
 
 //template<double>
@@ -654,6 +656,9 @@ UctSearchGenmove( game_info_t *game, int color )
   eval_count_value = 0;
   eval_count_eog = 0;
 
+  depth_sum = 0;
+  depth_count = 0;
+
   // 探索開始時刻の記録
   begin_time = ray_clock::now();
   
@@ -840,6 +845,7 @@ UctSearchGenmove( game_info_t *game, int color )
     cerr << "NN Speed           :  " << setw(7) << (int)(eval_count_value / finish_time) << " PO/sec " << endl;
     cerr << "Count Captured     :  " << setw(7) << count << endl;
     cerr << "Score              :  " << setw(7) << score << endl;
+    cerr << "Average Depth      :  " << (double)depth_sum / depth_count << endl;
     PrintMoveStat(cerr, game, uct_node, current_root);
     if (uct_child[select_index].index >= 0) {
       cerr << "Opponent Moves" << endl;
@@ -1604,7 +1610,6 @@ ParallelUctSearch( thread_arg_t *arg )
       CopyGame(game, targ->game);
       // 1回プレイアウトする
       c.path.clear();
-      c.expanded = false;
       UctSearchPO(c, game, color, mt[targ->thread_id].get(), current_root, &winner);
       // 探索を打ち切るか確認
       bool interruption = InterruptionCheck();
@@ -1640,7 +1645,6 @@ ParallelUctSearch( thread_arg_t *arg )
       CopyGame(game, targ->game);
       // 1回プレイアウトする
       c.path.clear();
-      c.expanded = false;
       UctSearchPO(c, game, color, mt[targ->thread_id].get(), current_root, &winner);
       // 探索を打ち切るか確認
       bool interruption = InterruptionCheck();
@@ -1684,8 +1688,9 @@ ParallelUctSearchNN( thread_arg_t *arg )
     CopyGame(game, targ->game);
     // 1回プレイアウトする
     c.path.clear();
-    c.expanded = false;
     UctSearchNN(c, game, color, mt[targ->thread_id].get(), current_root);
+    atomic_fetch_add(&depth_sum, c.depth);
+    atomic_fetch_add(&depth_count, 1);
     // 探索を打ち切るか確認
     bool interruption = InterruptionCheck();
     // ハッシュに余裕があるか確認
@@ -1737,7 +1742,6 @@ ParallelUctSearchPondering( thread_arg_t *arg )
       CopyGame(game, targ->game);
       // 1回プレイアウトする
       c.path.clear();
-      c.expanded = false;
       UctSearchPO(c, game, color, mt[targ->thread_id].get(), current_root, &winner);
       // ハッシュに余裕があるか確認
       enough_size = CheckRemainingHashSize();
@@ -1762,7 +1766,6 @@ ParallelUctSearchPondering( thread_arg_t *arg )
       CopyGame(game, targ->game);
       // 1回プレイアウトする
       c.path.clear();
-      c.expanded = false;
       UctSearchPO(c, game, color, mt[targ->thread_id].get(), current_root, &winner);
       // ハッシュに余裕があるか確認
       enough_size = CheckRemainingHashSize();
@@ -1796,7 +1799,6 @@ ParallelUctSearchPonderingNN( thread_arg_t *arg )
     CopyGame(game, targ->game);
     // 1回プレイアウトする
     c.path.clear();
-    c.expanded = false;
     UctSearchNN(c, game, color, mt[targ->thread_id].get(), current_root);
     // ハッシュに余裕があるか確認
     enough_size = CheckRemainingHashSize();
@@ -2015,6 +2017,7 @@ UctSearchNN( uct_search_context_t& ctx, game_info_t *game, int color, mt19937_64
       atomic_fetch_add(&uct_node[node].value_win, value);
       value = 1 - value;
     }
+    ctx.depth = ctx.path.size();
   } else {
     /*
     cerr << "Serach "
@@ -2041,7 +2044,6 @@ UctSearchNN( uct_search_context_t& ctx, game_info_t *game, int color, mt19937_64
       req->path.push_back(next_node_index);
       req->moves = game->moves;
       memcpy(req->record, game->record, sizeof(record_t) * MAX_RECORDS);
-      ctx.expanded = true;
 
       for (int n : req->path)
         atomic_fetch_add(&uct_node[n].value_move_count, VIRTUAL_LOSS_NN);
@@ -2053,6 +2055,7 @@ UctSearchNN( uct_search_context_t& ctx, game_info_t *game, int color, mt19937_64
 #else
       EvalValue(req);
 #endif
+      ctx.depth = ctx.path.size();
 
       return;
     }
