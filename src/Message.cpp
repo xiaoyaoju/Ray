@@ -667,8 +667,8 @@ PrintMoveStat( std::ostream& out, const game_info_t *game, const uct_node_t *uct
 
   out << "|Move|#PO  |#VN  |Simulation|Policy    |Value     |Win       |Best Sequence" << endl;
   // UCB値最大の手を求める  
-  //for (int j = 0; j < std::min(10, child_num); j++) {
-  for (int j = 0; j < child_num; j++) {
+  for (int j = 0; j < std::min(10, child_num); j++) {
+    //for (int j = 0; j < child_num; j++) {
     size_t i = idx[j];
     if (uct_child[i].move_count == 0)
       continue;

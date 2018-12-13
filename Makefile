@@ -1,11 +1,11 @@
 TARGET=ray
 CXX = g++
 OPTIMIZE = -O3
-CPP11 = -std=c++11 -std=c++1y -Isrc/lz/Eigen/
+CPP11 = -std=c++11 -std=c++1y -Isrc/lz/Eigen/  -flto -march=native
 WARNING = -Wall
-DEBUG = #-g
+DEBUG = -DNDEBUG
 CFLAGS = ${OPTIMIZE} ${WARNING} ${CPP11} ${DEBUG}
-LIBS = -lm -pthread -lOpenCL -lz -lcblas -lopenblas -lboost_filesystem -lboost_system
+LIBS = -rdynamic -lm -pthread -lz -lcblas -lopenblas -lboost_filesystem -lboost_system /usr/local/cuda/lib64/libOpenCL.so
 RM = rm
 
 SRCS=${shell ls src/*.cpp src/lz/*.cpp}

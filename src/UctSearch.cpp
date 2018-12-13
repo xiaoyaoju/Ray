@@ -54,7 +54,7 @@ enum search_mode_t { PO, NN };
 
 struct uct_search_context_t {
   int move_count;
-  int depth;
+  uint64_t depth;
   search_mode_t search_mode;
   std::vector<int> path;
 };
@@ -815,7 +815,7 @@ UctSearchGenmove( game_info_t *game, int color )
     pos = PASS;
   } else if (!early_pass && count == 0 && best_wp < pass_wp && max_count < ValueMoveCount(current_root, PASS_INDEX)) {
     pos = PASS;
-#if 0
+#if 1
   } else if (best_wp <= resign_threshold && (!use_nn || best_wpv <= resign_threshold)) {
     pos = RESIGN;
   } else if (use_nn && best_wp <= resign_threshold2 && best_wpv <= resign_threshold) {
@@ -1211,9 +1211,11 @@ ExpandNode( const game_info_t *game, int color, int current )
   // 合流先が検知できれば, それを返す
   if (index != uct_hash_size) {
     lock.unlock();
+    auto begin_time = ray_clock::now();
     while (uct_node[index].child_num.load() == 0) {
-      this_thread::sleep_for(chrono::milliseconds(1));
     }
+    auto finish_time = GetSpendTime(begin_time);
+    cerr << "Wait " << finish_time * 1000 << endl;
     return index;
   }
 
@@ -1684,7 +1686,7 @@ ParallelUctSearchNN( thread_arg_t *arg )
     c.path.clear();
     UctSearchNN(c, game, color, mt[targ->thread_id].get(), current_root);
     atomic_fetch_add(&depth_sum, c.depth);
-    atomic_fetch_add(&depth_count, 1);
+    atomic_fetch_add(&depth_count, 1ul);
     // 探索を打ち切るか確認
     bool interruption = InterruptionCheck();
     // ハッシュに余裕があるか確認
@@ -1962,8 +1964,7 @@ UctSearchNN( uct_search_context_t& ctx, game_info_t *game, int color, mt19937_64
   }
   */
   if (uct_node[current].state != NODE_STATE::EVALUATED) {
-    for (int i = 0; i < 1000; i++) {
-      this_thread::sleep_for(chrono::milliseconds(1));
+    for (int i = 0;; i++) {
       if (uct_node[current].state == NODE_STATE::EVALUATED)
         break;
     }
@@ -2342,7 +2343,9 @@ SelectMaxUcbChild( const uct_search_context_t& ctx, const game_info_t *game, int
         cerr << " LM:" << scale << " ";
       }
 
-      const double rate = uct_child[i].nnrate;
+      double rate = uct_child[i].nnrate;
+      if (current == current_root)
+	rate = pow(rate, 0.8);
 #if 0
       double u_po = sqrt_sum / (1 + move_count);
       double ucb_po = p_po + c_puct * u_po * rate;
