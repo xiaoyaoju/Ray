@@ -1557,6 +1557,7 @@ ExtendTime( void )
 static void
 WaitForEvaluationQueue(bool ponderingmode)
 {
+#if ASYNC_NN
   static std::atomic<int> queue_full;
 
   value_evaluation_threshold = max(0.0, value_evaluation_threshold - 0.01);
@@ -1579,6 +1580,7 @@ WaitForEvaluationQueue(bool ponderingmode)
     mutex_queue.lock();
   }
   mutex_queue.unlock();
+#endif
 }
 
 /////////////////////////////////
