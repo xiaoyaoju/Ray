@@ -1464,15 +1464,17 @@ InterruptionCheck( void )
   const int nn_rest = po_info.nn_halt - po_info.nn_count;
   child_node_t *uct_child = uct_node[current_root].child;
 
-  /*
   if (mode != CONST_PLAYOUT_MODE &&
       GetSpendTime(begin_time) * 2.0 < time_limit) {
       return false;
   }
-  */
 
-  if (mode == CONST_PLAYOUT_MODE)
-    return false;
+  if (mode == CONST_PLAYOUT_MODE) {
+    return (po_info.count >= po_info.halt) || (po_info.nn_count >= po_info.nn_halt);
+  } else {
+    if (GetSpendTime(begin_time) > time_limit)
+      return true;
+  }
 
   // 探索回数が最も多い手と次に多い手を求める
   int max = 0, second = 0;
@@ -1621,16 +1623,11 @@ ParallelUctSearch( thread_arg_t *arg )
         CalculateCriticality(color);
         interval += CRITICALITY_INTERVAL;
       }
-      if (GetSpendTime(begin_time) > time_limit) break;
       if (!enough_size) cerr << "HASH TABLE FULL" << endl;
       if (interruption || !enough_size) {
         cerr << "interrupted" << endl;
         break;
       }
-      if (po_info.count >= po_info.halt)
-        break;
-      if (po_info.nn_count >= po_info.nn_halt)
-        break;
     } while (true);
     lock_guard<mutex> lock(mutex_queue);
     running = false;
@@ -1650,13 +1647,8 @@ ParallelUctSearch( thread_arg_t *arg )
       bool interruption = InterruptionCheck();
       // ハッシュに余裕があるか確認
       enough_size = CheckRemainingHashSize();
-      if (GetSpendTime(begin_time) > time_limit) break;
       if (!enough_size) cerr << "HASH TABLE FULL" << endl;
       if (interruption || !enough_size)
-        break;
-      if (po_info.count >= po_info.halt)
-        break;
-      if (po_info.nn_count >= po_info.nn_halt)
         break;
     } while (true);
   }
@@ -1695,13 +1687,8 @@ ParallelUctSearchNN( thread_arg_t *arg )
     bool interruption = InterruptionCheck();
     // ハッシュに余裕があるか確認
     enough_size = CheckRemainingHashSize();
-    if (GetSpendTime(begin_time) > time_limit) break;
     if (!enough_size) cerr << "HASH TABLE FULL" << endl;
     if (interruption || !enough_size)
-      break;
-    if (po_info.count >= po_info.halt)
-      break;
-    if (po_info.nn_count >= po_info.nn_halt)
       break;
   } while (true);
 
