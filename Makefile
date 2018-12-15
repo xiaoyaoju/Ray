@@ -1,5 +1,5 @@
 TARGET=ray
-CXX = mpic++
+CXX = g++
 OPTIMIZE = -O3
 CPP11 = -std=c++11 -std=c++1y -Isrc/lz/Eigen/
 WARNING = -Wall
