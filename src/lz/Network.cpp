@@ -483,7 +483,7 @@ void Network::initialize(int playouts, const std::string & weightsfile) {
     // explicitly set a maximum memory usage.
     m_nncache.set_size_from_playouts(playouts);
 #else
-    m_nncache.resize(10000);
+    m_nncache.resize(NNCache::MAX_CACHE_COUNT);
 #endif
 
     // Prepare symmetry table
