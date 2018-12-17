@@ -311,6 +311,13 @@ static void UpdateResult( child_node_t *child, int result, int current );
 // 乱数の初期化
 static void InitRand();
 
+
+static inline double
+MoveSelectionWeight(int node, int child)
+{
+  return ValueMoveCount(node, child) + static_cast<double>(uct_node[node].child[child].move_count) / uct_node[node].move_count;
+}
+
 /////////////////////
 //  予測読みの設定  //
 /////////////////////
@@ -623,7 +630,7 @@ StopPondering( void )
 int
 UctSearchGenmove( game_info_t *game, int color )
 {
-  int pos, select_index, max_count;
+  int pos, select_index;
   double finish_time, pass_wp, best_wp;
   child_node_t *uct_child;
 
@@ -750,11 +757,11 @@ UctSearchGenmove( game_info_t *game, int color )
   uct_child = uct_node[current_root].child;
 
   select_index = PASS_INDEX;
-  max_count = early_pass ? ValueMoveCount(current_root, PASS_INDEX) : 0;
+  auto max_count = early_pass ? MoveSelectionWeight(current_root, PASS_INDEX) : 0;
 
   // 探索回数最大の手を見つける
   for (int i = 1; i < uct_node[current_root].child_num; i++){
-    int c = ValueMoveCount(current_root, i);
+    auto c = MoveSelectionWeight(current_root, i);
     if (c > max_count) {
       select_index = i;
       max_count = c;
@@ -813,7 +820,7 @@ UctSearchGenmove( game_info_t *game, int color )
 	     game->record[game->moves - 1].pos == PASS &&
 	     game->record[game->moves - 3].pos == PASS) {
     pos = PASS;
-  } else if (!early_pass && count == 0 && best_wp < pass_wp && max_count < ValueMoveCount(current_root, PASS_INDEX)) {
+  } else if (!early_pass && count == 0 && best_wp < pass_wp && max_count < MoveSelectionWeight(current_root, PASS_INDEX)) {
     pos = PASS;
 #if 0
   } else if (best_wp <= resign_threshold && (!use_nn || best_wpv <= resign_threshold)) {
@@ -1508,19 +1515,20 @@ ExtendTime( void )
   if (time_limit < 2.0)
     return false;
 
-  int max = 0, second = 0;
+  double max = 0, second = 0;
   int max_index = 0;
   const int child_num = uct_node[current_root].child_num;
   child_node_t *uct_child = uct_node[current_root].child;
 
   // 探索回数が最も多い手と次に多い手を求める
   for (int i = 0; i < child_num; i++) {
-    if (uct_child[i].move_count > max) {
+    auto w = MoveSelectionWeight(current_root, i);
+    if (w > max) {
       second = max;
-      max = uct_child[i].move_count;
+      max = w;
       max_index = i;
-    } else if (uct_child[i].move_count > second) {
-      second = uct_child[i].move_count;
+    } else if (w > second) {
+      second = w;
     }
   }
 
@@ -2207,6 +2215,7 @@ SelectMaxUcbChild( const uct_search_context_t& ctx, const game_info_t *game, int
 
 #if 1
       if (current == current_root) {
+        // Prune
         int max_value_move_count = 0;
         for (int i = 0; i < child_num; i++) {
           int m = ValueMoveCount(current, order[i].index);
