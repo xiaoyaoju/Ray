@@ -73,6 +73,9 @@ extern double search_threshold_policy_rate;
 extern double pass_po_limit;
 extern int value_batch_size;
 
+// 候補手のフラグ
+extern bool candidates[BOARD_MAX];
+extern bool use_custom_candidates;
 
 enum SEARCH_MODE {
   CONST_PLAYOUT_MODE,             // 1手のプレイアウト回数を固定したモード

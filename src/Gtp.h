@@ -9,7 +9,7 @@
 const int GTP_COMMAND_SIZE = 64;
 
 //  GTPコマンド入力文字列の上限
-const int BUF_SIZE = 256;
+const int BUF_SIZE = 4096;
 
 //  コマンドの区切り文字(空白文字)
 #define DELIM  " "

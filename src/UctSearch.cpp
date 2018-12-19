@@ -149,6 +149,7 @@ int criticality_index[BOARD_MAX];
 
 // 候補手のフラグ
 bool candidates[BOARD_MAX];  
+bool use_custom_candidates = false;
 
 // 投了する勝率の閾値
 double resign_threshold = 0.10;
@@ -649,7 +650,8 @@ UctSearchGenmove( game_info_t *game, int color )
     pos = onboard_pos[i];
     owner[pos] = 50;
     owner_index[pos] = 5;
-    candidates[pos] = true;
+    if (!use_custom_candidates)
+      candidates[pos] = true;
 
     owner_nn[pos] = 50;
   }
@@ -892,7 +894,8 @@ UctSearchPondering(game_info_t *game, int color)
     pos = onboard_pos[i];
     owner[pos] = 50;
     owner_index[pos] = 5;
-    candidates[pos] = true;
+    if (!use_custom_candidates)
+      candidates[pos] = true;
   }
 
   // UCTの初期化
@@ -965,7 +968,8 @@ UctSearchStat(game_info_t *game, int color, int num)
     pos = onboard_pos[i];
     owner[pos] = 50;
     owner_index[pos] = 5;
-    candidates[pos] = true;
+    if (!use_custom_candidates)
+      candidates[pos] = true;
   }
 
   if (reuse_subtree) {
@@ -1115,13 +1119,13 @@ ExpandRoot( game_info_t *game, int color )
       uct_child[i].rate = 0.0;
       uct_child[i].flag = false;
       uct_child[i].open = false;
-      if (ladder[pos]) {
+      if (ladder[pos] || !candidates[pos]) {
         uct_node[index].move_count -= uct_child[i].move_count;
         uct_node[index].win -= uct_child[i].win;
         uct_child[i].move_count = 0;
         uct_child[i].win = 0;
       }
-      uct_child[i].ladder = ladder[pos];
+      uct_child[i].ladder = ladder[pos] || !candidates[pos];
     }
 
     // 展開されたノード数を1に初期化

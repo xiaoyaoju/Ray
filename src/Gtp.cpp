@@ -125,6 +125,10 @@ static void GTP_features_store(void);
 static void GTP_stat(void);
 //
 static void GTP_stat_po(void);
+// Set move candidates
+static void GTP_ray_set_candidates(void);
+// Clear move candidates
+static void GTP_ray_clear_candidates(void);
 
 
 ////////////
@@ -159,6 +163,8 @@ const GTP_command_t gtpcmd[] = {
   { "ray-best_sequence", GTP_ray_best_sequence },
   { "ray-param", GTP_ray_param },
   { "ray-stat", GTP_ray_stat },
+  { "ray-set-candidates", GTP_ray_set_candidates },
+  { "ray-clear-candidates", GTP_ray_clear_candidates },
   { "_clear", GTP_features_clear },
   { "_store", GTP_features_store },
   { "_dump", GTP_features_planes_file },
@@ -812,6 +818,8 @@ GTP_gogui_analyze_commands()
     "none/Togle Live Best Sequence/ray-toggle_live_best_sequence\n"
     "gfx/Print Best Sequence/ray-best_sequence %m\n"
     "hpstring/Print Moves/ray-stat %m\n"
+    "eplist/Candidates/ray-set-candidates\n"
+    "none/Reset Candidates/ray-clear-candidates\n"
     "",
     true);
 }
@@ -1313,4 +1321,49 @@ GTP_stat_po(void)
     color = FLIP_COLOR(color);
   }
 #endif
+}
+
+static void GTP_ray_set_candidates(void)
+{
+  char *command = STRTOK(input_copy, DELIM, &next_token);
+  command = STRTOK(NULL, DELIM, &next_token);
+  CHOMP(command);
+
+  if (!strcmp("show", command)) {
+    std::string all;
+    if (use_custom_candidates) {
+      for (int i = 0; i < pure_board_max; i++) {
+        int pos = onboard_pos[i];
+        char point[10];
+        if (candidates[pos]) {
+          IntegerToString(pos, point);
+          all += point;
+          all += " ";
+        }
+      }
+    }
+    GTP_response(all.c_str(), true);
+  } else {
+    use_custom_candidates = true;
+    for (int i = 0; i < pure_board_max; i++) {
+      int pos = onboard_pos[i];
+      candidates[pos] = false;
+    }
+    while (command != nullptr) {
+      int pos = StringToInteger(command);
+      candidates[pos] = true;
+      cerr << "# " << FormatMove(pos) << endl;
+      command = STRTOK(NULL, DELIM, &next_token);
+      if (command == nullptr)
+        break;
+      CHOMP(command);
+    }
+    GTP_response(brank, true);
+  }
+}
+
+static void GTP_ray_clear_candidates(void)
+{
+  use_custom_candidates = false;
+  GTP_response(brank, true);
 }
