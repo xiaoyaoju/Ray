@@ -223,14 +223,25 @@ static int
 GetResult( SGF_record_t *kifu, char *sgf_text, int cursor )
 {
   int tmp_cursor = 3;
-  while ((cursor+tmp_cursor < 100000) && (sgf_text[cursor + tmp_cursor] != ']')) tmp_cursor++;  
+  while ((cursor+tmp_cursor < 100000) && (sgf_text[cursor + tmp_cursor] != ']')) tmp_cursor++;
+
+  char score[10] = {0};
+  for (int i = 4; i < tmp_cursor; i++) {
+    if (cursor + i < 100000){
+      score[i - 4] = sgf_text[cursor + i];
+    }
+  }
+
+  kifu->score = 0;
   if (cursor + 3 < 100000){
     switch (sgf_text[cursor + 3]) {
     case 'B':
       kifu->result = R_BLACK;
+      kifu->score = atof(score);
       break;
     case 'W':
       kifu->result = R_WHITE;
+      kifu->score = atof(score);
       break;
     case '0':
     case 'D':

@@ -56,6 +56,7 @@ struct DataSet {
   std::vector<float> win;
   std::vector<float> move;
   std::vector<float> statistic;
+  std::vector<float> score;
 };
 
 class Reader {
@@ -87,12 +88,17 @@ public:
     int win_color;
     if (kifu.handicaps > 0)
       return false;
+    if (kifu.moves == 0)
+      return false;
     switch (kifu.result) {
     case R_BLACK:
       win_color = S_BLACK;
       break;
     case R_WHITE:
       win_color = S_WHITE;
+      break;
+    case R_JIGO:
+      win_color = S_EMPTY;
       break;
     default:
       return false;
@@ -227,15 +233,24 @@ public:
 #endif
           }
 #endif
-          data.win.push_back(win_color == color ? 1 : -1);
+          if (win_color == S_BLACK)
+            data.win.push_back(1);
+          else if (win_color == S_WHITE)
+            data.win.push_back(-1);
+          else
+            data.win.push_back(0);
           i++;
           for (; i < kifu.moves - 1; i++) {
             int pos = GetKifuMove(&kifu, i);
-            if (!IsLegal(game, pos, color))
-              return false;
+            if (!IsLegal(game, pos, color)) {
+              cerr << "illegal move" << endl;
+              abort();
+              //return false;
+            }
             PutStone(game, pos, color);
             color = FLIP_COLOR(color);
           }
+          //PrintBoard(game);
           Simulation(game, color, &mt);
 
           //PrintBoard(game);
@@ -248,13 +263,52 @@ public:
             float o;
             if (c == S_EMPTY)
               o = 0;
-            else if (c == my_color)
+            else if (c == S_BLACK)
               o = 1;
             else
               o = -1;
             sum += o;
             data.statistic.push_back(o);
           }
+          double score = sum;
+          switch (kifu.result) {
+          case R_BLACK:
+            if (kifu.score != 0)
+              score = kifu.komi + kifu.score;
+            break;
+          case R_WHITE:
+            if (kifu.score != 0)
+              score = kifu.komi - kifu.score;
+            break;
+          case R_JIGO:
+            score = kifu.komi;
+            break;
+          default:
+            break;
+          }
+          //cerr << "sum:" << sum << " score:" << score << endl;
+          static std::atomic<int64_t> score_error;
+          static std::atomic<int64_t> sum_komi;
+          static std::atomic<int64_t> score_num;
+          std::atomic_fetch_add(&score_num, (int64_t)1);
+          std::atomic_fetch_add(&score_error, (int64_t)abs(score - sum));
+          std::atomic_fetch_add(&sum_komi, (int64_t)kifu.komi);
+          if (score_num % 100000 == 0) {
+            cerr << "score error: " << (score_error / (double)score_num)
+              << " komi:" << (sum_komi / (double)score_num)
+              << endl;
+          }
+
+          //data.score.push_back(score);
+          int score_label = round(score - 7.0) + 20;
+          if (score_label < 0)
+            score_label = 0;
+          if (score_label > 39)
+            score_label = 39;
+          for (int j = 0; j < 40; j++) {
+            data.score.push_back(score_label == j ? 1.0f : 0.0f);
+          }
+
           //cerr << "RE:" << kifu.result << " color:" << my_color << " RAND:" << kifu.random_move << " sum:" << sum << endl;
           data.num_req++;
           return true;
@@ -276,16 +330,24 @@ public:
     auto data = make_unique<DataSet>();
     data->num_req = 0;
     data->basic.reserve(pure_board_max * 24 * n);
-    data->features.reserve(pure_board_max * (F_MAX1 + F_MAX2) * n);
+    data->features.reserve(pure_board_max * (F_MAX1 + F_MAX2) * 2 * n);
     data->history.reserve(pure_board_max * n);
     data->color.reserve(n);
     data->komi.reserve(n);
     data->win.reserve(n);
     data->move.reserve(pure_board_max * n);
     data->statistic.reserve(pure_board_max * n);
+    data->score.reserve(n);
 
     while (data->num_req < n) {
       ReadOne(*data);
+      /*
+      cerr << data->num_req
+        << " basic:" << data->basic.size()
+        << " win:" << data->win.size()
+        << " score:" << data->score.size()
+        << endl;
+      */
     }
 
     return data;
@@ -298,6 +360,7 @@ public:
   FunctionPtr net;
   CNTK::Variable var_basic, var_features, var_history, var_color, var_komi, var_statistic;
   CNTK::Variable var_win, var_move;
+  CNTK::Variable var_score;
 
   explicit MinibatchReader(FunctionPtr net)
     : net(net) {
@@ -312,6 +375,7 @@ public:
     GetInputVariableByName(net, L"win", var_win);
     GetInputVariableByName(net, L"move", var_move);
     GetInputVariableByName(net, L"statistic", var_statistic);
+    GetInputVariableByName(net, L"score", var_score);
 
     //CNTK::Variable var_ol;
     //GetOutputVaraiableByName(net, L"ol_L2", var_ol);
@@ -334,8 +398,10 @@ public:
     CNTK::ValuePtr value_win = CNTK::MakeSharedObject<CNTK::Value>(CNTK::MakeSharedObject<CNTK::NDArrayView>(shape_win, data.win, true));
     CNTK::NDShape shape_move = var_move.Shape().AppendShape({ 1, num_req });
     CNTK::ValuePtr value_move = CNTK::MakeSharedObject<CNTK::Value>(CNTK::MakeSharedObject<CNTK::NDArrayView>(shape_move, data.move, true));
-    //CNTK::NDShape shape_statistic = var_statistic.Shape().AppendShape({ 1, num_req });
-    //CNTK::ValuePtr value_statistic = CNTK::MakeSharedObject<CNTK::Value>(CNTK::MakeSharedObject<CNTK::NDArrayView>(shape_statistic, data.statistic, true));
+    CNTK::NDShape shape_statistic = var_statistic.Shape().AppendShape({ 1, num_req });
+    CNTK::ValuePtr value_statistic = CNTK::MakeSharedObject<CNTK::Value>(CNTK::MakeSharedObject<CNTK::NDArrayView>(shape_statistic, data.statistic, true));
+    CNTK::NDShape shape_score = var_score.Shape().AppendShape({ 1, num_req });
+    CNTK::ValuePtr value_score = CNTK::MakeSharedObject<CNTK::Value>(CNTK::MakeSharedObject<CNTK::NDArrayView>(shape_score, data.score, true));
 
     std::unordered_map<CNTK::Variable, CNTK::ValuePtr> inputs = {
       { var_basic, value_basic },
@@ -345,7 +411,8 @@ public:
       //{ var_komi, value_komi },
       { var_win, value_win },
       { var_move, value_move },
-      //{ var_statistic , value_statistic },
+      { var_statistic , value_statistic },
+      { var_score , value_score },
     };
 
     return inputs;
@@ -395,15 +462,39 @@ ReadFiles(int thread_no, size_t offset, size_t size, vector<SGF_record_t> *recor
   std::mt19937_64 mt{ rd() };
   shuffle(begin(files), end(files), mt);
 
+  game_info_t* game = AllocateGame();
+
   for (size_t i = 0; i < size; i++) {
     auto kifu = &(*records)[i * threads + thread_no];
     ExtractKifu(files[i].c_str(), kifu);
-    if (kifu->moves == 0)
-      cerr << "Bad file " << files[i] << endl;
+    if (kifu->moves < 20 || kifu->result == R_UNKNOWN) {
+      //cerr << "Bad file " << files[i] << endl;
+      kifu->moves = 0;
+      continue;
+    }
 
     if (kifu->moves > pure_board_max * 0.9)
       kifu->moves = pure_board_max * 0.9;
+
+    InitializeBoard(game);
+    int color = S_BLACK;
+    for (int i = 0; i < kifu->moves - 1; i++) {
+      int pos = GetKifuMove(kifu, i);
+      if (pos == PASS) {
+        kifu->moves = i;
+        break;
+      }
+      if (!IsLegal(game, pos, color)) {
+        //cerr << "Bad file illegal move " << files[i] << endl;
+        kifu->moves = 0;
+        break;
+      }
+      PutStone(game, pos, color);
+      color = FLIP_COLOR(color);
+    }
   }
+
+  FreeGame(game);
 }
 
 static volatile bool running;
@@ -458,20 +549,41 @@ Train()
 
     const int cv_size = 1024;
     vector<SGF_record_t> cv_records(cv_size);
+    game_info_t* cv_game = AllocateGame();
     for (int i = 0; i < cv_size; i++) {
       auto f = filenames.back();
       filenames.pop_back();
 
       auto kifu = &cv_records[i];
       ExtractKifu(f.c_str(), kifu);
-      if (kifu->moves == 0) {
-        cerr << "Bad file " << f << endl;
+      if (kifu->moves < 20 || kifu->result == R_UNKNOWN) {
+        //cerr << "Bad file " << f << endl;
         i--;
+        continue;
       }
 
       if (kifu->moves > pure_board_max * 0.9)
         kifu->moves = pure_board_max * 0.9;
+
+      InitializeBoard(cv_game);
+      int color = S_BLACK;
+      for (int i = 0; i < kifu->moves - 1; i++) {
+        int pos = GetKifuMove(kifu, i);
+        if (pos == PASS) {
+          kifu->moves = i;
+          break;
+        }
+        if (!IsLegal(cv_game, pos, color)) {
+          cerr << "Bad file illegal move " << f << endl;
+          kifu->moves = 0;
+          break;
+        }
+        PutStone(cv_game, pos, color);
+        color = FLIP_COLOR(color);
+      }
     }
+
+    FreeGame(cv_game);
 
     vector<unique_ptr<DataSet>> cv_data;
     Reader cv_reader{ 0, &cv_records, 1 };
@@ -578,9 +690,10 @@ Train()
       //GetVariableByName(net->Outputs(), L"ce_2", trainingLoss);
       GetVariableByName(net->Outputs(), L"ce", trainingLoss);
 
-      Variable err_move, err_value2;
+      Variable err_move, err_value2, err_score;
       GetVariableByName(net->Outputs(), L"errs_move", err_move);
       GetVariableByName(net->Outputs(), L"err_value2", err_value2);
+      GetVariableByName(net->Outputs(), L"err_score", err_score);
 
       InitializeSearchSetting();
       InitializeUctHash();
@@ -620,7 +733,7 @@ Train()
       //Variable classifierOutputVar;
       //FunctionPtr classifierOutput = classifierOutputVar;
       Variable prediction;
-      switch (alt % 2) {
+      switch (alt % 3) {
       case 0:
         GetOutputVaraiableByName(net, L"errs_move", prediction);
         break;
@@ -628,7 +741,8 @@ Train()
         GetOutputVaraiableByName(net, L"err_value2", prediction);
         break;
       case 2:
-        GetOutputVaraiableByName(net, L"err_owner", prediction);
+        //GetOutputVaraiableByName(net, L"err_owner", prediction);
+        GetOutputVaraiableByName(net, L"err_score", prediction);
         break;
       }
       wcerr << prediction.AsString() << endl;
@@ -709,7 +823,7 @@ Train()
             totalNumberOfSamples += cv_data[i]->num_req;
             numberOfMinibatches++;
           }
-          fprintf(stderr, "CV %.8g, %d\n", accumulatedError / totalNumberOfSamples, totalNumberOfSamples);
+          fprintf(stderr, "CV %.8g, %zd\n", accumulatedError / totalNumberOfSamples, totalNumberOfSamples);
 
           //m_cv.m_source->RestoreFromCheckpoint(checkpoint);
           trainer->SummarizeTestProgress();

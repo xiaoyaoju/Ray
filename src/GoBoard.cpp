@@ -2056,8 +2056,8 @@ WritePlanes(
   bool ladder[2][BOARD_MAX] = { false };
 
   // シチョウを調べる
-  LadderExtension(game, color, ladder[0]);
-  LadderExtension(game, opp, ladder[1]);
+  LadderExtension(game, S_BLACK, ladder[0]);
+  LadderExtension(game, S_WHITE, ladder[1]);
 
   {
     const int ko = game->ko_pos;
@@ -2073,8 +2073,8 @@ WritePlanes(
 
     data_basic.reserve(data_basic.size() + pure_board_max * 24);
 
-    OUTPUT({ OUTPUT_FEATURE(data_basic, c == color); });
-    OUTPUT({ OUTPUT_FEATURE(data_basic, c == opp); });
+    OUTPUT({ OUTPUT_FEATURE(data_basic, c == S_BLACK); });
+    OUTPUT({ OUTPUT_FEATURE(data_basic, c == S_WHITE); });
     OUTPUT({ OUTPUT_FEATURE(data_basic, c == S_EMPTY); });
     OUTPUT({ OUTPUT_FEATURE(data_basic, color == S_BLACK); });
     OUTPUT({ OUTPUT_FEATURE(data_basic, true); });
@@ -2082,9 +2082,9 @@ WritePlanes(
     OUTPUT({ OUTPUT_FEATURE(data_basic, p == ko); });
 
     for (int i = 0; i < 8; i++)
-      OUTPUT({ int l = GetLibs(game, p); OUTPUT_FEATURE(data_basic, c == color && l == i + 1); });
+      OUTPUT({ int l = GetLibs(game, p); OUTPUT_FEATURE(data_basic, c == S_BLACK && l == i + 1); });
     for (int i = 0; i < 8; i++)
-      OUTPUT({ int l = GetLibs(game, p); OUTPUT_FEATURE(data_basic, c == opp && l == i + 1); });
+      OUTPUT({ int l = GetLibs(game, p); OUTPUT_FEATURE(data_basic, c == S_WHITE && l == i + 1); });
 
     OUTPUT({ OUTPUT_FEATURE(data_basic, ladder[0][p]); });
     OUTPUT({ OUTPUT_FEATURE(data_basic, ladder[1][p]); });
@@ -2094,7 +2094,7 @@ WritePlanes(
     double rate[PURE_BOARD_MAX];
 
     for (int side = 0; side < 2; side++) {
-      AnalyzePoRating(game, side == 0 ? color : opp, rate);
+      AnalyzePoRating(game, side == 0 ? S_BLACK : S_WHITE, rate);
 
       for (int i = 0; i < F_MAX1; i++) {
         OUTPUT({
@@ -2148,7 +2148,7 @@ WritePlanes(
         for (int x = board_start; x <= board_end; x++) {
           int pos = TransformMove(POS(x, y), tran);
           // int pos = POS(x, y);
-          double owner = (double)statistic[pos].colors[color] / root->move_count;
+          double owner = (double)statistic[pos].colors[S_BLACK] / root->move_count;
           double o = round(owner * 100) / 100;
           /*
           if (owner > 0.5) {

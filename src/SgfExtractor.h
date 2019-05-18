@@ -18,6 +18,7 @@ struct SGF_record_t {
   int random_move;
   std::string comment[800];
   double komi;          // コミ
+  double score;
 };
 
 
