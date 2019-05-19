@@ -73,13 +73,13 @@ ExtractKifu( const char *file_name, SGF_record_t *kifu )
   errno_t err;
 
   if((err = fopen_s(&fp, file_name, "r")) != 0) {
-    printf("Can't open this file!!\n");
+    printf("Can't open this file!! %s\n", file_name);
     //exit(1);
     return;
   } 
 #else
   if((fp = fopen(file_name, "r")) == NULL) {
-    printf("Can't open this file!!\n");
+    printf("Can't open this file!! %s\n", file_name);
     //exit(1);
     return;
   }

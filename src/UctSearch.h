@@ -61,6 +61,9 @@ extern double resign_threshold;
 // Virtual Loss (Best Parameter)
 const int VIRTUAL_LOSS = 1;
 
+const int SCORE_DIM = 40;
+const int SCORE_OFFSET = 7 - 20;
+
 extern double c_puct;
 extern double value_scale;
 extern double custom_policy_temperature;
@@ -132,6 +135,7 @@ struct uct_node_t {
   //std::atomic<double> value;
   std::atomic<int> value_move_count;
   std::atomic<double> value_win;
+  std::atomic<double> score[SCORE_DIM];
 };
 
 struct po_info_t {

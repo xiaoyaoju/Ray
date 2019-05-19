@@ -666,7 +666,8 @@ UctSearchGenmove( game_info_t *game, int color )
 
   eval_count = 0;
 
-  in_opening = game->moves < 10;
+  //in_opening = game->moves < 10;
+  in_opening = false;
 
   // 探索開始時刻の記録
   begin_time = ray_clock::now();
@@ -831,6 +832,19 @@ UctSearchGenmove( game_info_t *game, int color )
 
     }
     //PrintOwnerNN(S_BLACK, owner_nn);
+
+    double sum = 0;
+    for (int i = 0; i < SCORE_DIM; i++) {
+      sum += uct_node[current_root].score[i];
+    }
+    for (int i = 0; i < SCORE_DIM; i++) {
+      cerr << setw(4) << (i + SCORE_OFFSET) << " | ";
+      int n = 100 * uct_node[current_root].score[i] / sum;
+      for (int j = 0; j < n; j++) {
+        cerr << "*";
+      }
+      cerr << endl;
+    }
   }
 
   return pos;
@@ -2629,7 +2643,7 @@ GetDevice()
 
 CNTK::FunctionPtr GetPolicyNetwork()
 {
-  return nn_policy;
+  return nn_model;
 }
 
 void
@@ -2734,6 +2748,8 @@ EvalValue(
   GetOutputVaraiableByName(nn_model, L"p2", var_p);
   CNTK::Variable var_ol;
   GetOutputVaraiableByName(nn_model, L"ol", var_ol);
+  CNTK::Variable var_score;
+  GetOutputVaraiableByName(nn_model, L"score_out", var_score);
 
   size_t num_req = requests.size();
 
@@ -2750,6 +2766,7 @@ EvalValue(
 
   CNTK::ValuePtr value_p;
   CNTK::ValuePtr value_ol;
+  CNTK::ValuePtr value_score;
 
   std::unordered_map<CNTK::Variable, CNTK::ValuePtr> inputs = {
     { var_basic, value_basic },
@@ -2761,6 +2778,7 @@ EvalValue(
   std::unordered_map<CNTK::Variable, CNTK::ValuePtr> outputs = {
     { var_p, value_p },
     { var_ol, value_ol },
+    { var_score, value_score },
   };
 
   try {
@@ -2793,6 +2811,26 @@ EvalValue(
   if (moves.size() != pure_board_max * num_req) {
     cerr << "Eval move error " << moves.size() << endl;
     return;
+  }
+
+  value_score = outputs[var_score];
+  CNTK::NDShape shape_score = var_score.Shape().AppendShape({ 1, num_req });
+  vector<float> score(shape_score.TotalSize());
+  CNTK::NDArrayViewPtr cpu_score = CNTK::MakeSharedObject<CNTK::NDArrayView>(shape_score, score, false);
+  cpu_score->CopyFrom(*value_score->Data());
+
+  if (score.size() != requests.size() * 40) {
+    cerr << "Eval score error " << score.size() << endl;
+    return;
+  }
+
+  double sum = 0;
+  for (int i = 0; i < SCORE_DIM; i++) {
+    //score[i] = exp(score[i]);
+    sum += score[i];
+  }
+  for (int i = 0; i < SCORE_DIM; i++) {
+    score[i] /= sum;
   }
 
   //cerr << "Eval " << indices.size() << " " << path.size() << endl;
@@ -2828,7 +2866,7 @@ EvalValue(
 
     UNLOCK_NODE(index);
 
-    double p = (win[j] + 1.0) / 2.0;
+    double p = ((double)win[j] + 1) / 2;
     if (p < 0)
       p = 0;
     if (p > 1)
@@ -2837,7 +2875,8 @@ EvalValue(
     if (isnan(p) || isinf(p))
       p = 0.501;
 
-    double value = 1 - p;// req->color == S_BLACK ? 1 - p : p;
+    //double value = 1 - p;
+    double value = req->color == S_BLACK ? 1 - p : p;
 
     //req->uct_child->value = value;
     for (int i = req->path.size() - 1; i >= 0; i--) {
@@ -2847,6 +2886,10 @@ EvalValue(
 
       atomic_fetch_add(&uct_node[current].value_move_count, 1);
       atomic_fetch_add(&uct_node[current].value_win, value);
+
+      for (int k = 0; k < SCORE_DIM; k++) {
+        atomic_fetch_add(&uct_node[current].score[k], score[k]);
+      }
       value = 1 - value;
     }
   }
