@@ -2984,9 +2984,8 @@ PolicyNetworkGenmove( game_info_t *game, int color )
   double drate[PURE_BOARD_MAX];
   AnalyzePoRating(game, color, drate);
 
-  auto req = make_shared<policy_eval_req>();
+  auto req = make_shared<nn_eval_req>();
   req->color = color;
-  req->depth = 0;
   req->index = current_root;
   req->trans = rand() / (RAND_MAX / 8 + 1);
   //req.path.swap(path);
@@ -3001,9 +3000,17 @@ PolicyNetworkGenmove( game_info_t *game, int color )
 
   auto org_policy_temperature = policy_temperature;
   policy_temperature = 1.0;
-  std::vector<std::shared_ptr<policy_eval_req>> requests;
+  std::vector<std::shared_ptr<nn_eval_req>> requests;
   requests.push_back(req);
-  EvalPolicy(requests, req->data_basic, req->data_features, req->data_history, data_color, data_komi);
+
+  std::vector<float> eval_input_data_color;
+  std::vector<float> eval_input_data_komi;
+  std::vector<float> eval_input_data_safety;
+
+  eval_input_data_color.push_back(req->color - 1);
+  eval_input_data_komi.push_back(komi[0]);
+
+  EvalValue(requests, req->data_basic, req->data_features, req->data_history, eval_input_data_color, eval_input_data_komi, eval_input_data_safety);
   policy_temperature = org_policy_temperature;
 
   // Select move

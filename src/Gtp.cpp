@@ -1542,8 +1542,8 @@ GTP_generate_kifu(void)
   }
 
   // Play to random turn
-  policy_temperature = 1.5;
-  policy_temperature_inc = 0;
+  custom_policy_temperature = 1.5;
+  custom_policy_temperature_inc = 0;
   root_policy_rate_min = 0;
 
   uniform_int_distribution<int> dist_turn(0, pure_board_max * 0.6);
@@ -1577,8 +1577,8 @@ GTP_generate_kifu(void)
   int win_color = 0;
   if (false) {
     // Speedup
-    policy_temperature = 0.5;
-    policy_temperature_inc = 0;
+    custom_policy_temperature = 0.5;
+    custom_policy_temperature_inc = 0;
 
     while (game->moves < 250) {
       player_color = color;
@@ -1592,8 +1592,8 @@ GTP_generate_kifu(void)
   }
 
   //seach_threshold_policy_rate = 0.05;
-  policy_temperature = 0.49;
-  policy_temperature_inc = 0.056;
+  custom_policy_temperature = 0.49;
+  custom_policy_temperature_inc = 0.056;
   root_policy_rate_min = 0.01;
   komi[S_BLACK] = dynamic_komi[S_BLACK] = komi[0];
   komi[S_WHITE] = dynamic_komi[S_WHITE] = komi[0];
