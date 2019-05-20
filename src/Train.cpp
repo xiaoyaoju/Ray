@@ -235,7 +235,7 @@ public:
             PutStone(game, pos, color);
             color = FLIP_COLOR(color);
           }
-          Simulation(game, color, &mt, lgr, ctx);
+          Simulation(game, color, &mt);
 
           //PrintBoard(game);
           float sum = 0;
