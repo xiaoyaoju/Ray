@@ -108,7 +108,6 @@ struct child_node_t {
   int pos;  // 着手する座標
   std::atomic<int> move_count;  // 探索回数
   std::atomic<int> win;         // 勝った回数
-  std::atomic<bool> eval_value;
   int index;   // インデックス
   double rate; // 着手のレート
   double nnrate0; // ニューラルネットワークでのレート
@@ -132,6 +131,7 @@ struct uct_node_t {
   statistic_t statistic[BOARD_MAX];   // 統計情報 
   bool seki[BOARD_MAX];
   bool evaled;
+  std::atomic<bool> eval_value;
   //std::atomic<double> value;
   std::atomic<int> value_move_count;
   std::atomic<double> value_win;

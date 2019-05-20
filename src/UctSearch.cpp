@@ -238,9 +238,15 @@ static void
 ClearEvalQueue()
 {
   lock_guard<mutex> lock(mutex_queue);
-  
-  queue<shared_ptr<nn_eval_req>> empty;
-  eval_nn_queue.swap(empty);
+
+  cerr << "Clear " << eval_nn_queue.size() << endl;
+  while (!eval_nn_queue.empty()) {
+    auto req = eval_nn_queue.front();
+    uct_node[req->index].eval_value = false;
+    eval_nn_queue.pop();
+  }
+  //queue<shared_ptr<nn_eval_req>> empty;
+  //eval_nn_queue.swap(empty);
   cond_queue.notify_all();
 }
 
@@ -1031,7 +1037,6 @@ InitializeCandidate( child_node_t *uct_child, int pos, bool ladder )
   uct_child->pos = pos;
   uct_child->move_count = 0;
   uct_child->win = 0;
-  uct_child->eval_value = false;
   uct_child->index = NOT_EXPANDED;
   uct_child->rate = 0.0;
   uct_child->flag = false;
@@ -1093,7 +1098,6 @@ ExpandRoot( game_info_t *game, int color )
 	uct_node[index].win -= uct_child[i].win;
 	uct_child[i].move_count = 0;
 	uct_child[i].win = 0;
-	uct_child[i].eval_value = false;
       }
       uct_child[i].ladder = ladder[pos];
     }
@@ -1128,6 +1132,7 @@ ExpandRoot( game_info_t *game, int color )
     uct_node[index].evaled = false;
     uct_node[index].value_move_count = 0;
     uct_node[index].value_win = 0;
+    uct_node[index].eval_value = false;
     memset(uct_node[index].statistic, 0, sizeof(statistic_t) * BOARD_MAX);
     fill_n(uct_node[index].seki, BOARD_MAX, false);
 
@@ -1222,6 +1227,7 @@ ExpandNode( game_info_t *game, int color )
   uct_node[index].evaled = false;
   uct_node[index].value_move_count = 0;
   uct_node[index].value_win = 0;
+  uct_node[index].eval_value = false;
   memset(uct_node[index].statistic, 0, sizeof(statistic_t) * BOARD_MAX);
   fill_n(uct_node[index].seki, BOARD_MAX, false);
   child_node_t *uct_child = uct_node[index].child;
@@ -1735,11 +1741,10 @@ UctSearch(uct_search_context_t& ctx, game_info_t *game, int color, mt19937_64 *m
   ctx.path.push_back(current);
 
   // Enqueue value
-  bool expected = false;
   if (use_nn
     && uct_node[current].evaled
     //&& (n >= expand_threshold * value_evaluation_threshold || mode == CONST_PLAYOUT_MODE)
-    && atomic_compare_exchange_strong(&uct_child[next_index].eval_value, &expected, true)) {
+    ) {
 
     LOCK_EXPAND;
     if (uct_child[next_index].index < 0)
@@ -1748,17 +1753,20 @@ UctSearch(uct_search_context_t& ctx, game_info_t *game, int color, mt19937_64 *m
 
     next_node_index = uct_child[next_index].index;
 
-    auto req = make_shared<nn_eval_req>();
-    req->index = uct_child[next_index].index;
-    req->color = color;
-    copy(ctx.path.begin(), ctx.path.end(), back_inserter(req->path));
-    req->trans = rand() / (RAND_MAX / 8 + 1);
-    WritePlanes(req->data_basic, req->data_features, req->data_history, nullptr,
-      game, nullptr, color, req->trans);
-    mutex_queue.lock();
-    eval_nn_queue.push(req);
-    mutex_queue.unlock();
-    cond_queue.notify_all();
+    bool expected = false;
+    if (atomic_compare_exchange_strong(&uct_node[next_node_index].eval_value, &expected, true)) {
+      auto req = make_shared<nn_eval_req>();
+      req->index = uct_child[next_index].index;
+      req->color = color;
+      copy(ctx.path.begin(), ctx.path.end(), back_inserter(req->path));
+      req->trans = rand() / (RAND_MAX / 8 + 1);
+      WritePlanes(req->data_basic, req->data_features, req->data_history, nullptr,
+        game, nullptr, color, req->trans);
+      mutex_queue.lock();
+      eval_nn_queue.push(req);
+      mutex_queue.unlock();
+      cond_queue.notify_all();
+    }
   }
 
   if ((no_expand || uct_child[next_index].move_count < expand_threshold || end_of_game)
