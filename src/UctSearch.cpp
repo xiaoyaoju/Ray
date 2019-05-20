@@ -214,6 +214,8 @@ double pass_po_limit = 0.5;
 int policy_batch_size = 16;
 int value_batch_size = 64;
 
+double c_score = 0.1;
+
 ray_clock::time_point begin_time;
 
 static bool early_pass = true;
@@ -831,6 +833,7 @@ UctSearchGenmove( game_info_t *game, int color )
     cerr << "Eval NN            :  " << setw(7) << eval_count << "/" << value_evaluation_threshold << endl;
     cerr << "Count Captured     :  " << setw(7) << count << endl;
     cerr << "Score              :  " << setw(7) << score << endl;
+    cerr << "NN Score           :  " << setw(7) << AverageScore(current_root) - komi[0] << endl;
     PrintMoveStat(cerr, game, uct_node, current_root);
     if (uct_child[select_index].index >= 0) {
       cerr << "Opponent Moves" << endl;
@@ -1972,6 +1975,24 @@ UpdatePolicyRate(int current)
   }
 }
 
+int
+AverageScore(int current)
+{
+  double sum = 0;
+  for (int i = 0; i < SCORE_DIM; i++) {
+    sum += uct_node[current].score[i];
+  }
+
+  double sum_score = 0;
+  for (int i = 0; i < SCORE_DIM; i++) {
+    int score = i + SCORE_OFFSET;
+    sum_score += score * uct_node[current].score[i] / sum;
+  }
+  return sum_score;
+}
+
+static double average_root_score;
+
 
 /////////////////////////////////////////////////////
 //  UCBが最大となる子ノードのインデックスを返す関数  //
@@ -2010,6 +2031,13 @@ SelectMaxUcbChild( const game_info_t *game, int current, int color )
   //if (evaled) {
     //cerr << "use nn" << endl;
 //  } else
+  if (current_root == current && sum_v % 10 == 0) {
+    if (evaled) {
+      average_root_score = AverageScore(current);
+    } else {
+      average_root_score = komi[0];
+    }
+  }
   {
     // 128回ごとにOwnerとCriticalityでソートし直す
     if ((sum & 0x7f) == 0 && sum != 0) {
@@ -2100,17 +2128,19 @@ SelectMaxUcbChild( const game_info_t *game, int current, int color )
       //double p2 = -1;
       double value_win = 0;
       double value_move_count = 0;
+      double score = komi[0];
 
 #if 1
       if (uct_child[i].index >= 0) {
-	auto node = &uct_node[uct_child[i].index];
-	if (node->value_move_count > 0) {
-	  //p2 = 1 - (double)node->value_win / node->value_move_count;
-	  value_win = node->value_win;
-	  value_move_count = node->value_move_count;
-	  value_win = value_move_count - value_win;
-	}
-	//cerr << "VA:" << (value_win / value_move_count) << " VS:" << uct_child[i].value << endl;
+        auto node = &uct_node[uct_child[i].index];
+        if (node->value_move_count > 0) {
+          //p2 = 1 - (double)node->value_win / node->value_move_count;
+          value_win = node->value_win;
+          value_move_count = node->value_move_count;
+          value_win = value_move_count - value_win;
+          score = AverageScore(uct_child[i].index);
+        }
+        //cerr << "VA:" << (value_win / value_move_count) << " VS:" << uct_child[i].value << endl;
       }
 #endif
       double win = uct_child[i].win;
@@ -2119,14 +2149,14 @@ SelectMaxUcbChild( const game_info_t *game, int current, int color )
       double p;
 
       if (evaled) {
-	if (debug && move_count > 0) {
-	   cerr << uct_node[current].move_count << ".";
-	   cerr << setw(3) << FormatMove(uct_child[i].pos);
-           cerr << ": move " << setw(5) << (int)move_count << " policy "
+        if (debug && move_count > 0) {
+          cerr << uct_node[current].move_count << ".";
+          cerr << setw(3) << FormatMove(uct_child[i].pos);
+          cerr << ": move " << setw(5) << (int)move_count << " policy "
              << setw(10) << (uct_child[i].nnrate * 100) << " ";
-	}
+        }
         double p_po;
-	if (move_count == 0) {
+        if (move_count == 0) {
           p_po = p_p0 - fpu_reduction;
           //p_po = 0;
         } else {
@@ -2140,9 +2170,11 @@ SelectMaxUcbChild( const game_info_t *game, int current, int color )
           p_vn = value_win / value_move_count;
         }
 
+        double p_score = tanh(score - average_root_score);
+
         double rate = uct_child[i].nnrate;
 
-	double u_po = sqrt(sum + 1) / (move_count + 1);
+        double u_po = sqrt(sum + 1) / (move_count + 1);
         double ucb_po = p_po + c_puct * u_po * rate;
         double lcb_po = p_po - c_puct * u_po * rate;
 
@@ -2154,43 +2186,44 @@ SelectMaxUcbChild( const game_info_t *game, int current, int color )
         lcb_value = (1 - scale) * lcb_po + scale * lcb_vn;
 
         if (debug && move_count > 0) {
-          double p = (1 - scale) * p_po + scale * p_vn;
+          double p = (1 - scale) * p_po + scale * p_vn + c_score * p_score;
           cerr << "DP:" << setw(10) << (p_po * 100) << " DV:" << setw(10) << (p_vn * 100)
             << " UCB-PO:" << ucb_po << " UCB-VN:" << ucb_vn
             << " => " << setw(10) << (p * 100);
-          cerr << " LM:" << scale << " ";
-	  cerr << " P:" << p << " UCB:" << ucb_value << endl;
-	}
+          cerr << " LM:" << scale;
+          cerr << " SCORE:" << score;
+          cerr << " P:" << p << " UCB:" << ucb_value << endl;
+        }
       } else {
-	if (uct_child[i].move_count == 0) {
-	  ucb_value = FPU;
-	  lcb_value = FPU;
-	} else {
-	  double div, v;
-	  // UCB1-TUNED value
-	  double p = (double) uct_child[i].win / uct_child[i].move_count;
-	  //if (p2 >= 0) p = (p * 9 + p2) / 10;
-	  div = log(sum) / uct_child[i].move_count;
-	  v = p - p * p + sqrt(2.0 * div);
-	  ucb_value = p + sqrt(div * ((0.25 < v) ? 0.25 : v));
-	  lcb_value = p - sqrt(div * ((0.25 < v) ? 0.25 : v));
+        if (uct_child[i].move_count == 0) {
+          ucb_value = FPU;
+          lcb_value = FPU;
+        } else {
+          double div, v;
+          // UCB1-TUNED value
+          double p = (double) uct_child[i].win / uct_child[i].move_count;
+          //if (p2 >= 0) p = (p * 9 + p2) / 10;
+          div = log(sum) / uct_child[i].move_count;
+          v = p - p * p + sqrt(2.0 * div);
+          ucb_value = p + sqrt(div * ((0.25 < v) ? 0.25 : v));
+          lcb_value = p - sqrt(div * ((0.25 < v) ? 0.25 : v));
 
-	  // UCB Bonus
-	  ucb_value += ucb_bonus_weight * uct_child[i].rate;
-	  lcb_value += ucb_bonus_weight * uct_child[i].rate;
-	}
+          // UCB Bonus
+          ucb_value += ucb_bonus_weight * uct_child[i].rate;
+          lcb_value += ucb_bonus_weight * uct_child[i].rate;
+        }
       }
 
       child_ucb[i] = ucb_value;
       child_lcb[i] = lcb_value;
 
       if (ucb_value > max_value) {
-	max_value = ucb_value;
-	max_child = i;
+        max_value = ucb_value;
+        max_child = i;
       }
       if (uct_child[i].move_count > max_move_count) {
-	max_move_count = uct_child[i].move_count;
-	max_move_child = i;
+        max_move_count = uct_child[i].move_count;
+        max_move_child = i;
       }
     }
   }
@@ -2202,14 +2235,14 @@ SelectMaxUcbChild( const game_info_t *game, int current, int color )
       if (max_child == i)
 	continue;
       if (uct_child[i].flag || uct_child[i].open) {
-	if (child_ucb[i] > next_ucb) {
-	  next_ucb = child_ucb[i];
-	  next_child = i;
-	}
+        if (child_ucb[i] > next_ucb) {
+          next_ucb = child_ucb[i];
+          next_child = i;
+        }
       }
     }
     if (max_child != next_child
-	&& uct_child[max_child].move_count > uct_child[next_child].move_count * 1.2) {
+        && uct_child[max_child].move_count > uct_child[next_child].move_count * 1.2) {
       //cerr << "Replace " << FormatMove(uct_child[max_child].pos) << " -> " << FormatMove(uct_child[next_child].pos) << endl;
       max_child = next_child;
     }
