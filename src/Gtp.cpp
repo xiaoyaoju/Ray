@@ -199,6 +199,22 @@ GTP_main( void )
   store_game = AllocateGame();
   InitializeBoard(store_game);
 
+  // warm-up
+  {
+    // TODO discard outputs
+    PutStone(game, POS(OB_SIZE + 1, OB_SIZE + 1), S_BLACK);
+    PutStone(game, POS(OB_SIZE + 2, OB_SIZE + 2), S_WHITE);
+    UctSearchGenmove(game, S_BLACK);
+    UctSearchGenmove(game, S_WHITE);
+    player_color = 0;
+    SetHandicapNum(0);
+    FreeGame(game);
+    game = AllocateGame();
+    InitializeBoard(game);
+    InitializeSearchSetting();
+    InitializeUctHash();
+  }
+
   while (true) {
     if (fgets(input, sizeof(input), stdin) == NULL) {
       if (feof(stdin))
