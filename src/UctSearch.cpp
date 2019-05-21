@@ -779,6 +779,9 @@ UctSearchGenmove( game_info_t *game, int color )
   // コミを考慮した勝敗
   score -= komi[my_color];
 
+  double nn_score = AverageScore(current_root);
+  nn_score -= komi[0];
+
   // 各地点の領地になる確率の出力
   PrintOwner(&uct_node[current_root], color, owner);
 
@@ -813,7 +816,28 @@ UctSearchGenmove( game_info_t *game, int color )
   } else if (!early_pass && count == 0 && pass_wp >= PASS_THRESHOLD && max_count < uct_child[PASS_INDEX].move_count) {
     pos = PASS;
   } else if (best_wp <= resign_threshold && (!use_nn || best_wpv < resign_threshold)) {
-    pos = RESIGN;
+    if (abs(nn_score) > 10) {
+      pos = RESIGN;
+    } else {
+      if (count == 0) {
+        pos = PASS;
+      } else {
+        // Cleanup move
+        select_index = PASS_INDEX;
+        max_count = 0;
+
+        for (int i = 1; i < uct_node[current_root].child_num; i++){
+          int pos = uct_child[i].pos;
+          if (owner[pos] > 20) {
+            if (uct_child[i].move_count > max_count) {
+              select_index = i;
+              max_count = uct_child[i].move_count;
+            }
+          }
+        }
+        pos = uct_child[select_index].pos;
+      }
+    }
   } else if (best_wp <= 0.01) {
     pos = RESIGN;
   } else {
@@ -833,7 +857,7 @@ UctSearchGenmove( game_info_t *game, int color )
     cerr << "Eval NN            :  " << setw(7) << eval_count << "/" << value_evaluation_threshold << endl;
     cerr << "Count Captured     :  " << setw(7) << count << endl;
     cerr << "Score              :  " << setw(7) << score << endl;
-    cerr << "NN Score           :  " << setw(7) << AverageScore(current_root) - komi[0] << endl;
+    cerr << "NN Score           :  " << setw(7) << nn_score << endl;
     PrintMoveStat(cerr, game, uct_node, current_root);
     if (uct_child[select_index].index >= 0) {
       cerr << "Opponent Moves" << endl;
