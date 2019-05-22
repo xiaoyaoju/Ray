@@ -241,7 +241,7 @@ int UctSearchGenmoveCleanUp( game_info_t *game, int color );
 // 探索の再利用の設定
 void SetReuseSubtree( bool flag );
 
-int AverageScore( int current );
+double AverageScore( int current );
 
 void SetUseNN(bool flag);
 

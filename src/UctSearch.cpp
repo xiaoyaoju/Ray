@@ -214,7 +214,7 @@ double pass_po_limit = 0.5;
 int policy_batch_size = 16;
 int value_batch_size = 64;
 
-double c_score = 0.1;
+double c_score = 0.2;
 
 ray_clock::time_point begin_time;
 
@@ -1999,17 +1999,19 @@ UpdatePolicyRate(int current)
   }
 }
 
-int
+double
 AverageScore(int current)
 {
   double sum = 0;
   for (int i = 0; i < SCORE_DIM; i++) {
     sum += uct_node[current].score[i];
   }
+  if (sum == 0)
+    return 0;
 
   double sum_score = 0;
   for (int i = 0; i < SCORE_DIM; i++) {
-    int score = i + SCORE_OFFSET;
+    double score = i + SCORE_OFFSET;
     sum_score += score * uct_node[current].score[i] / sum;
   }
   return sum_score;
@@ -2194,7 +2196,12 @@ SelectMaxUcbChild( const game_info_t *game, int current, int color )
           p_vn = value_win / value_move_count;
         }
 
-        double p_score = tanh(score - average_root_score);
+        double score_diff;
+        if (color == S_BLACK)
+          score_diff = score - average_root_score;
+        else
+          score_diff = average_root_score - score;
+        double p_score = tanh(score_diff);
 
         double rate = uct_child[i].nnrate;
 
