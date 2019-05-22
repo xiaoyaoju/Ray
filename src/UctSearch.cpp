@@ -819,24 +819,20 @@ UctSearchGenmove( game_info_t *game, int color )
     if (abs(nn_score) > 10) {
       pos = RESIGN;
     } else {
-      if (count == 0) {
-        pos = PASS;
-      } else {
-        // Cleanup move
-        select_index = PASS_INDEX;
-        max_count = 0;
+      // Cleanup move
+      select_index = PASS_INDEX;
+      max_count = (count == 0) ? (int)uct_child[PASS_INDEX].move_count : 0;
 
-        for (int i = 1; i < uct_node[current_root].child_num; i++){
-          int pos = uct_child[i].pos;
-          if (owner[pos] > 20) {
-            if (uct_child[i].move_count > max_count) {
-              select_index = i;
-              max_count = uct_child[i].move_count;
-            }
+      for (int i = 1; i < uct_node[current_root].child_num; i++){
+        int pos = uct_child[i].pos;
+        if (owner[pos] > 20) {
+          if (uct_child[i].move_count > max_count) {
+            select_index = i;
+            max_count = uct_child[i].move_count;
           }
         }
-        pos = uct_child[select_index].pos;
       }
+      pos = uct_child[select_index].pos;
     }
   } else if (best_wp <= 0.01) {
     pos = RESIGN;
