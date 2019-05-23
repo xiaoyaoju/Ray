@@ -214,7 +214,8 @@ double pass_po_limit = 0.5;
 int policy_batch_size = 16;
 int value_batch_size = 64;
 
-double c_score = 0.2;
+double c_score = 0.1;
+double k_score = 0.2;
 
 ray_clock::time_point begin_time;
 
@@ -2114,10 +2115,11 @@ SelectMaxUcbChild( const game_info_t *game, int current, int color )
 
   const double p_p0 = (double)uct_node[current].win / (uct_node[current].move_count + 1);
   const double p_v0 = (double)uct_node[current].value_win / (uct_node[current].value_move_count + 1);
+  double score0 = AverageScore(current);
   //const double scale = std::max(0.2, std::min(1.0, 1.0 - (game->moves - 200) / 50.0)) * value_scale;
   double scale;
   if (pure_board_size == 9) {
-    scale = max(0.5, std::min(1.0, 1.0 - (game->moves - 30) / 30.0)) * value_scale;
+    scale = max(0.5, std::min(1.0, 1.0 - (game->moves - 50) / 30.0)) * value_scale;
   } else {
     scale = value_scale;
   }
@@ -2150,7 +2152,7 @@ SelectMaxUcbChild( const game_info_t *game, int current, int color )
       //double p2 = -1;
       double value_win = 0;
       double value_move_count = 0;
-      double score = komi[0];
+      double score = score0;
 
 #if 1
       if (uct_child[i].index >= 0) {
@@ -2197,7 +2199,7 @@ SelectMaxUcbChild( const game_info_t *game, int current, int color )
           score_diff = score - average_root_score;
         else
           score_diff = average_root_score - score;
-        double p_score = tanh(score_diff);
+        double p_score = tanh(score_diff * k_score);
 
         double rate = uct_child[i].nnrate;
 
@@ -2209,8 +2211,8 @@ SelectMaxUcbChild( const game_info_t *game, int current, int color )
         double ucb_vn = p_vn + c_puct * u_vn * rate;
         double lcb_vn = p_vn - c_puct * u_vn * rate;
 
-        ucb_value = (1 - scale) * ucb_po + scale * ucb_vn;
-        lcb_value = (1 - scale) * lcb_po + scale * lcb_vn;
+        ucb_value = (1 - scale) * ucb_po + scale * ucb_vn + c_score * p_score;
+        lcb_value = (1 - scale) * lcb_po + scale * lcb_vn + c_score * p_score;
 
         if (debug && move_count > 0) {
           double p = (1 - scale) * p_po + scale * p_vn + c_score * p_score;
