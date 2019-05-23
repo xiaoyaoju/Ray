@@ -61,8 +61,8 @@ extern double resign_threshold;
 // Virtual Loss (Best Parameter)
 const int VIRTUAL_LOSS = 1;
 
-const int SCORE_DIM = 40;
-const int SCORE_OFFSET = 7 - 20;
+const int SCORE_DIM = 81;
+const int SCORE_OFFSET = 7 - 40;
 
 extern double c_puct;
 extern double value_scale;

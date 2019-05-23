@@ -300,12 +300,12 @@ public:
           }
 
           //data.score.push_back(score);
-          int score_label = round(score - 7.0) + 20;
+          int score_label = round(score - SCORE_OFFSET);
           if (score_label < 0)
             score_label = 0;
-          if (score_label > 39)
-            score_label = 39;
-          for (int j = 0; j < 40; j++) {
+          if (score_label >= SCORE_DIM)
+            score_label = SCORE_DIM - 1;
+          for (int j = 0; j < SCORE_DIM; j++) {
             data.score.push_back(score_label == j ? 1.0f : 0.0f);
           }
 
@@ -337,7 +337,7 @@ public:
     data->win.reserve(n);
     data->move.reserve(pure_board_max * n);
     data->statistic.reserve(pure_board_max * n);
-    data->score.reserve(n);
+    data->score.reserve(SCORE_DIM * n);
 
     while (data->num_req < n) {
       ReadOne(*data);

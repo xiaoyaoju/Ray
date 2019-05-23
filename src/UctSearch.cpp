@@ -3037,7 +3037,7 @@ EvalValue(
   CNTK::NDArrayViewPtr cpu_score = CNTK::MakeSharedObject<CNTK::NDArrayView>(shape_score, score, false);
   cpu_score->CopyFrom(*value_score->Data());
 
-  if (score.size() != requests.size() * 40) {
+  if (score.size() != requests.size() * SCORE_DIM) {
     cerr << "Eval score error " << score.size() << endl;
     return;
   }
