@@ -318,25 +318,22 @@ InitializeBoard( game_info_t *game )
 void
 ClearBoard( game_info_t *game )
 {
-  int i, x, y, pos;
-
   memset(game, 0, sizeof(game_info_t));
 
   game->current_hash = 0;
   game->previous1_hash = 0;
   game->previous2_hash = 0;
+  game->positional_hash = 0;
+  game->move_hash = 0;
 
   game->moves = 1;
 
   game->pass_count = 0;
 
-  for (i = 0; i < BOARD_MAX; i++) { 
-    game->candidates[i] = false;
-  }
+  fill_n(game->candidates, BOARD_MAX, false);
 
-
-  for (y = 0; y < board_size; y++){
-    for (x = 0; x < OB_SIZE; x++) {
+  for (int y = 0; y < board_size; y++){
+    for (int x = 0; x < OB_SIZE; x++) {
       game->board[POS(x, y)] = S_OB;
       game->board[POS(y, x)] = S_OB;
       game->board[POS(y, board_size - 1 - x)] = S_OB;
@@ -344,15 +341,14 @@ ClearBoard( game_info_t *game )
     }
   }
 
-  for (y = board_start; y <= board_end; y++) {
-    for (x = board_start; x <= board_end; x++) {
-      pos = POS(x, y);
+  for (int y = board_start; y <= board_end; y++) {
+    for (int x = board_start; x <= board_end; x++) {
+      int pos = POS(x, y);
       game->candidates[pos] = true;
     }
   }
 
-  memset(game->string, 0, sizeof(string_t) * MAX_STRING);
-  for (i = 0; i < MAX_STRING; i++) {
+  for (int i = 0; i < MAX_STRING; i++) {
     game->string[i].flag = false;
   }
 
