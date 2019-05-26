@@ -463,6 +463,7 @@ ReadFiles(int thread_no, size_t offset, size_t size, vector<SGF_record_t> *recor
   shuffle(begin(files), end(files), mt);
 
   game_info_t* game = AllocateGame();
+  InitializeBoard(game);
 
   for (size_t i = 0; i < size; i++) {
     auto kifu = &(*records)[i * threads + thread_no];
@@ -476,7 +477,7 @@ ReadFiles(int thread_no, size_t offset, size_t size, vector<SGF_record_t> *recor
     if (kifu->moves > pure_board_max * 0.9)
       kifu->moves = pure_board_max * 0.9;
 
-    InitializeBoard(game);
+    ClearBoard(game);
     int color = S_BLACK;
     for (int i = 0; i < kifu->moves - 1; i++) {
       int pos = GetKifuMove(kifu, i);
@@ -550,6 +551,7 @@ Train()
     const int cv_size = 1024;
     vector<SGF_record_t> cv_records(cv_size);
     game_info_t* cv_game = AllocateGame();
+    InitializeBoard(cv_game);
     for (int i = 0; i < cv_size; i++) {
       auto f = filenames.back();
       filenames.pop_back();
@@ -565,7 +567,7 @@ Train()
       if (kifu->moves > pure_board_max * 0.9)
         kifu->moves = pure_board_max * 0.9;
 
-      InitializeBoard(cv_game);
+      ClearBoard(cv_game);
       int color = S_BLACK;
       for (int i = 0; i < kifu->moves - 1; i++) {
         int pos = GetKifuMove(kifu, i);
@@ -574,7 +576,24 @@ Train()
           break;
         }
         if (!IsLegal(cv_game, pos, color)) {
-          cerr << "Bad file illegal move " << f << endl;
+#if 0
+          {
+            PrintBoard(cv_game);
+            ClearBoard(cv_game);
+             color = S_BLACK;
+             for (int j = 0; j < i; j++) {
+               int pos = GetKifuMove(kifu, j);
+               cerr << i << " " << FormatMove(pos) << endl;
+               PrintBoard(cv_game);
+               PutStone(cv_game, pos, color);
+               color = FLIP_COLOR(color);
+             }
+          }
+#endif
+          cerr << "Bad file illegal move " << f
+            << " " << i
+            << " " << FormatMove(pos)
+            << endl;
           kifu->moves = 0;
           break;
         }
