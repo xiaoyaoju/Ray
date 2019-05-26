@@ -864,14 +864,51 @@ UctSearchGenmove( game_info_t *game, int color )
     //PrintOwnerNN(S_BLACK, owner_nn);
 
     double sum = 0;
+    double max_score = 0;
     for (int i = 0; i < SCORE_DIM; i++) {
-      sum += uct_node[current_root].score[i];
+      double l = uct_node[current_root].score[i];
+      sum += l;
+      if (l > max_score)
+        max_score = l;
     }
+
+    cerr << "Score histgram" << endl;
+    const int HEIGHT = 20;
+    double scale = HEIGHT / max_score;
+    int v[SCORE_DIM];
     for (int i = 0; i < SCORE_DIM; i++) {
-      cerr << setw(4) << (i + SCORE_OFFSET) << " | ";
-      int n = 100 * uct_node[current_root].score[i] / sum;
-      for (int j = 0; j < n; j++) {
-        cerr << "*";
+      v[i] = scale * uct_node[current_root].score[i];
+    }
+    int draw_line;
+    int win_line;
+    if (komi[0] == (int) komi[0]) {
+      draw_line = komi[0] - SCORE_OFFSET;
+      win_line = -1;
+    } else {
+      draw_line = -1;
+      win_line = round(komi[0] - SCORE_OFFSET - 0.5);
+    }
+    for (int y = 0; y <= HEIGHT; y++) {
+      if (y == 0)
+        cerr << setw(4) << (int)(100 * max_score / sum) << '|';
+      else
+        cerr << "    |";
+      for (int i = 0; i < SCORE_DIM; i++) {
+        char c = ' ';
+        if (v[i] > HEIGHT - y) {
+          if (i == draw_line)
+            c = '#';
+          else
+            c = '*';
+        } else {
+          if (i == draw_line)
+            c = '!';
+          else
+            c = ' ';
+        }
+        cerr << c;
+        if (i == win_line)
+          cerr << '|';
       }
       cerr << endl;
     }
