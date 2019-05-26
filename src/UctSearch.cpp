@@ -2963,9 +2963,9 @@ EvalValue(
   //GetInputVariableByName(nn_model, L"komi", var_komi);
 
   CNTK::Variable var_p;
-  GetOutputVaraiableByName(nn_model, L"p2", var_p);
+  GetOutputVaraiableByName(nn_model, L"value_out", var_p);
   CNTK::Variable var_ol;
-  GetOutputVaraiableByName(nn_model, L"ol", var_ol);
+  GetOutputVaraiableByName(nn_model, L"move_out_raw", var_ol);
   CNTK::Variable var_score;
   GetOutputVaraiableByName(nn_model, L"score_out", var_score);
 

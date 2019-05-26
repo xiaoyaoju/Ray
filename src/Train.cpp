@@ -709,10 +709,11 @@ Train()
       //GetVariableByName(net->Outputs(), L"ce_2", trainingLoss);
       GetVariableByName(net->Outputs(), L"ce", trainingLoss);
 
-      Variable err_move, err_value2, err_score;
-      GetVariableByName(net->Outputs(), L"errs_move", err_move);
+      Variable err_move, err_value2, err_score, err_owner;
+      GetVariableByName(net->Outputs(), L"err_move", err_move);
       GetVariableByName(net->Outputs(), L"err_value2", err_value2);
       GetVariableByName(net->Outputs(), L"err_score", err_score);
+      GetVariableByName(net->Outputs(), L"err_owner", err_owner);
 
       InitializeSearchSetting();
       InitializeUctHash();
@@ -752,15 +753,17 @@ Train()
       //Variable classifierOutputVar;
       //FunctionPtr classifierOutput = classifierOutputVar;
       Variable prediction;
-      switch (alt % 3) {
+      switch (alt % 4) {
       case 0:
-        GetOutputVaraiableByName(net, L"errs_move", prediction);
+        GetOutputVaraiableByName(net, L"err_move", prediction);
         break;
       case 1:
         GetOutputVaraiableByName(net, L"err_value2", prediction);
         break;
       case 2:
-        //GetOutputVaraiableByName(net, L"err_owner", prediction);
+        GetOutputVaraiableByName(net, L"err_owner", prediction);
+        break;
+      case 3:
         GetOutputVaraiableByName(net, L"err_score", prediction);
         break;
       }
@@ -828,21 +831,37 @@ Train()
           const wstring ckpName = L"feedForward.net." + to_wstring(alt) + L"." + to_wstring(i);
           trainer->SaveCheckpoint(ckpName);
 
-          // Cross validation
-          double accumulatedError = 0;
-          double error = 0;
-          size_t totalNumberOfSamples = 0;
-          size_t numberOfMinibatches = 0;
+          for (int j = 0; j < 4; j++) {
+            Variable err;
+            if (j == 0)
+              err = err_move;
+            else if (j == 1)
+              err = err_value2;
+            else if (j == 2)
+              err = err_score;
+            else if (j == 3)
+              err = err_owner;
+            auto tester = CreateTrainer(net, trainingLoss, err,
+              { SGDLearner(parameters, learningRatePerSample, option) });
 
-          //auto checkpoint = m_cv.m_source->GetCheckpointState();
-          for (int i = 0; i < cv_data.size(); i++) {
-            unordered_map<Variable, ValuePtr> minibatch = reader.GetMiniBatchData(*cv_data[i]);
-            error = trainer->TestMinibatch(minibatch, device);
-            accumulatedError += error * cv_data[i]->num_req;
-            totalNumberOfSamples += cv_data[i]->num_req;
-            numberOfMinibatches++;
+            // Cross validation
+            double accumulatedError = 0;
+            double error = 0;
+            size_t totalNumberOfSamples = 0;
+            size_t numberOfMinibatches = 0;
+
+            //auto checkpoint = m_cv.m_source->GetCheckpointState();
+            for (int i = 0; i < cv_data.size(); i++) {
+              unordered_map<Variable, ValuePtr> minibatch = reader.GetMiniBatchData(*cv_data[i]);
+              error = tester->TestMinibatch(minibatch, device);
+              accumulatedError += error * cv_data[i]->num_req;
+              totalNumberOfSamples += cv_data[i]->num_req;
+              numberOfMinibatches++;
+            }
+            fwprintf(stderr, L"CV %s %.8g\n",
+              err.AsString().c_str(),
+              accumulatedError / totalNumberOfSamples);
           }
-          fprintf(stderr, "CV %.8g, %zd\n", accumulatedError / totalNumberOfSamples, totalNumberOfSamples);
 
           //m_cv.m_source->RestoreFromCheckpoint(checkpoint);
           trainer->SummarizeTestProgress();
