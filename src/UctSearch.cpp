@@ -214,8 +214,8 @@ double pass_po_limit = 0.5;
 int policy_batch_size = 16;
 int value_batch_size = 64;
 
-double c_score = 0.1;
-double k_score = 0.2;
+double c_score = 0.05;
+double k_score = 0.5;
 
 ray_clock::time_point begin_time;
 
