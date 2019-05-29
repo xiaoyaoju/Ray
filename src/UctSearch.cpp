@@ -1889,6 +1889,24 @@ UctSearch(uct_search_context_t& ctx, game_info_t *game, int color, mt19937_64 *m
           *winner = S_WHITE;
         }
       }
+      if (end_of_game) {
+        double value = result;
+        int score_label = round(score - SCORE_OFFSET);
+        if (score_label < 0)
+          score_label = 0;
+        if (score_label >= SCORE_DIM)
+          score_label = SCORE_DIM - 1;
+
+        for (int i = ctx.path.size() - 1; i >= 0; i--) {
+          int current = ctx.path[i];
+          atomic_fetch_add(&uct_node[current].value_move_count, 1);
+          atomic_fetch_add(&uct_node[current].value_win, value);
+
+          atomic_fetch_add(&uct_node[current].score[score_label], 1);
+
+          value = 1 - value;
+        }
+      }
     }
 
     // 統計情報の記録
