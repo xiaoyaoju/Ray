@@ -1413,9 +1413,9 @@ RatingNode( game_info_t *game, int color, int index, int depth )
 #if 1
       mutex_queue.lock();
       eval_nn_queue.push(req);
+      cond_queue.notify_all();
       mutex_queue.unlock();
 
-      cond_queue.notify_all();
       //push_back(u);
 #else
       std::vector<int> indices;
@@ -1683,6 +1683,7 @@ ParallelUctSearch( thread_arg_t *arg )
       if (GetSpendTime(begin_time) > time_limit) break;
       if (!enough_size) cerr << "HASH TABLE FULL" << endl;
     } while (po_info.count < po_info.halt && !interruption && enough_size);
+    lock_guard<mutex> lock(mutex_queue);
     running = false;
     cond_queue.notify_all();
   } else {
@@ -1750,6 +1751,7 @@ ParallelUctSearchPondering( thread_arg_t *arg )
 	interval += CRITICALITY_INTERVAL;
       }
     } while (!pondering_stop && enough_size);
+    lock_guard<mutex> lock(mutex_queue);
     running = false;
     cond_queue.notify_all();
   } else {
@@ -1825,8 +1827,8 @@ UctSearch(uct_search_context_t& ctx, game_info_t *game, int color, mt19937_64 *m
         game, nullptr, color, req->trans);
       mutex_queue.lock();
       eval_nn_queue.push(req);
-      mutex_queue.unlock();
       cond_queue.notify_all();
+      mutex_queue.unlock();
     }
   }
 
