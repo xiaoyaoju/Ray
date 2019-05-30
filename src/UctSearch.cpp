@@ -1857,7 +1857,11 @@ UctSearch(uct_search_context_t& ctx, game_info_t *game, int color, mt19937_64 *m
       if (my_color == S_BLACK) {
         if (score - dynamic_komi[my_color] + 0.1 >= 0) {
           result = (color == S_BLACK ? 0 : 1);
-          *winner = S_BLACK;
+          if (score - dynamic_komi[my_color] - 0.1 >= 0) {
+            *winner = S_BLACK;
+          } else {
+            *winner = S_EMPTY;
+          }
         } else {
           result = (color == S_WHITE ? 0 : 1);
           *winner = S_WHITE;
@@ -1865,7 +1869,11 @@ UctSearch(uct_search_context_t& ctx, game_info_t *game, int color, mt19937_64 *m
       } else {
         if (score - dynamic_komi[my_color] - 0.1 > 0) {
           result = (color == S_BLACK ? 0 : 1);
-        *winner = S_BLACK;
+          if (score - dynamic_komi[my_color] + 0.1 > 0) {
+            *winner = S_BLACK;
+          } else {
+            *winner = S_EMPTY;
+          }
         } else {
           result = (color == S_WHITE ? 0 : 1);
           *winner = S_WHITE;
@@ -1875,7 +1883,11 @@ UctSearch(uct_search_context_t& ctx, game_info_t *game, int color, mt19937_64 *m
       if (my_color == S_BLACK) {
         if (score - dynamic_komi[0] + 0.1 >= 0) {
           result = (color == S_BLACK ? 0 : 1);
-          *winner = S_BLACK;
+          if (score - dynamic_komi[0] - 0.1 >= 0) {
+            *winner = S_BLACK;
+          } else {
+            *winner = S_EMPTY;
+          }
         } else {
           result = (color == S_WHITE ? 0 : 1);
           *winner = S_WHITE;
@@ -1883,14 +1895,18 @@ UctSearch(uct_search_context_t& ctx, game_info_t *game, int color, mt19937_64 *m
       } else {
         if (score - dynamic_komi[0] - 0.1 > 0) {
           result = (color == S_BLACK ? 0 : 1);
-        *winner = S_BLACK;
+          if (score - dynamic_komi[0] + 0.1 > 0) {
+            *winner = S_BLACK;
+          } else {
+            *winner = S_EMPTY;
+          }
         } else {
           result = (color == S_WHITE ? 0 : 1);
           *winner = S_WHITE;
         }
       }
       if (end_of_game) {
-        double value = result;
+        double value = *winner == S_EMPTY ? 0.5 : result;
         int score_label = round(score - SCORE_OFFSET);
         if (score_label < 0)
           score_label = 0;
@@ -1933,6 +1949,9 @@ UctSearch(uct_search_context_t& ctx, game_info_t *game, int color, mt19937_64 *m
     UNLOCK_NODE(current);
     // 手番を入れ替えて1手深く読む
     result = UctSearch(ctx, game, color, mt, uct_child[next_index].index, winner);
+    // Draw game
+    if (*winner == S_EMPTY)
+      result = 1;
   }
 
   // 探索結果の反映
