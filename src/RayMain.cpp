@@ -14,7 +14,6 @@
 #include "UctRating.h"
 #include "UctSearch.h"
 #include "ZobristHash.h"
-#include "OpeningBook.h"
 
 
 int
@@ -65,7 +64,6 @@ main( int argc, char **argv )
   InitializeHash();
   InitializeUctHash();
   SetNeighbor();
-  LoadOpeningBook(pure_board_size);
 
   switch (GetRunMode()) {
   case RUN_MODE::GTP:

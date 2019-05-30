@@ -26,7 +26,6 @@
 #include "Utility.h"
 #include "ZobristHash.h"
 #include "MoveCache.h"
-#include "OpeningBook.h"
 #include "SgfExtractor.h"
 
 using namespace std;
@@ -292,7 +291,6 @@ GTP_boardsize( void )
     SetParameter();
     SetNeighbor();
     InitializeNakadeHash();
-    LoadOpeningBook(size);
   }
 
   FreeGame(game);

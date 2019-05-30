@@ -229,6 +229,10 @@ static double owner_nn[BOARD_MAX];
 
 static CNTK::FunctionPtr nn_model;
 
+// Opening book scale
+const int book_equivalent_move = 10;
+OpeningBook opening_book;
+
 //template<double>
 double atomic_fetch_add(std::atomic<double> *obj, double arg) {
   double expected = obj->load();
@@ -236,25 +240,6 @@ double atomic_fetch_add(std::atomic<double> *obj, double arg) {
     ;
   return expected;
 }
-
-static void
-ClearEvalQueue()
-{
-  lock_guard<mutex> lock(mutex_queue);
-
-  cerr << "Clear " << eval_nn_queue.size() << endl;
-  while (!eval_nn_queue.empty()) {
-    auto req = eval_nn_queue.front();
-    uct_node[req->index].eval_value = false;
-    eval_nn_queue.pop();
-  }
-  //queue<shared_ptr<nn_eval_req>> empty;
-  //eval_nn_queue.swap(empty);
-  cond_queue.notify_all();
-}
-
-// Opening book scale
-const int book_equivalent_move = 10;
 
 ////////////
 //  関数  //
@@ -327,6 +312,22 @@ static void UpdateResult( child_node_t *child, int result, int current );
 
 // 乱数の初期化
 static void InitRand();
+
+static void
+ClearEvalQueue()
+{
+  lock_guard<mutex> lock(mutex_queue);
+
+  cerr << "Clear " << eval_nn_queue.size() << endl;
+  while (!eval_nn_queue.empty()) {
+    auto req = eval_nn_queue.front();
+    uct_node[req->index].eval_value = false;
+    eval_nn_queue.pop();
+  }
+  //queue<shared_ptr<nn_eval_req>> empty;
+  //eval_nn_queue.swap(empty);
+  cond_queue.notify_all();
+}
 
 /////////////////////
 //  予測読みの設定  //
@@ -603,6 +604,8 @@ InitializeSearchSetting( void )
 
   pondered = false;
   pondering_stop = true;
+
+  opening_book.load(pure_board_size);
 }
 
 
@@ -1488,7 +1491,7 @@ RatingNode( game_info_t *game, int color, int index, int depth )
   }
 
   // Lookup opening book
-  auto book = LookupOpeningBook(game);
+  auto book = opening_book.lookup(game);
   if (book) {
     int sum = 0;
     for (auto &e : *book) {

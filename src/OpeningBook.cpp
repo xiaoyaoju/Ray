@@ -11,15 +11,6 @@
 
 using namespace std;
 
-struct book_element_t {
-  int hash;
-  vector<int> path;
-  vector<book_move_t> moves;
-};
-
-static string kifu_dir = "kifu";
-static multimap<unsigned long long, book_element_t> opening_books;
-
 static int path_hash(const vector<int> &path)
 {
   int h = 0;
@@ -37,7 +28,7 @@ static int path_hash(const game_info_t *game)
 }
 
 void
-LoadOpeningBook(int size)
+OpeningBook::load(int size)
 {
   string uct_parameters_path = uct_params_path;
   string path;
@@ -50,9 +41,13 @@ LoadOpeningBook(int size)
 
   path = uct_parameters_path + "book.txt";
 
-  opening_books.clear();
-
   ifstream in{ path };
+}
+
+void
+OpeningBook::load(int size, istream& in)
+{
+  books.clear();
   std::string line;
   while (getline(in, line)) {
     stringstream ss{ line };
@@ -91,17 +86,17 @@ LoadOpeningBook(int size)
       cerr << FormatMove(m.pos) << "(" << m.win << "/" << m.move_count << ") ";
     cerr << endl;
     */
-    opening_books.emplace(e.hash, e);
+    books.emplace(e.hash, e);
   }
 
   //cerr << "OK " << opening_books.size() << endl;
 }
 
 const vector<book_move_t>*
-LookupOpeningBook(const game_info_t * game)
+OpeningBook::lookup(const game_info_t * game)
 {
   int h = path_hash(game);
-  auto r = opening_books.equal_range(h);
+  auto r = books.equal_range(h);
   for (auto it = r.first; it != r.second; it++) {
     auto& e = it->second;
     if (e.hash != h)
@@ -130,4 +125,37 @@ LookupOpeningBook(const game_info_t * game)
   }
 
   return nullptr;
+}
+
+void
+OpeningBook::save(std::ostream& out)
+{
+  for (auto& it = books.begin(); it != books.end(); it++) {
+    auto& elm = it->second;
+    out << pure_board_size;
+    for (int pos : elm.path) {
+      out << " " << FormatMove(pos);
+    }
+    out << " |";
+
+    for (auto m : elm.moves) {
+      out << " " << FormatMove(m.pos)
+          << " " << m.win
+          << " " << m.move_count;
+    }
+    out << endl;
+  }
+}
+
+void
+ThinkOpeningBook()
+{
+  game_info_t *game = AllocateGame();
+  InitializeBoard(game);
+
+  OpeningBook book0;
+  book0.load(pure_board_size);
+
+  ofstream out("book_out.txt");
+  book0.save(out);
 }
