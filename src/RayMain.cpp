@@ -7,10 +7,11 @@
 #include "Command.h"
 #include "GoBoard.h"
 #include "Gtp.h"
-#include "Train.h"
+#include "OpeningBook.h"
 #include "PatternHash.h"
 #include "Rating.h"
 #include "Semeai.h"
+#include "Train.h"
 #include "UctRating.h"
 #include "UctSearch.h"
 #include "ZobristHash.h"
@@ -71,7 +72,8 @@ main( int argc, char **argv )
     GTP_main();
     break;
   case RUN_MODE::TRAIN:
-    Train();
+    //Train();
+    ThinkOpeningBook();
     break;
   }
 

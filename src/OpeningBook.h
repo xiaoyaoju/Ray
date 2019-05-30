@@ -23,9 +23,11 @@ public:
   void load(int size);
   void load(int size, std::istream& in);
   void save(std::ostream& out);
-  const std::vector<book_move_t>* lookup(const game_info_t * game);
+  std::pair<const std::vector<book_move_t>*, int> lookup(const game_info_t * game);
+  std::pair<const std::vector<book_move_t>*, int> lookup(const std::vector<int> &path);
 private:
-  std::multimap<unsigned long long, book_element_t> books;
+  std::multimap<unsigned long long, std::pair<int, int>> books;
+  std::vector<book_element_t> elements;
 };
 
 void

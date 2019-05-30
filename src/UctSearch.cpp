@@ -1492,13 +1492,17 @@ RatingNode( game_info_t *game, int color, int index, int depth )
 
   // Lookup opening book
   auto book = opening_book.lookup(game);
-  if (book) {
+  if (book.first != nullptr) {
     int sum = 0;
-    for (auto &e : *book) {
+    for (auto &e : *book.first) {
+      int epos = TransformMove(e.pos, book.second);
       for (int i = 1; i < child_num; i++) {
         int pos = uct_child[i].pos;
-        if (pos != e.pos)
+        if (pos != epos) {
+          if (i == child_num - 1)
+            cerr << "Illegal book" << endl;
           continue;
+        }
         uct_child[i].open = true;
         atomic_fetch_add(&uct_child[i].win, e.win * book_equivalent_move);
         atomic_fetch_add(&uct_child[i].move_count, e.move_count * book_equivalent_move);
