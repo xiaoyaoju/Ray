@@ -10,6 +10,7 @@ struct book_move_t {
   int pos;
   int win;
   int move_count;
+  double value;
 };
 
 struct book_element_t {
@@ -25,7 +26,7 @@ public:
   void save(std::ostream& out);
   std::pair<const std::vector<book_move_t>*, int> lookup(const game_info_t * game);
   std::pair<const std::vector<book_move_t>*, int> lookup(const std::vector<int> &path);
-private:
+
   std::multimap<unsigned long long, std::pair<int, int>> books;
   std::vector<book_element_t> elements;
 };

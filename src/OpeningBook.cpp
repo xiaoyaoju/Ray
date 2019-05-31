@@ -101,6 +101,7 @@ OpeningBook::load(int size, istream& in)
       book_move_t m;
       m.pos = StringToInteger(move.c_str());
       ss >> m.win >> m.move_count;
+      ss >> m.value;
       e.moves.push_back(m);
     }
     /*
@@ -208,7 +209,8 @@ OpeningBook::save(std::ostream& out)
     for (auto m : elm.moves) {
       out << " " << FormatMove(m.pos)
           << " " << m.win
-          << " " << m.move_count;
+          << " " << m.move_count
+          << " " << m.value;
     }
     out << endl;
   }
@@ -231,13 +233,59 @@ CreateTransposePos()
 void
 ThinkOpeningBook()
 {
-  game_info_t *game = AllocateGame();
-  InitializeBoard(game);
+  OpeningBook book;
+  book.load(pure_board_size);
 
-  OpeningBook book0;
-  book0.load(pure_board_size);
+#if 1
+  vector<int> indicies;
+  for (int i = 0; i < book.elements.size(); i++)
+    indicies.push_back(i);
+  sort(indicies.begin(), indicies.end(), [&](const int a, const int b) {
+      return book.elements[a].path.size() > book.elements[b].path.size();
+    });
+  for (int i = 0; i < book.elements.size(); i++) {
+    auto& elm = book.elements[indicies[i]];
+    cerr << "# THINK " << elm.path.size()
+      << " " << i << "/" << book.elements.size()
+      << endl;
 
+    game_info_t *game = AllocateGame();
+    InitializeBoard(game);
+
+    for (auto& m : elm.moves) {
+      cerr << "## " << FormatMove(m.pos) << endl;
+      if (m.value >= 0.0 && m.value <= 1.0) {
+        cerr << m.value << endl;
+        continue;
+      }
+      ClearBoard(game);
+      int color = S_BLACK;
+      for (int pos : elm.path) {
+        PutStone(game, pos, color);
+        color = FLIP_COLOR(color);
+      }
+      PutStone(game, m.pos, color);
+      color = FLIP_COLOR(color);
+
+      PrintBoard(game);
+      UctSearchGenmove(game, color);
+      auto root = &uct_node[current_root];
+      m.value = 1 - (double)root->value_win / root->value_move_count;
+
+      cerr << " -->"
+           << " V:" << (100.0 * m.value)
+           << " G:" << (100.0 * m.win / m.move_count)
+           << " (" <<  m.move_count << ")"
+           << endl;
+    }
+
+    FreeGame(game);
+
+    ofstream out("book_out.txt");
+    book.save(out);
+  }
+#endif
 
   ofstream out("book_out.txt");
-  book0.save(out);
+  book.save(out);
 }
