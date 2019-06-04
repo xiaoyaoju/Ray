@@ -258,6 +258,10 @@ ThinkOpeningBook()
         cerr << m.value << endl;
         continue;
       }
+      if (elm.path.size() < 5 && m.move_count < 10 && m.win == 0) {
+        cerr << "skip path:" << elm.path.size() << " count:" << m.move_count << " win:" << m.win << endl;
+        continue;
+      }
       ClearBoard(game);
       int color = S_BLACK;
       for (int pos : elm.path) {
