@@ -60,6 +60,12 @@ OpeningBook::load(int size, istream& in)
   books.clear();
   elements.clear();
 
+  int version = -1;
+  in >> version;
+  if (version != 1) {
+    cerr << "Unknow book " << version << endl;
+  }
+  in >> move_count >> value_move_count;
   std::string line;
   while (getline(in, line)) {
     stringstream ss{ line };
@@ -195,6 +201,7 @@ OpeningBook::lookup(const game_info_t * game)
 void
 OpeningBook::save(std::ostream& out)
 {
+  out << 1 << " " << move_count << " " << value_move_count << endl;
   for (auto& it = books.begin(); it != books.end(); it++) {
     auto& r = it->second;
     if (r.second != 0)

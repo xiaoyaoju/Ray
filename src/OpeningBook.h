@@ -29,6 +29,8 @@ public:
 
   std::multimap<unsigned long long, std::pair<int, int>> books;
   std::vector<book_element_t> elements;
+  int move_count;
+  int value_move_count;
 };
 
 void
