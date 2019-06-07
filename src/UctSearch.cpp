@@ -313,6 +313,9 @@ static void UpdateResult( child_node_t *child, int result, int current );
 // 乱数の初期化
 static void InitRand();
 
+//  定石による着手生成
+static int BookGenmove( game_info_t *root_game, int color );
+
 static void
 ClearEvalQueue()
 {
@@ -649,6 +652,12 @@ UctSearchGenmove( game_info_t *game, int color )
     cerr << "Use random pos" << endl;
     uniform_int_distribution<int> dist(0, candidates.size() - 1);
     return candidates[dist(*mt[0])];
+  }
+
+  if (true) {
+    pos = BookGenmove(game, color);
+    if (pos != PASS)
+      return pos;
   }
 
   // 探索情報をクリア
@@ -3198,4 +3207,91 @@ PolicyNetworkGenmove( game_info_t *game, int color )
   }
 
   return PASS;
+}
+
+pair<int, double>
+SearchBook( const game_info_t *root_game, int color )
+{
+  // Lookup opening book
+  auto book = opening_book.lookup(root_game);
+  if (book.first == nullptr)
+    return make_pair(PASS, -1);
+
+  auto game = AllocateGame();
+
+  double max_value = -1;
+  int max_pos = PASS;
+  for (auto &e : *book.first) {
+    int pos = TransformMove(e.pos, book.second);
+    CopyGame(game, root_game);
+    PutStone(game, pos, color);
+    auto result = SearchBook(game, FLIP_COLOR(color));
+    double value;
+    if (result.first == PASS) {
+      value = e.value;
+      //PrintBoard(game);
+      //cerr << "Value:" << value << endl;
+    } else {
+      value = 1 - result.second;
+    }
+    if (value > max_value) {
+      max_value = value;
+      max_pos = pos;
+    }
+  }
+
+  FreeGame(game);
+
+  return make_pair(max_pos, max_value);
+}
+
+
+//////////////////////
+//  定石による着手生成  //
+//////////////////////
+static int
+BookGenmove( game_info_t *root_game, int color )
+{
+  // Lookup opening book
+  auto book = opening_book.lookup(root_game);
+  if (book.first == nullptr)
+    return PASS;
+
+  auto game = AllocateGame();
+
+  double max_value = -1;
+  int max_pos = PASS;
+  for (auto &e : *book.first) {
+    int pos = TransformMove(e.pos, book.second);
+    if (!candidates[pos])
+      continue;
+    CopyGame(game, root_game);
+    PutStone(game, pos, color);
+    auto result = SearchBook(game, FLIP_COLOR(color));
+    double value;
+    if (result.first == PASS) {
+      value = e.value;
+    } else {
+      value = 1 - result.second;
+    }
+    if (value > max_value) {
+      max_value = value;
+      max_pos = pos;
+    }
+    if (GetDebugMessageMode()) {
+      if (value >= 0)
+        cerr << FormatMove(pos) << "\t" << (value * 100.0) << "\t" << e.win << "\t" << e.move_count << endl;
+    }
+  }
+  FreeGame(game);
+
+  // 探索にかかった時間を求める
+  double finish_time = GetSpendTime(begin_time);
+
+  if (GetDebugMessageMode()) {
+    cerr << FormatMove(max_pos) << "\t" << (max_value * 100.0) << endl;
+    cerr << "Thinking Time      :  " << setw(7) << finish_time << " sec" << endl;
+  }
+
+  return max_pos;
 }
