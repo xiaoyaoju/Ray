@@ -24,6 +24,7 @@
 #include "Point.h"
 #include "Rating.h"
 #include "Seki.h"
+#include "Semeai.h"
 #include "Simulation.h"
 #include "UctRating.h"
 #include "UctSearch.h"
@@ -314,6 +315,9 @@ static void InitRand();
 
 //  定石による着手生成
 static int BookGenmove( game_info_t *root_game, int color );
+
+//  眼を潰す手・自己アタリ以外の手がないか判定
+static bool MayPassNode( game_info_t *game, int color, int index );
 
 static void
 ClearEvalQueue()
@@ -1180,6 +1184,8 @@ ExpandRoot( game_info_t *game, int color )
     // 展開されたノード数を1に初期化
     uct_node[index].width = 1;
 
+    uct_node[index].may_pass = MayPassNode(game, color, index);
+
     // 候補手のレーティング
     RatingNode(game, color, index, path.size());
 
@@ -1218,21 +1224,31 @@ ExpandRoot( game_info_t *game, int color )
     // 候補手の展開
     if (moves == 1) {
       for (int i = 0; i < first_move_candidates; i++) {
-	pos = first_move_candidate[i];
-	// 探索候補かつ合法手であれば探索対象にする
-	if (candidates[pos] && IsLegal(game, pos, color)) {
-	  InitializeCandidate(&uct_child[child_num], pos, ladder[pos]);
-	  child_num++;
-	}
+        pos = first_move_candidate[i];
+        // 探索候補かつ合法手であれば探索対象にする
+        if (candidates[pos] && IsLegal(game, pos, color)) {
+          InitializeCandidate(&uct_child[child_num], pos, ladder[pos]);
+          if (IsLegalNotEye(game, pos, color)) {
+            uct_child[child_num].trivial = false;
+          } else {
+            uct_child[child_num].trivial = true;
+          }
+          child_num++;
+        }
       }
     } else {
       for (int i = 0; i < pure_board_max; i++) {
-	pos = onboard_pos[i];
-	// 探索候補かつ合法手であれば探索対象にする
-	if (candidates[pos] && IsLegal(game, pos, color)) {
-	  InitializeCandidate(&uct_child[child_num], pos, ladder[pos]);
-	  child_num++;
-	}
+        pos = onboard_pos[i];
+        // 探索候補かつ合法手であれば探索対象にする
+        if (candidates[pos] && IsLegal(game, pos, color)) {
+          InitializeCandidate(&uct_child[child_num], pos, ladder[pos]);
+          if (IsLegalNotEye(game, pos, color)) {
+            uct_child[child_num].trivial = false;
+          } else {
+            uct_child[child_num].trivial = true;
+          }
+          child_num++;
+        }
       }
     }
 
@@ -1240,6 +1256,8 @@ ExpandRoot( game_info_t *game, int color )
 
     // 子ノード個数の設定
     uct_node[index].child_num = child_num;
+
+    uct_node[index].may_pass = MayPassNode(game, color, index);
 
     // 候補手のレーティング
     RatingNode(game, color, index, path.size());
@@ -1253,6 +1271,27 @@ ExpandRoot( game_info_t *game, int color )
   return index;
 }
 
+
+///////////////////////////////////////
+//  眼を潰す手・自己アタリ以外の手がある  //
+///////////////////////////////////////
+static bool
+MayPassNode( game_info_t *game, int color, int index )
+{
+  const int child_num = uct_node[index].child_num;
+  child_node_t *uct_child = uct_node[index].child;
+
+  for (int i = 1; i < child_num; i++) {
+    int pos = uct_child[i].pos;
+    if (!IsLegalNotEye(game, pos, color))
+      continue;
+	if (IsSelfAtari(game, color, pos))
+      continue;
+    return false;
+  }
+
+  return true;
+}
 
 
 ///////////////////
@@ -1316,12 +1355,26 @@ ExpandNode( game_info_t *game, int color )
     // 探索候補でなければ除外
     if (candidates[pos] && IsLegal(game, pos, color)) {
       InitializeCandidate(&uct_child[child_num], pos, ladder[pos]);
+      if (IsLegalNotEye(game, pos, color)) {
+        uct_child[child_num].trivial = false;
+      } else {
+        uct_child[child_num].trivial = true;
+      }
       child_num++;
     }
   }
 
   // 子ノードの個数を設定
   uct_node[index].child_num = child_num;
+
+  uct_node[index].may_pass = MayPassNode(game, color, index);
+
+/*
+  if (uct_node[index].trivial) {
+    cerr << "TRIVIAL NODE " << color << endl;
+    PrintBoard(game);
+  }
+*/
 
   return index;
 }
@@ -2076,6 +2129,8 @@ UpdatePolicyRate(int current)
       uct_child[0].nnrate = min(0.05, uct_child[i].nnrate);
     }
     uct_child[i].nnrate = max(rate, root_policy_rate_min);
+    if (uct_child[i].trivial)
+      uct_child[i].nnrate = min(0.01, uct_child[i].nnrate);
   }
 
   if (in_opening && current == current_root) {
@@ -2217,12 +2272,11 @@ SelectMaxUcbChild( const game_info_t *game, int current, int color )
   }
 
   int start_child = 0;
-  if (!early_pass && current == current_root && child_num > 1) {
+  if (!early_pass && current == current_root && child_num > 1 && !uct_node[current].may_pass) {
     if (uct_child[0].move_count > uct_node[current].move_count * pass_po_limit) {
       start_child = 1;
     }
   }
-
 
   double sum_visited_nnrate = 0;
   for (int i = start_child; i < child_num; i++) {

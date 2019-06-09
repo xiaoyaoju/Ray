@@ -114,6 +114,7 @@ struct child_node_t {
   bool flag;   // Progressive Wideningのフラグ
   bool open;   // 常に探索候補に入れるかどうかのフラグ
   bool ladder; // シチョウのフラグ
+  bool trivial;
 };
 
 //  9x9  : 1828bytes
@@ -130,6 +131,7 @@ struct uct_node_t {
   statistic_t statistic[BOARD_MAX];   // 統計情報 
   bool seki[BOARD_MAX];
   bool evaled;
+  bool may_pass;
   std::atomic<bool> eval_value;
   //std::atomic<double> value;
   std::atomic<int> value_move_count;
