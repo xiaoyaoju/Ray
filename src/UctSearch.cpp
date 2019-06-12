@@ -217,6 +217,8 @@ int batch_size = 4;
 double c_score = 0.05;
 double k_score = 0.5;
 
+double book_margin = 0.02;
+
 ray_clock::time_point begin_time;
 
 static bool early_pass = true;
@@ -3313,8 +3315,10 @@ BookGenmove( game_info_t *root_game, int color )
 
   auto game = AllocateGame();
 
+  vector<pair<int, double>> moves;
   double max_value = -1;
   int max_pos = PASS;
+
   for (auto &e : *book.first) {
     int pos = TransformMove(e.pos, book.second);
     if (!candidates[pos])
@@ -3328,6 +3332,7 @@ BookGenmove( game_info_t *root_game, int color )
     } else {
       value = 1 - result.second;
     }
+    moves.push_back(make_pair(pos, value));
     if (value > max_value) {
       max_value = value;
       max_pos = pos;
@@ -3342,10 +3347,24 @@ BookGenmove( game_info_t *root_game, int color )
   // 探索にかかった時間を求める
   double finish_time = GetSpendTime(begin_time);
 
+  // Select near best move
+  double margin = book_margin;
+  int pos = PASS;
+  double value = 0;
+  shuffle(begin(moves), end(moves), *mt[0]);
+  for (auto& e : moves) {
+    if (e.second >= max_value - margin) {
+      pos = e.first;
+      value = e.second;
+      break;
+    }
+  }
+
   if (GetDebugMessageMode()) {
-    cerr << FormatMove(max_pos) << "\t" << (max_value * 100.0) << endl;
+    cerr << "Best Move          :  " << FormatMove(max_pos) << "\t" << (max_value * 100.0) << endl;
+    cerr << "Move               :  " << FormatMove(pos) << "\t" << (value * 100.0) << endl;
     cerr << "Thinking Time      :  " << setw(7) << finish_time << " sec" << endl;
   }
 
-  return max_pos;
+  return pos;
 }
