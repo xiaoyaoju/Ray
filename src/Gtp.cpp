@@ -939,10 +939,8 @@ GTP_ray_param()
     seach_threshold_policy_rate = value;
   } else if (name == "pass_po_limit") {
     pass_po_limit = value;
-  } else if (name == "policy_batch_sizee") {
-    policy_batch_size = (int)round(value);
-  } else if (name == "value_batch_size") {
-    value_batch_size = (int)round(value);
+  } else if (name == "batch_sizee") {
+    batch_size = (int)round(value);
   } else {
     GTP_response("unknown param", false);
     return;

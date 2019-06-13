@@ -211,8 +211,7 @@ double seach_threshold_policy_rate = 0.005;
 double root_policy_rate_min = 0.0;
 
 double pass_po_limit = 0.5;
-int policy_batch_size = 16;
-int value_batch_size = 64;
+int batch_size = 4;
 
 double c_score = 0.05;
 double k_score = 0.5;
@@ -379,6 +378,7 @@ void
 SetThread( int new_thread )
 {
   threads = new_thread;
+  batch_size = max(new_thread, batch_size);
 
   ctx.resize(threads);
 
@@ -1636,7 +1636,7 @@ WaitForEvaluationQueue(bool ponderingmode)
 
   // Wait if dcnn queue is full
   mutex_queue.lock();
-  while (eval_nn_queue.size() > value_batch_size * 3) {
+  while (eval_nn_queue.size() > batch_size * 3) {
     if (!running) break;
     if (ponderingmode) {
       if (pondering_stop) break;
@@ -3093,7 +3093,7 @@ void EvalNode() {
     if (eval_nn_queue.size() > 0) {
       std::vector<std::shared_ptr<nn_eval_req>> requests;
 
-      for (int i = 0; i < value_batch_size && !eval_nn_queue.empty(); i++) {
+      for (int i = 0; i < batch_size && !eval_nn_queue.empty(); i++) {
         auto req = eval_nn_queue.front();
         requests.push_back(req);
         eval_nn_queue.pop();

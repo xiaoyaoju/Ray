@@ -74,8 +74,7 @@ extern double seach_threshold_policy_rate;
 extern double root_policy_rate_min;
 
 extern double pass_po_limit;
-extern int policy_batch_size;
-extern int value_batch_size;
+extern int batch_size;
 
 
 enum SEARCH_MODE {
