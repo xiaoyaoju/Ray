@@ -1463,7 +1463,7 @@ GTP_stat_po(void)
 }
 
 
-static char
+char
 ToSGFPosition(int p)
 {
   return 'a' + p - OB_SIZE;
