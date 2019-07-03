@@ -20,7 +20,7 @@ bool
 IsCapturableAtari( const game_info_t *game, const int pos, const int color, const int opponent_pos )
 {
   string_t *string;
-  const int *string_id;
+  position_t *string_id;
   int other = FLIP_COLOR(color);
   int neighbor;
   int id;
@@ -73,7 +73,7 @@ int
 CheckOiotoshi( const game_info_t *game, const int pos, const int color, const int opponent_pos )
 {
   string_t *string;
-  int *string_id;
+  position_t *string_id;
   const int other = FLIP_COLOR(color);
   int neighbor;
   int id, num = -1;
@@ -174,7 +174,7 @@ IsSelfAtariCapture( const game_info_t *game, const int pos, const int color, con
 {
   string_t *string;
   const int string_pos = game->string[id].origin;
-  int *string_id;
+  position_t *string_id;
 
   if (!IsLegal(game, pos, color)) {
     return false;
@@ -201,7 +201,7 @@ CheckLibertyState( const game_info_t *game, const int pos, const int color, cons
 {
   string_t *string;
   const int string_pos = game->string[id].origin;
-  int *string_id;
+  position_t *string_id;
   const int libs = game->string[id].libs;
   int new_libs;
 
@@ -235,7 +235,7 @@ IsCapturableAtariForSimulation( const game_info_t *game, const int pos, const in
 {
   const char *board = game->board;
   const string_t *string = game->string;
-  const int *string_id = game->string_id;
+  const position_t *string_id = game->string_id;
   const int other = FLIP_COLOR(color);
   int lib;
   bool neighbor = false;
@@ -337,7 +337,7 @@ IsSelfAtariCaptureForSimulation( const game_info_t *game, const int pos, const i
 {
   const char *board = game->board;
   const string_t *string = game->string;
-  const int *string_id = game->string_id;
+  const position_t *string_id = game->string_id;
   const int other = FLIP_COLOR(color);
   int id;
   int size = 0;
@@ -407,7 +407,7 @@ IsSelfAtari( const game_info_t *game, const int color, const int pos )
 {
   const char *board = game->board;
   const string_t *string = game->string;
-  const int *string_id = game->string_id;
+  const position_t *string_id = game->string_id;
   const int other = FLIP_COLOR(color);
   int already[4] = { 0 };
   int already_num = 0;
@@ -561,11 +561,10 @@ bool
 IsAlreadyCaptured( const game_info_t *game, const int color, const int id, int player_id[], int player_ids )
 {
   const string_t *string = game->string;
-  const int *string_id = game->string_id;
-  int lib1, lib2;
+  const position_t *string_id = game->string_id;
+  position_t lib1, lib2;
   bool checked;
-  int neighbor4[4];
-  int i, j;
+  position_t neighbor4[4];
 
   if (string[id].libs == 1) {
     return true;
@@ -575,8 +574,8 @@ IsAlreadyCaptured( const game_info_t *game, const int color, const int id, int p
 
     GetNeighbor4(neighbor4, lib1);
     checked = false;
-    for (i = 0; i < 4; i++) {
-      for (j = 0; j < player_ids; j++) {
+    for (int i = 0; i < 4; i++) {
+      for (int j = 0; j < player_ids; j++) {
 	if (player_id[j] == string_id[neighbor4[i]]) {
 	  checked = true;
 	  player_id[j] = 0;
@@ -587,8 +586,8 @@ IsAlreadyCaptured( const game_info_t *game, const int color, const int id, int p
 
     GetNeighbor4(neighbor4, lib2);
     checked = false;
-    for (i = 0; i < 4; i++) {
-      for (j = 0; j < player_ids; j++) {
+    for (int i = 0; i < 4; i++) {
+      for (int j = 0; j < player_ids; j++) {
 	if (player_id[j] == string_id[neighbor4[i]]) {
 	  checked = true;
 	  player_id[j] = 0;
@@ -597,7 +596,7 @@ IsAlreadyCaptured( const game_info_t *game, const int color, const int id, int p
     }
     if (checked == false) return false;
 
-    for (i = 0; i < player_ids; i++) {
+    for (int i = 0; i < player_ids; i++) {
       if (player_id[i] != 0) {
 	return false;
       }

@@ -84,7 +84,7 @@ enum eye_condition_t : unsigned char {
 // 着手を記録する構造体
 struct record_t {
   int color;                // 着手した石の色
-  int pos;                  // 着手箇所の座標
+  position_t pos;           // 着手箇所の座標
   unsigned long long hash;  // 局面のハッシュ値
 };
 
@@ -95,7 +95,7 @@ struct string_t {
   short lib[STRING_LIB_MAX];     // 連の持つ呼吸点の座標
   int neighbors;                 // 隣接する敵の連の数
   short neighbor[MAX_NEIGHBOR];  // 隣接する敵の連の連番号
-  int origin;                    // 連の始点の座標
+  position_t origin;             // 連の始点の座標
   int size;                      // 連を構成する石の数
   bool flag;                     // 連の存在フラグ
 };
@@ -106,7 +106,7 @@ struct game_info_t {
   record_t record[MAX_RECORDS];  // 着手箇所と色の記録
   int moves;                        // 着手数の記録
   int prisoner[S_MAX];              // アゲハマ
-  int ko_pos;                       // 劫となっている箇所
+  position_t ko_pos;                // 劫となっている箇所
   int ko_move;                      // 劫となった時の着手数
 
   unsigned long long current_hash;     // 現在の局面のハッシュ値
@@ -121,9 +121,9 @@ struct game_info_t {
 
   pattern_t pat[BOARD_MAX];    // 周囲の石の配置 
 
-  string_t string[MAX_STRING];        // 連のデータ(19x19 : 573,845bytes)
-  int string_id[STRING_POS_MAX];    // 各座標の連のID
-  int string_next[STRING_POS_MAX];  // 連を構成する石のデータ構造
+  string_t string[MAX_STRING];            // 連のデータ(19x19 : 573,845bytes)
+  position_t string_id[STRING_POS_MAX];   // 各座標の連のID
+  position_t string_next[STRING_POS_MAX]; // 連を構成する石のデータ構造
 
   bool candidates[BOARD_MAX];  // 候補手かどうかのフラグ 
   bool seki[BOARD_MAX];
@@ -132,10 +132,10 @@ struct game_info_t {
   unsigned int tactical_features2[BOARD_MAX];  // 戦術的特徴 
 
   int capture_num[S_OB];                   // 前の着手で打ち上げた石の数
-  int capture_pos[S_OB][PURE_BOARD_MAX];   // 前の着手で石を打ち上げた座標 
+  position_t capture_pos[S_OB][PURE_BOARD_MAX];   // 前の着手で石を打ち上げた座標 
 
   int update_num[S_OB];                    // 戦術的特徴が更新された数
-  int update_pos[S_OB][PURE_BOARD_MAX];    // 戦術的特徴が更新された座標 
+  position_t update_pos[S_OB][PURE_BOARD_MAX];    // 戦術的特徴が更新された座標 
 
   long long rate[2][BOARD_MAX];           // シミュレーション時の各座標のレート 
   long long sum_rate_row[2][BOARD_SIZE];  // シミュレーション時の各列のレートの合計値  
@@ -148,25 +148,25 @@ struct game_info_t {
 ////////////////
 
 // 碁盤の大きさ
-extern int pure_board_size;
+extern position_t pure_board_size;
 
 // 碁盤の交点の個数
-extern int pure_board_max;
+extern position_t pure_board_max;
 
 // 碁盤の大きさ(盤外込み)
-extern int board_size;
+extern position_t board_size;
 
 // 碁盤の交点の個数(盤外込み)
-extern int board_max;
+extern position_t board_max;
 
 // 碁盤の右端(上端)
-extern int board_start;
+extern position_t board_start;
 
 // 碁盤の左端(下端)
-extern int board_end;
+extern position_t board_end;
 
 // 初手の候補手の個数
-extern int first_move_candidates;
+extern position_t first_move_candidates;
 
 // コミ
 extern double komi[S_OB];
@@ -175,7 +175,7 @@ extern double komi[S_OB];
 extern double dynamic_komi[S_OB];
 
 // 盤上の位置のID
-extern int board_pos_id[BOARD_MAX];  
+extern position_t board_pos_id[BOARD_MAX];
 
 // 盤上のx座標
 extern int board_x[BOARD_MAX];  
@@ -205,10 +205,10 @@ extern int border_dis_y[BOARD_MAX];
 extern int move_dis[PURE_BOARD_SIZE][PURE_BOARD_SIZE];
 
 // 盤上の位置からデータ上の位置の対応
-extern int onboard_pos[PURE_BOARD_MAX];
+extern position_t onboard_pos[PURE_BOARD_MAX];
 
 // 初手の候補手
-extern int first_move_candidate[PURE_BOARD_MAX];
+extern position_t first_move_candidate[PURE_BOARD_MAX];
 
 //////////////
 //   関数   //
@@ -240,27 +240,27 @@ void ClearBoard( game_info_t *game );
 
 // 合法手判定
 // 合法手ならばtrueを返す
-bool IsLegal( const game_info_t *game, const int pos, const int color );
+bool IsLegal( const game_info_t *game, const position_t pos, const int color );
 
 // 合法手かつ眼でないか判定
 // 合法手かつ眼でなければtrueを返す
-bool IsLegalNotEye( game_info_t *game, const int pos, const int color );
+bool IsLegalNotEye( game_info_t *game, const position_t pos, const int color );
 
 // 愚形
 bool IsBadMove( game_info_t *game, const int pos, const int color );
 
 // 自殺手判定
 // 自殺手ならばtrueを返す
-bool IsSuicide( const game_info_t *game, const string_t *string, const int color, const int pos );
+bool IsSuicide( const game_info_t *game, const string_t *string, const int color, const position_t pos );
 
 // プレイアウト中に手を置き換える
 bool ReplaceMove(game_info_t *game, const int pos, const int color, int* replace, int* replace_num);
 
 // 石を置く
-void PutStone( game_info_t *game, const int pos, const int color );
+void PutStone( game_info_t *game, const position_t pos, const int color );
 
 // 石を置く(プレイアウト用)
-void PoPutStone( game_info_t *game, const int pos, const int color );
+void PoPutStone( game_info_t *game, const position_t pos, const int color );
 
 // スコアの判定
 int CalculateScore( game_info_t *game );
@@ -269,8 +269,7 @@ int CalculateScore( game_info_t *game );
 void SetKomi( const double new_komi );
 
 // 上下左右の座標の計算
-void GetNeighbor4( int neighbor4[4], const int pos );
-
+void GetNeighbor4( position_t neighbor4[4], const position_t pos );
 
 struct uct_node_t;
 
@@ -283,13 +282,13 @@ void WritePlanes(std::vector<float>& data_basic, std::vector<float>& data_featur
 #define HASH_HMIRROR     2
 #define HASH_XYFLIP      4
 
-inline int TransformMove(int p, int i)
+inline position_t TransformMove( position_t p, int i )
 {
   if (p == PASS || p == RESIGN)
     return p;
-  int p0 = p;
-  int x = X(p);
-  int y = Y(p);
+  position_t p0 = p;
+  position_t x = X(p);
+  position_t y = Y(p);
   if (i & HASH_VMIRROR) {
     y = board_end - (y - board_start);
   }
@@ -310,13 +309,13 @@ inline int TransformMove(int p, int i)
   return POS(x, y);
 }
 
-inline int RevTransformMove(int p, int i)
+inline position_t RevTransformMove(position_t p, int i)
 {
   if (p == PASS || p == RESIGN)
     return p;
-  int p0 = p;
-  int x = X(p);
-  int y = Y(p);
+  position_t p0 = p;
+  position_t x = X(p);
+  position_t y = Y(p);
   if (i & HASH_XYFLIP) {
     std::swap(x, y);
   }
@@ -327,8 +326,8 @@ inline int RevTransformMove(int p, int i)
     y = board_end - (y - board_start);
   }
 #if 0
-  int row = x;
-  int col = y;
+  position_t row = x;
+  position_t col = y;
   if (row < board_start || row > board_end || col < board_start || col > board_end) {
     std::cerr << "BAD TRANS " << p0 << " -> " << p << " " << board_size << " " << i << " " << row << "," << col << "\n";
     exit(1);
@@ -341,7 +340,7 @@ inline int RevTransformMove(int p, int i)
 #undef HASH_HMIRROR
 #undef HASH_XYFLIP
 
-inline bool IsNeighbor( int pos0, int pos1 ) {
+inline bool IsNeighbor( position_t pos0, position_t pos1 ) {
   int index_distance = pos0 - pos1;
   return index_distance == 1
     || index_distance == -1
@@ -349,9 +348,9 @@ inline bool IsNeighbor( int pos0, int pos1 ) {
     || index_distance == -board_size;
 }
 
-inline int PureBoardPos(int pos) {
-  int x = X(pos) - OB_SIZE;
-  int y = Y(pos) - OB_SIZE;
+inline position_t PureBoardPos( position_t pos ) {
+  position_t x = X(pos) - OB_SIZE;
+  position_t y = Y(pos) - OB_SIZE;
   return x + y * pure_board_size;
 }
 

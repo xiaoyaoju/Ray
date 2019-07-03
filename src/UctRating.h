@@ -223,7 +223,7 @@ extern const unsigned long long uct_mask[UCT_MASK_MAX];
 void InitializeUctRating( void );
 
 //  戦術的特徴のレートの計算
-double CalculateLFRScore( const game_info_t *game, int pos, int pat_index[3], uct_features_t *uct_features );
+double CalculateLFRScore( const game_info_t *game, position_t pos, int pat_index[3], uct_features_t *uct_features );
 
 //  特徴の判定
 void UctCheckFeatures( const game_info_t *game, int color, uct_features_t *uct_features );
@@ -238,22 +238,22 @@ void UctCheckRemove3Stones( const game_info_t *game, int color, uct_features_t *
 void UctCheckCaptureAfterKo( const game_info_t *game, int color, uct_features_t *uct_features );
 
 //  自己アタリの判定
-bool UctCheckSelfAtari( const game_info_t *game, int color, int pos, uct_features_t *uct_features );
+bool UctCheckSelfAtari( const game_info_t *game, int color, position_t pos, uct_features_t *uct_features );
 
 //  トリの判定
-void UctCheckCapture( const game_info_t *game, int color, int pos, uct_features_t *uct_features );
+void UctCheckCapture( const game_info_t *game, int color, position_t pos, uct_features_t *uct_features );
 
 //  アタリの判定
-void UctCheckAtari( const game_info_t *game, int color, int pos, uct_features_t *uct_features );
+void UctCheckAtari( const game_info_t *game, int color, position_t pos, uct_features_t *uct_features );
 
 //  ウッテガエシの判定
-void UctCheckSnapBack( const game_info_t *game, int color, int pos, uct_features_t *uct_features );
+void UctCheckSnapBack( const game_info_t *game, int color, position_t pos, uct_features_t *uct_features );
 
 //  ケイマのツケコシの判定
-void UctCheckKeimaTsukekoshi( const game_info_t *game, int color, int pos, uct_features_t *uct_features );
+void UctCheckKeimaTsukekoshi( const game_info_t *game, int color, position_t pos, uct_features_t *uct_features );
 
 //  両ケイマの判定
-void UctCheckDoubleKeima( const game_info_t *game, int color, int pos, uct_features_t *uct_features );
+void UctCheckDoubleKeima( const game_info_t *game, int color, position_t pos, uct_features_t *uct_features );
 
 //  劫の解消
 void UctCheckKoConnection( const game_info_t *game, uct_features_t *uct_features );

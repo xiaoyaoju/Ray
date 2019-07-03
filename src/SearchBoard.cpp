@@ -13,24 +13,24 @@ using namespace std;
 ////////////
 
 //  呼吸点の追加 
-static int AddLiberty( string_t *string, const int pos, const int head );
+static int AddLiberty( string_t *string, const position_t pos, const int head );
 
 //  隣接する敵連のIDの追加
 static void AddNeighbor( string_t *string, const int id );
 
 //  連に石を追加
-static void AddStoneToString( search_game_info_t *game, string_t *string, const int pos);
+static void AddStoneToString( search_game_info_t *game, string_t *string, const position_t pos);
 //  石の追加  
-static void AddStone( search_game_info_t *game, const int pos, const int color, const int id );
+static void AddStone( search_game_info_t *game, const position_t pos, const int color, const int id );
 
 //  連の結合
-static void ConnectString( search_game_info_t *game, const int pos, const int color, const int connection, const int id[] );
+static void ConnectString( search_game_info_t *game, const position_t pos, const int color, const int connection, const position_t id[] );
 
 //  自殺手の判定
-static bool IsSuicide( const search_game_info_t *game, const string_t *string, const int color, const int pos );
+static bool IsSuicide( const search_game_info_t *game, const string_t *string, const int color, const position_t pos );
 
 //  新たな連の作成
-static void MakeString( search_game_info_t *game, const int pos, const int color );
+static void MakeString( search_game_info_t *game, const position_t pos, const int color );
 
 //  呼吸点の結合
 static void MergeLiberty( string_t *dst, string_t *src );
@@ -48,7 +48,7 @@ static void MergeString( search_game_info_t *game, string_t *dst, string_t *src[
 static void RecordString( search_game_info_t *game, int id );
 
 //  呼吸点を1つ除去
-static void RemoveLiberty( search_game_info_t *game, string_t *string, const int pos );
+static void RemoveLiberty( search_game_info_t *game, string_t *string, const position_t pos );
 
 //  隣接する敵連IDの除去
 static void RemoveNeighborString( string_t *string, const int id );
@@ -57,7 +57,7 @@ static void RemoveNeighborString( string_t *string, const int id );
 static int RemoveString( search_game_info_t *game, string_t *string );
 
 //  連の復元 
-static void RestoreChain( search_game_info_t *game, const int id, const int stone[], const int stones, const int color );
+static void RestoreChain( search_game_info_t *game, const int id, const position_t stone[], const int stones, const int color );
 
 
 ///////////////////
@@ -69,8 +69,8 @@ search_game_info_t::search_game_info_t( const game_info_t *src )
   memcpy(prisoner,    src->prisoner,    sizeof(int) * S_MAX);
   memcpy(board,       src->board,       sizeof(char) * BOARD_MAX);
   memcpy(pat,         src->pat,         sizeof(pattern_t) * BOARD_MAX);
-  memcpy(string_id,   src->string_id,   sizeof(int) * STRING_POS_MAX);
-  memcpy(string_next, src->string_next, sizeof(int) * STRING_POS_MAX);
+  memcpy(string_id,   src->string_id,   sizeof(position_t) * STRING_POS_MAX);
+  memcpy(string_next, src->string_next, sizeof(position_t) * STRING_POS_MAX);
   memcpy(candidates,  src->candidates, sizeof(bool) * BOARD_MAX);
 
   for (int i = 0; i < MAX_STRING; i++) {
@@ -95,7 +95,7 @@ search_game_info_t::search_game_info_t( const game_info_t *src )
 //  合法手判定  //
 //////////////////
 bool
-IsLegalForSearch( const search_game_info_t *game, const int pos, const int color )
+IsLegalForSearch( const search_game_info_t *game, const position_t pos, const int color )
 {
   // 既に石がある
   if (game->board[pos] != S_EMPTY) {
@@ -126,11 +126,11 @@ RecordString( search_game_info_t *game, int id )
 {
   const int moves = game->moves;  
   const string_t *string = game->string;
-  const int *string_next = game->string_next;
+  const position_t *string_next = game->string_next;
   undo_record_t* rec = &game->undo[moves];
-  int pos, i = 0;
+  int i = 0;
 
-  pos = string[id].origin;
+  position_t pos = string[id].origin;
   while (pos != STRING_END) {
     rec->stone[rec->strings][i++] = pos;
     pos = string_next[pos];
@@ -147,16 +147,16 @@ RecordString( search_game_info_t *game, int id )
 //  石を置く  //
 ////////////////
 void
-PutStoneForSearch( search_game_info_t *game, const int pos, const int color )
+PutStoneForSearch( search_game_info_t *game, const position_t pos, const int color )
 {
-  int *string_id = game->string_id;
+  position_t *string_id = game->string_id;
   char *board = game->board;
   string_t *string = game->string;
   int other = FLIP_COLOR(color);
   int connection = 0;
-  int connect[4] = { 0 };
+  position_t connect[4] = { 0 };
   int prisoner = 0;
-  int neighbor[4];
+  position_t neighbor[4];
 
   // 着手箇所と色を記録
   if (game->moves < MAX_RECORDS) {
@@ -233,7 +233,7 @@ PutStoneForSearch( search_game_info_t *game, const int pos, const int color )
 //  呼吸点の追加  //
 ///////////////////
 static int
-AddLiberty( string_t *string, const int pos, const int head )
+AddLiberty( string_t *string, const position_t pos, const int head )
 {
   int lib;
   
@@ -289,10 +289,10 @@ AddNeighbor( string_t *string, const int id )
 //  連に石を追加  //
 ///////////////////
 static void
-AddStoneToString( search_game_info_t *game, string_t *string, const int pos )
+AddStoneToString( search_game_info_t *game, string_t *string, const position_t pos )
 {
-  int *string_next = game->string_next;
-  int str_pos;
+  position_t *string_next = game->string_next;
+  position_t str_pos;
 
   if (pos == STRING_END) return;
 
@@ -317,15 +317,15 @@ AddStoneToString( search_game_info_t *game, string_t *string, const int pos )
 //  石の追加  //
 ////////////////
 static void
-AddStone( search_game_info_t *game, const int pos, const int color, const int id )
+AddStone( search_game_info_t *game, const position_t pos, const int color, const int id )
 {
   const char *board = game->board;
   string_t *string = game->string;
   string_t *add_str;
-  int *string_id = game->string_id;
+  position_t *string_id = game->string_id;
   int lib_add = 0;
   int other = FLIP_COLOR(color);
-  int neighbor, neighbor4[4];
+  position_t neighbor, neighbor4[4];
 
   // IDを更新
   string_id[pos] = id;
@@ -357,7 +357,7 @@ AddStone( search_game_info_t *game, const int pos, const int color, const int id
 //  連の結合  //
 ////////////////
 static void
-ConnectString( search_game_info_t *game, const int pos, const int color, const int connection, const int id[] )
+ConnectString( search_game_info_t *game, const position_t pos, const int color, const int connection, const position_t id[] )
 {
   int min = id[0];
   int ids[4];
@@ -407,12 +407,12 @@ ConnectString( search_game_info_t *game, const int pos, const int color, const i
 //  自殺手の判定  //
 ///////////////////
 static bool
-IsSuicide( const search_game_info_t *game, const string_t *string, const int color, const int pos )
+IsSuicide( const search_game_info_t *game, const string_t *string, const int color, const position_t pos )
 {
   const char *board = game->board;
-  const int *string_id = game->string_id;
+  const position_t *string_id = game->string_id;
   const int other = FLIP_COLOR(color);
-  int neighbor4[4];
+  position_t neighbor4[4];
 
   GetNeighbor4(neighbor4, pos);
 
@@ -437,16 +437,16 @@ IsSuicide( const search_game_info_t *game, const string_t *string, const int col
 //  新たな連の作成  //
 /////////////////////
 static void
-MakeString( search_game_info_t *game, const int pos, const int color )
+MakeString( search_game_info_t *game, const position_t pos, const int color )
 {
   string_t *string = game->string;
   string_t *new_string;
   char *board = game->board;
-  int *string_id = game->string_id;
+  position_t *string_id = game->string_id;
   int id = 1;
   int lib_add = 0;
   int other = FLIP_COLOR(color);
-  int neighbor, neighbor4[4];
+  position_t neighbor, neighbor4[4];
 
   // 未使用の連のインデックスを見つける
   while (string[id].flag) { id++; }
@@ -521,10 +521,10 @@ static void
 MergeStones( search_game_info_t *game, const int id, const int rm_id )
 {
   string_t *string = game->string;
-  int *string_next = game->string_next;
-  int *string_id = game->string_id;
-  int dst_pos = string[id].origin, src_pos = string[rm_id].origin;
-  int pos;
+  position_t *string_next = game->string_next;
+  position_t *string_id = game->string_id;
+  position_t dst_pos = string[id].origin, src_pos = string[rm_id].origin;
+  position_t pos;
 
   // 結合元srcの連の始点が結合先dstの連の始点よりも
   // 前にあるときの特殊処理
@@ -567,8 +567,8 @@ MergeStones( search_game_info_t *game, const int id, const int rm_id )
 static void
 MergeString( search_game_info_t *game, string_t *dst, string_t *src[3], const int n )
 {
-  int *string_id = game->string_id;
-  int id = string_id[dst->origin], rm_id;
+  position_t *string_id = game->string_id;
+  position_t id = string_id[dst->origin], rm_id;
   string_t *string = game->string;
 
   for (int i = 0; i < n; i++) {
@@ -590,7 +590,7 @@ MergeString( search_game_info_t *game, string_t *dst, string_t *src[3], const in
 //  呼吸点を1つ除去  //
 //////////////////////
 static void
-RemoveLiberty( search_game_info_t *game, string_t *string, const int pos )
+RemoveLiberty( search_game_info_t *game, string_t *string, const position_t pos )
 {
   int lib = 0;
 
@@ -683,12 +683,12 @@ static int
 RemoveString( search_game_info_t *game, string_t *string )
 {
   string_t *str = game->string;
-  int *string_next = game->string_next;
-  int *string_id = game->string_id;
-  int pos = string->origin, next;
+  position_t *string_next = game->string_next;
+  position_t *string_id = game->string_id;
+  position_t pos = string->origin, next;
   char *board = game->board;
   bool *candidates = game->candidates;
-  int neighbor, rm_id = string_id[string->origin];
+  position_t neighbor, rm_id = string_id[string->origin];
 
   do {
     // 空点に戻す
@@ -738,16 +738,16 @@ RemoveString( search_game_info_t *game, string_t *string )
 //  連の復元  //
 ////////////////
 static void
-RestoreChain( search_game_info_t *game, const int id, const int stone[], const int stones, const int color )
+RestoreChain( search_game_info_t *game, const int id, const position_t stone[], const int stones, const int color )
 {
   string_t *string = game->string;
   string_t *new_string;
   char *board = game->board;
-  int *string_id = game->string_id;
+  position_t *string_id = game->string_id;
   int lib_add = 0;
   const int other = FLIP_COLOR(color);
-  int neighbor, neighbor4[4];
-  int pos;
+  position_t neighbor, neighbor4[4];
+  position_t pos;
 
   // 新しい連のポインタ
   new_string = &game->string[id];
@@ -810,7 +810,7 @@ Undo( search_game_info_t *game )
   const int played_color = game->record[pm_count].color;
   const int opponent_color = FLIP_COLOR(played_color);
   string_t *string = game->string;
-  int *string_id = game->string_id;
+  position_t *string_id = game->string_id;
   undo_record_t* rec = &game->undo[pm_count];
 
   // 連を取り除く

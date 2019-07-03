@@ -166,7 +166,7 @@ CheckLadderExtension( const game_info_t *game, int color, int pos )
 {
   const char *board = game->board;
   const string_t *string = game->string;
-  const int *string_id = game->string_id;
+  const position_t *string_id = game->string_id;
   bool flag = false;
 
   if (board[pos] != color){

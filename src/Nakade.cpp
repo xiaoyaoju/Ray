@@ -161,12 +161,12 @@ static const unsigned int nakade_mask[446][2] = {
 ////////////
 
 // ナカデになっている座標を返す
-static int FindNakadePos( const game_info_t *game, const int pos, const int color );
+static int FindNakadePos( const game_info_t *game, const position_t pos, const int color );
 
 // キューの操作
 static void InitializeNakadeQueue( nakade_queue_t *nq );
-static void Enqueue( nakade_queue_t *nq, int pos );
-static int Dequeue( nakade_queue_t *nq );
+static void Enqueue( nakade_queue_t *nq, position_t pos );
+static position_t Dequeue( nakade_queue_t *nq );
 static bool IsQueueEmpty( const nakade_queue_t *nq );
 
 //////////////
@@ -319,13 +319,13 @@ InitializeNakadeHash( void )
 //  3目, 4目, 5目ナカデのみ確認する           //
 ////////////////////////////////////////////////
 bool
-IsNakadeSelfAtari( const game_info_t *game, const int pos, const int color )
+IsNakadeSelfAtari( const game_info_t *game, const position_t pos, const int color )
 {
   const char *board = game->board;
   const string_t *string = game->string;
-  const int *string_id = game->string_id;
-  const int *string_next = game->string_next;
-  const int neighbor4[4] = { NORTH(pos), WEST(pos), EAST(pos), SOUTH(pos) };
+  const position_t *string_id = game->string_id;
+  const position_t *string_next = game->string_next;
+  const position_t neighbor4[4] = { NORTH(pos), WEST(pos), EAST(pos), SOUTH(pos) };
   unsigned long long hash = 0;
   int stones[10], checked[4] = { 0 };
   int check = 0, n = 0, my_stone, reviser, id;
@@ -394,15 +394,15 @@ IsNakadeSelfAtari( const game_info_t *game, const int pos, const int color )
 //  自己アタリがナカデの形になっているかを確認  //
 //////////////////////////////////////////////////
 bool
-IsUctNakadeSelfAtari( const game_info_t *game, const int pos, const int color )
+IsUctNakadeSelfAtari( const game_info_t *game, const position_t pos, const int color )
 {
   const char *board = game->board;
   const string_t *string = game->string;
-  const int *string_id = game->string_id;
-  const int *string_next = game->string_next;
-  const int neighbor4[4] = { NORTH(pos), WEST(pos), EAST(pos), SOUTH(pos) };
+  const position_t *string_id = game->string_id;
+  const position_t *string_next = game->string_next;
+  const position_t neighbor4[4] = { NORTH(pos), WEST(pos), EAST(pos), SOUTH(pos) };
   unsigned long long hash = 0;
-  int stones[10], checked[4] = { 0 };
+  position_t stones[10], checked[4] = { 0 };
   int n = 0, check = 0, my_stone, reviser, id;
 
 
@@ -465,14 +465,14 @@ IsUctNakadeSelfAtari( const game_info_t *game, const int pos, const int color )
 //  直前の着手でナカデの形が現れているか確認  //
 ////////////////////////////////////////////////
 static int
-FindNakadePos( const game_info_t *game, const int pos, const int color )
+FindNakadePos( const game_info_t *game, const position_t pos, const int color )
 {
   const char *board = game->board;
   bool flag[BOARD_MAX] = { false };  
   nakade_queue_t nakade_queue;
   unsigned long long hash = 0;
-  int nakade[10], neighbor4[4];
-  int size = 0, nakade_num = 0, current_pos, reviser;
+  position_t nakade[10], neighbor4[4];
+  int size = 0, nakade_num = 0;
 
   // キューの初期化
   InitializeNakadeQueue(&nakade_queue);
@@ -485,7 +485,7 @@ FindNakadePos( const game_info_t *game, const int pos, const int color )
 
   // キューが空になるまでループ
   while (!IsQueueEmpty(&nakade_queue)) {
-    current_pos = Dequeue(&nakade_queue);
+    position_t current_pos = Dequeue(&nakade_queue);
     nakade[nakade_num++] = current_pos;
 
     // 領域のサイズが6以上になったら
@@ -512,7 +512,7 @@ FindNakadePos( const game_info_t *game, const int pos, const int color )
   std::sort(nakade, nakade + nakade_num);
 
   // 座標の補正項を算出
-  reviser = start - nakade[0];
+  int reviser = start - nakade[0];
 
   // ハッシュ値の計算
   for (int i = 0; i < nakade_num; i++) {
@@ -541,17 +541,17 @@ FindNakadePos( const game_info_t *game, const int pos, const int color )
 //  直前の着手でナカデがあるか確認  //
 //////////////////////////////////////
 void
-SearchNakade( const game_info_t *game, int *nakade_num, int *nakade_pos )
+SearchNakade( const game_info_t *game, int *nakade_num, position_t *nakade_pos )
 {
   const int last_color = game->record[game->moves - 1].color;
-  const int pos = game->record[game->moves - 1].pos;
+  const position_t pos = game->record[game->moves - 1].pos;
   const unsigned int mask[2][4] = {
     {0x0004, 0x0040, 0x0100, 0x1000}, {0x0008, 0x0080, 0x0200, 0x2000},
   };
   const unsigned int all_mask[2] = {
     0x1144, 0x2288
   };
-  const int neighbor4[4] = { NORTH(pos), WEST(pos), EAST(pos), SOUTH(pos) };
+  const position_t neighbor4[4] = { NORTH(pos), WEST(pos), EAST(pos), SOUTH(pos) };
   const unsigned int pat3 = Pat3(game->pat, pos);
 
   // ナカデが出現し得ないパターンなら戻る
@@ -573,7 +573,7 @@ int
 CheckRemovedStoneNakade( const game_info_t *game, const int color )
 {
   const int capture_num = game->capture_num[FLIP_COLOR(color)];
-  const int *capture_pos = game->capture_pos[FLIP_COLOR(color)];
+  const position_t *capture_pos = game->capture_pos[FLIP_COLOR(color)];
   unsigned long long hash = 0;
   int reviser;
 
@@ -610,7 +610,7 @@ CheckRemovedStoneNakade( const game_info_t *game, const int color )
 
 
 static void
-Enqueue( nakade_queue_t *nq, int pos )
+Enqueue( nakade_queue_t *nq, position_t pos )
 {
   nq->pos[nq->tail++] = pos;
   if (nq->tail >= NAKADE_QUEUE_SIZE) {
@@ -623,7 +623,7 @@ Enqueue( nakade_queue_t *nq, int pos )
 }
 
 
-static int
+static position_t
 Dequeue( nakade_queue_t *nq )
 {
   int pos;

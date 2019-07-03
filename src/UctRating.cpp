@@ -500,12 +500,12 @@ UctCheckFeatures( const game_info_t *game, int color, uct_features_t *uct_featur
 { 
   const char *board = game->board;
   const string_t *string = game->string;
-  const int *string_id = game->string_id;
+  const position_t *string_id = game->string_id;
   int previous_move = PASS, id;
-  int check[4] = { 0 };
+  position_t check[4] = { 0 };
   int checked = 0;
   bool ladder, already_checked;
-  int neighbor4[4];
+  position_t neighbor4[4];
 
   if (game->moves > 1) previous_move = game->record[game->moves - 1].pos;
 
@@ -547,10 +547,10 @@ UctCheckCaptureAfterKo( const game_info_t *game, int color, uct_features_t *uct_
 {
   const string_t *string = game->string;
   const char *board = game->board;
-  const int *string_id = game->string_id;
+  const position_t *string_id = game->string_id;
   const int other = FLIP_COLOR(color);
-  const int previous_move_2 = game->record[game->moves - 2].pos;
-  int id, lib, neighbor4[4];
+  const position_t previous_move_2 = game->record[game->moves - 2].pos;
+  position_t id, lib, neighbor4[4];
   unsigned long long *tactical_features1 = uct_features->tactical_features1;
 
   GetNeighbor4(neighbor4, previous_move_2);
@@ -571,22 +571,22 @@ UctCheckCaptureAfterKo( const game_info_t *game, int color, uct_features_t *uct_
 //  自己アタリ  //
 //////////////////
 bool
-UctCheckSelfAtari( const game_info_t *game, int color, int pos, uct_features_t *uct_features )
+UctCheckSelfAtari( const game_info_t *game, int color, position_t pos, uct_features_t *uct_features )
 {
   bool flag;
   const char *board = game->board;
   const string_t *string = game->string;
-  const int *string_id = game->string_id;
+  const position_t *string_id = game->string_id;
   int other = FLIP_COLOR(color);
   int size = 0;
-  int already[4] = { 0 };
+  position_t already[4] = { 0 };
   int already_num = 0;
   int id;
   int lib, count, libs = 0;
   int lib_candidate[PURE_BOARD_MAX];   
   bool checked;
   unsigned long long *tactical_features1 = uct_features->tactical_features1;
-  int neighbor4[4];
+  position_t neighbor4[4];
   bool already_checked;
 
   GetNeighbor4(neighbor4, pos);
@@ -668,16 +668,16 @@ UctCheckSelfAtari( const game_info_t *game, int color, int pos, uct_features_t *
 //  トリの判定  //
 //////////////////
 void
-UctCheckCapture( const game_info_t *game, int color, int pos, uct_features_t *uct_features )
+UctCheckCapture( const game_info_t *game, int color, position_t pos, uct_features_t *uct_features )
 {
   const char *board = game->board;
   const int other = FLIP_COLOR(color);
   const string_t *string = game->string;
-  const int *string_id = game->string_id;
+  const position_t *string_id = game->string_id;
   bool check;
   int neighbor, id;
   unsigned long long *tactical_features1 = uct_features->tactical_features1;
-  int neighbor4[4];
+  position_t neighbor4[4];
 
   GetNeighbor4(neighbor4, pos);
 
@@ -710,13 +710,14 @@ UctCheckCapture( const game_info_t *game, int color, int pos, uct_features_t *uc
 //  アタリの判定  //
 ////////////////////
 void
-UctCheckAtari( const game_info_t *game, int color, int pos, uct_features_t *uct_features )
+UctCheckAtari( const game_info_t *game, int color, position_t pos, uct_features_t *uct_features )
 {
   const char *board = game->board;
   const int other = FLIP_COLOR(color);
   const string_t *string = game->string;
-  const int *string_id = game->string_id;
-  int id, size, neighbor4[4];
+  const position_t *string_id = game->string_id;
+  int id, size;
+  position_t neighbor4[4];
   unsigned long long *tactical_features1 = uct_features->tactical_features1;
 
   GetNeighbor4(neighbor4, pos);
@@ -835,7 +836,7 @@ UctCheckRemove3Stones( const game_info_t *game, int color, uct_features_t *uct_f
 //  ケイマのツケコシの判定  //
 //////////////////////////////
 void
-UctCheckKeimaTsukekoshi( const game_info_t *game, int color, int pos, uct_features_t *uct_features )
+UctCheckKeimaTsukekoshi( const game_info_t *game, int color, position_t pos, uct_features_t *uct_features )
 {
   const char *board = game->board;
   const int other = FLIP_COLOR(color);
@@ -978,7 +979,7 @@ UctCheckKeimaTsukekoshi( const game_info_t *game, int color, int pos, uct_featur
 //  両ケイマの判定  //
 //////////////////////
 void
-UctCheckDoubleKeima( const game_info_t *game, int color, int pos, uct_features_t *uct_features )
+UctCheckDoubleKeima( const game_info_t *game, int color, position_t pos, uct_features_t *uct_features )
 {
   // ++O+O++
   // +O+++O+
@@ -1021,14 +1022,14 @@ UctCheckDoubleKeima( const game_info_t *game, int color, int pos, uct_features_t
 //  ウッテガエシ  //
 ////////////////////
 void
-UctCheckSnapBack( const game_info_t *game, int color, int pos, uct_features_t *uct_features )
+UctCheckSnapBack( const game_info_t *game, int color, position_t pos, uct_features_t *uct_features )
 {
   const string_t *string = game->string;
-  const int *string_id = game->string_id;
+  const position_t *string_id = game->string_id;
   const char *board = game->board;
   const int other = FLIP_COLOR(color);
   unsigned long long *tactical_features1 = uct_features->tactical_features1;
-  int neighbor4[4];
+  position_t neighbor4[4];
 
   GetNeighbor4(neighbor4, pos);
 
@@ -1059,7 +1060,7 @@ UctCheckSnapBack( const game_info_t *game, int color, int pos, uct_features_t *u
 
 
 double
-CalculateLFRScore( const game_info_t *game, int pos, int index[3], uct_features_t *uct_features )
+CalculateLFRScore( const game_info_t *game, position_t pos, int index[3], uct_features_t *uct_features )
 {
   const int moves = game->moves;
   const pattern_t *pat = game->pat;
@@ -1173,7 +1174,7 @@ AnalyzeUctRating( const game_info_t *game, int color, double rate[] )
   }
 
   for (int i = 0; i < pure_board_max; i++) {
-    const int pos = onboard_pos[i];
+    const position_t pos = onboard_pos[i];
     if (!game->candidates[pos] || !IsLegal(game, pos, color)) {
       rate[i] = 0;
       continue;

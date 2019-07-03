@@ -77,28 +77,28 @@ static set<unsigned int> seki_22_set[2];
 //////////////////
 
 //  呼吸点が1つの連に対する特徴の判定  
-static void PoCheckFeaturesLib1( game_info_t *game, const int color, const int id, int *update, int *update_num );
+static void PoCheckFeaturesLib1( game_info_t *game, const int color, const int id, position_t *update, int *update_num );
 
 //  呼吸点が2つの連に対する特徴の判定
-static void PoCheckFeaturesLib2( game_info_t *game, const int color, const int id, int *update, int *update_num );
+static void PoCheckFeaturesLib2( game_info_t *game, const int color, const int id, position_t *update, int *update_num );
 
 //  呼吸点が3つの連に対する特徴の判定
-static void PoCheckFeaturesLib3( game_info_t *game, const int color, const int id, int *update, int *update_num );
+static void PoCheckFeaturesLib3( game_info_t *game, const int color, const int id, position_t *update, int *update_num );
 
 //  特徴の判定
-static void PoCheckFeatures( game_info_t *game, const int color, int previous_move, int *update, int *update_num );
+static void PoCheckFeatures( game_info_t *game, const int color, position_t previous_move, position_t *update, int *update_num );
 
 //  劫を解消するトリの判定
-static void PoCheckCaptureAfterKo( game_info_t *game, const int color, int *update, int *update_num );
+static void PoCheckCaptureAfterKo( game_info_t *game, const int color, position_t *update, int *update_num );
 
 //  自己アタリの判定
-static bool PoCheckSelfAtari( game_info_t *game, const int color, const int pos );
+static bool PoCheckSelfAtari( game_info_t *game, const int color, const position_t pos );
 
 //  トリとアタリの判定
-static void PoCheckCaptureAndAtari( game_info_t *game, const int color, const int pos );
+static void PoCheckCaptureAndAtari( game_info_t *game, const int color, const position_t pos );
 
 //  2目の抜き後に対するホウリコミ   
-static void PoCheckRemove2Stones( game_info_t *game, const int color, int *update, int *update_num );
+static void PoCheckRemove2Stones( game_info_t *game, const int color, position_t *update, int *update_num );
 
 //  γ読み込み
 static void InputPOGamma( void );
@@ -398,7 +398,6 @@ Neighbor12( int previous_move, int distance_2[], int distance_3[], int distance_
 void
 NeighborUpdate( game_info_t *game, int color, long long *sum_rate, long long *sum_rate_row, long long *rate, int *update, bool *flag, int index )
 {
-  int i, pos;
   double gamma;
   double bias[4];
   bool self_atari_flag;
@@ -407,10 +406,10 @@ NeighborUpdate( game_info_t *game, int color, long long *sum_rate, long long *su
 
   // 盤端での特殊処理
   if (index == 1) {
-    pos = game->record[game->moves - 1].pos;
+    position_t pos = game->record[game->moves - 1].pos;
     if ((border_dis_x[pos] == 1 && border_dis_y[pos] == 2) ||
 	(border_dis_x[pos] == 2 && border_dis_y[pos] == 1)) {
-      for (i = 0; i < 4; i++) {
+      for (int i = 0; i < 4; i++) {
 	if ((border_dis_x[update[i]] == 1 && border_dis_y[update[i]] == 2) ||
 	    (border_dis_x[update[i]] == 2 && border_dis_y[update[i]] == 1)) {
 	  bias[i] = 1000.0;
@@ -420,8 +419,8 @@ NeighborUpdate( game_info_t *game, int color, long long *sum_rate, long long *su
     }
   }
 
-  for (i = 0; i < 4; i++) {
-    pos = update[i];
+  for (int i = 0; i < 4; i++) {
+    position_t pos = update[i];
     if (game->candidates[pos]){
       if (flag[pos] && bias[i] == 1.0) continue;
       self_atari_flag = PoCheckSelfAtari(game, color, pos);
@@ -458,15 +457,14 @@ NeighborUpdate( game_info_t *game, int color, long long *sum_rate, long long *su
 //  ナカデの急所の更新  //
 //////////////////////////
 void
-NakadeUpdate( game_info_t *game, int color, long long *sum_rate, long long *sum_rate_row, long long *rate, int *nakade_pos, int nakade_num, bool *flag, int pm1 )
+NakadeUpdate( game_info_t *game, int color, long long *sum_rate, long long *sum_rate_row, long long *rate, position_t *nakade_pos, int nakade_num, bool *flag, position_t pm1 )
 {
-  int i, pos, dis;
   double gamma;
   bool self_atari_flag;
 
-  for (i = 0; i < nakade_num; i++) {
-    pos = nakade_pos[i];
-    if (pos != NOT_NAKADE && game->candidates[pos]){
+  for (int i = 0; i < nakade_num; i++) {
+    position_t pos = nakade_pos[i];
+    if (pos != NOT_NAKADE && game->candidates[pos]) {
       self_atari_flag = PoCheckSelfAtari(game, color, pos);
 
       // 元あったレートを消去
@@ -474,10 +472,10 @@ NakadeUpdate( game_info_t *game, int color, long long *sum_rate, long long *sum_
       sum_rate_row[board_y[pos]] -= rate[pos];
 
       if (!self_atari_flag) {
-	rate[pos] = 0;
+        rate[pos] = 0;
       } else {
 	PoCheckCaptureAndAtari(game, color, pos);
-	dis = DIS(pm1, pos);
+	int dis = DIS(pm1, pos);
 	if (dis < 5) {
 	  gamma = 10000.0 * po_previous_distance[dis - 2];
 	} else {
@@ -504,14 +502,13 @@ NakadeUpdate( game_info_t *game, int color, long long *sum_rate, long long *sum_
 //  レートの更新  //
 ////////////////////
 void
-OtherUpdate( game_info_t *game, int color, long long *sum_rate, long long *sum_rate_row, long long *rate, int update_num, int *update, bool *flag )
+OtherUpdate( game_info_t *game, int color, long long *sum_rate, long long *sum_rate_row, long long *rate, int update_num, position_t *update, bool *flag )
 {
-  int i, pos;
   double gamma;
   bool self_atari_flag;
 
-  for (i = 0; i < update_num; i++) {
-    pos = update[i];
+  for (int i = 0; i < update_num; i++) {
+    position_t pos = update[i];
     if (flag[pos]) continue;
 
     if (game->candidates[pos]) {
@@ -549,15 +546,14 @@ OtherUpdate( game_info_t *game, int color, long long *sum_rate, long long *sum_r
 //  MD2パターンの範囲内の更新  //
 /////////////////////////////////
 void
-Neighbor12Update( game_info_t *game, int color, long long *sum_rate, long long *sum_rate_row, long long *rate, int update_num, int *update, bool *flag )
+Neighbor12Update( game_info_t *game, int color, long long *sum_rate, long long *sum_rate_row, long long *rate, int update_num, position_t *update, bool *flag )
 {
-  int i, j, pos;
   double gamma;
   bool self_atari_flag;
 
-  for (i = 0; i < update_num; i++) {
-    for (j = 0; j < UPDATE_NUM; j++) {
-      pos = update[i] + neighbor[j];
+  for (int i = 0; i < update_num; i++) {
+    for (int j = 0; j < UPDATE_NUM; j++) {
+      position_t pos = update[i] + neighbor[j];
       if (flag[pos]) continue;
 
       if (game->candidates[pos]) {
@@ -598,16 +594,16 @@ Neighbor12Update( game_info_t *game, int color, long long *sum_rate, long long *
 void
 PartialRating( game_info_t *game, int color, long long *sum_rate, long long *sum_rate_row, long long *rate )
 {
-  int pm1 = PASS, pm2 = PASS, pm3 = PASS;
+  position_t pm1 = PASS, pm2 = PASS, pm3 = PASS;
   int distance_2[4], distance_3[4], distance_4[4];
   bool flag[BOARD_MAX] = { false };  
-  int *update_pos = game->update_pos[color];
+  position_t *update_pos = game->update_pos[color];
   int *update_num = &game->update_num[color];
   int other = FLIP_COLOR(color);
-  int nakade_pos[4] = { 0 };
+  position_t nakade_pos[4] = { 0 };
   int nakade_num = 0;
   int prev_feature = game->update_num[color];
-  int prev_feature_pos[PURE_BOARD_MAX];
+  position_t prev_feature_pos[PURE_BOARD_MAX];
 
   for (int i = 0; i < prev_feature; i++){
     prev_feature_pos[i] = update_pos[i];
@@ -673,11 +669,11 @@ PartialRating( game_info_t *game, int color, long long *sum_rate, long long *sum
 void
 Rating( game_info_t *game, int color, long long *sum_rate, long long *sum_rate_row, long long *rate )
 {
-  int i, pos;
-  int pm1 = PASS;
+  position_t i, pos;
+  position_t pm1 = PASS;
   double gamma;
   int update_num = 0;
-  int update_pos[PURE_BOARD_MAX];  
+  position_t update_pos[PURE_BOARD_MAX];
   bool self_atari_flag;
   int dis;
 
@@ -740,12 +736,12 @@ Rating( game_info_t *game, int color, long long *sum_rate, long long *sum_rate_r
 //  呼吸点が1つの連に対する特徴の判定  //
 /////////////////////////////////////////
 static void
-PoCheckFeaturesLib1( game_info_t *game, const int color, const int id, int *update, int *update_num )
+PoCheckFeaturesLib1( game_info_t *game, const int color, const int id, position_t *update, int *update_num )
 {
-  char *board = game->board;
-  string_t *string = game->string;
-  int neighbor = string[id].neighbor[0];
-  int lib, liberty;
+  const char *board = game->board;
+  const string_t *string = game->string;
+  position_t neighbor = string[id].neighbor[0];
+  position_t lib, liberty;
   int other = FLIP_COLOR(color);
   bool contact = false;
 
@@ -846,13 +842,13 @@ PoCheckFeaturesLib1( game_info_t *game, const int color, const int id, int *upda
 //  呼吸点が2つの連に対する特徴の判定  //
 /////////////////////////////////////////
 static void
-PoCheckFeaturesLib2( game_info_t *game, const int color, const int id, int *update, int *update_num )
+PoCheckFeaturesLib2( game_info_t *game, const int color, const int id, position_t *update, int *update_num )
 {
-  int *string_id = game->string_id;
-  string_t *string = game->string;
-  char *board = game->board;
+  const position_t *string_id = game->string_id;
+  const string_t *string = game->string;
+  const char *board = game->board;
   int neighbor = string[id].neighbor[0];
-  int lib1, lib2;
+  position_t lib1, lib2;
   bool capturable1, capturable2;
 
   // 呼吸点が2つになった連の呼吸点を取り出す
@@ -946,13 +942,13 @@ PoCheckFeaturesLib2( game_info_t *game, const int color, const int id, int *upda
 //  呼吸点が3つの連に対する特徴の判定  //
 /////////////////////////////////////////
 static void
-PoCheckFeaturesLib3( game_info_t *game, const int color, const int id, int *update, int *update_num )
+PoCheckFeaturesLib3( game_info_t *game, const int color, const int id, position_t *update, int *update_num )
 {
-  int *string_id = game->string_id;
-  string_t *string = game->string;
-  int neighbor = string[id].neighbor[0];
-  char *board = game->board;
-  int lib1, lib2, lib3;
+  const position_t *string_id = game->string_id;
+  const string_t *string = game->string;
+  position_t neighbor = string[id].neighbor[0];
+  const char *board = game->board;
+  position_t lib1, lib2, lib3;
   bool capturable1, capturable2;
 
   // 呼吸点が3つになった連の呼吸点を取り出す
@@ -1080,13 +1076,13 @@ PoCheckFeaturesLib3( game_info_t *game, const int color, const int id, int *upda
 //  特徴の判定  //
 //////////////////
 static void
-PoCheckFeatures( game_info_t *game, const int color, int previous_move, int *update, int *update_num )
+PoCheckFeatures( game_info_t *game, const int color, position_t previous_move, position_t *update, int *update_num )
 {
-  string_t *string = game->string;
-  char *board = game->board;
-  int *string_id = game->string_id;
-  int id;
-  int check[3] = { 0 };
+  const string_t *string = game->string;
+  const char *board = game->board;
+  const position_t *string_id = game->string_id;
+  position_t id;
+  position_t check[3] = { 0 };
   int checked = 0;
 
   if (previous_move == PASS) return;
@@ -1155,11 +1151,11 @@ PoCheckFeatures( game_info_t *game, const int color, int previous_move, int *upd
 //  劫を解消するトリ  //
 ////////////////////////
 static void
-PoCheckCaptureAfterKo( game_info_t *game, const int color, int *update, int *update_num )
+PoCheckCaptureAfterKo( game_info_t *game, const int color, position_t *update, int *update_num )
 {
-  string_t *string = game->string;
-  char *board = game->board;
-  int *string_id = game->string_id;
+  const string_t *string = game->string;
+  const char *board = game->board;
+  const position_t *string_id = game->string_id;
   int other = FLIP_COLOR(color);
   int previous_move_2 = game->record[game->moves - 2].pos;
   int id ,lib;
@@ -1215,7 +1211,7 @@ PoCheckSnapBack( game_info_t *game, int color, int pos, int pos0 )
 {
   const char *board = game->board;
   const string_t *string = game->string;
-  const int *string_id = game->string_id;
+  const position_t *string_id = game->string_id;
   int other = FLIP_COLOR(color);
 
   if (board[pos0] != other)
@@ -1226,8 +1222,8 @@ PoCheckSnapBack( game_info_t *game, int color, int pos, int pos0 )
     int lib0 = string[id].lib[0];
     int lib1 = string[id].lib[lib0];
     if (IsNeighbor(lib0, lib1)) {
-      int lib = (lib0 == pos) ? lib1 : lib0;
-      int neighbor4[4];
+      position_t lib = (lib0 == pos) ? lib1 : lib0;
+      position_t neighbor4[4];
       GetNeighbor4(neighbor4, lib);
       bool safe = false;
       for (int p : neighbor4) {
@@ -1271,11 +1267,11 @@ PoCheckSnapBack( game_info_t *game, int color, int pos, int pos0 )
 //  自己アタリ  //
 //////////////////
 static bool
-PoCheckSelfAtari( game_info_t *game, const int color, const int pos )
+PoCheckSelfAtari( game_info_t *game, const int color, const position_t pos )
 {
   char *board = game->board;
   string_t *string = game->string;
-  int *string_id = game->string_id;
+  position_t *string_id = game->string_id;
   int other = FLIP_COLOR(color);
   int size = 0;
   int already[4] = { 0 };
@@ -1490,11 +1486,11 @@ PoCheckSelfAtari( game_info_t *game, const int color, const int pos )
 //  トリの判定  //
 //////////////////
 static void
-PoCheckCaptureAndAtari( game_info_t *game, const int color, const int pos )
+PoCheckCaptureAndAtari( game_info_t *game, const int color, const position_t pos )
 {
-  char *board = game->board;
-  string_t *string = game->string;
-  int *string_id = game->string_id;
+  const char *board = game->board;
+  const string_t *string = game->string;
+  const position_t *string_id = game->string_id;
   int other = FLIP_COLOR(color);
   int libs;
 
@@ -1552,17 +1548,16 @@ PoCheckCaptureAndAtari( game_info_t *game, const int color, const int pos )
 //  2目抜かれたときのホウリコミ  //
 ///////////////////////////////////
 static void
-PoCheckRemove2Stones( game_info_t *game, const int color, int *update, int *update_num )
+PoCheckRemove2Stones( game_info_t *game, const int color, position_t *update, int *update_num )
 {
-  int i, rm1, rm2, check;
   int other = FLIP_COLOR(color);
 
   if (game->capture_num[other] != 2) {
     return;
   }
 
-  rm1 = game->capture_pos[other][0];
-  rm2 = game->capture_pos[other][1];
+  position_t rm1 = game->capture_pos[other][0];
+  position_t rm2 = game->capture_pos[other][1];
 
   if (rm1 - rm2 != 1 &&
       rm2 - rm1 != 1 &&
@@ -1571,7 +1566,8 @@ PoCheckRemove2Stones( game_info_t *game, const int color, int *update, int *upda
     return;
   }
 
-  for (i = 0, check = 0; i < 4; i++) {
+  int check = 0;
+  for (int i = 0; i < 4; i++) {
     if ((game->board[rm1 + cross[i]] & color) == color) {
       check++;
     }
@@ -1582,7 +1578,7 @@ PoCheckRemove2Stones( game_info_t *game, const int color, int *update, int *upda
     update[(*update_num)++] = rm1;
   }
 
-  for (i = 0, check = 0; i < 4; i++) {
+  for (int i = 0, check = 0; i < 4; i++) {
     if ((game->board[rm2 + cross[i]] & color) == color) {
       check++;
     }
@@ -1720,19 +1716,19 @@ void
 AnalyzePoRating( game_info_t *game, int color, double rate[] )
 {
   int moves = game->moves;
-  int pm1 = PASS;
-  int update_pos[BOARD_MAX], update_num = 0;
-  int *string_id = game->string_id;
-  string_t *string = game->string;
-  char *board = game->board;
+  position_t update_pos[BOARD_MAX];
+  int update_num = 0;
+  const position_t *string_id = game->string_id;
+  const string_t *string = game->string;
+  const char *board = game->board;
   
   for (int i = 0; i < pure_board_max; i++) {
-    int pos = onboard_pos[i];
+    position_t pos = onboard_pos[i];
     game->tactical_features1[pos] = 0;
     game->tactical_features2[pos] = 0;
   }
   
-  pm1 = game->record[moves - 1].pos;
+  position_t pm1 = game->record[moves - 1].pos;
   
   PoCheckFeatures(game, color, pm1, update_pos, &update_num);
   PoCheckRemove2Stones(game, color, update_pos, &update_num);
@@ -1740,7 +1736,7 @@ AnalyzePoRating( game_info_t *game, int color, double rate[] )
     PoCheckCaptureAfterKo(game, color, update_pos, &update_num);
   }
 
-  for (int id = 0; id < MAX_STRING; id++) {
+  for (position_t id = 0; id < MAX_STRING; id++) {
     if (!string[id].flag || string[id].color != color)
       continue;
     update_num = 0;
@@ -1754,7 +1750,7 @@ AnalyzePoRating( game_info_t *game, int color, double rate[] )
   }
 
   for (int i = 0; i < pure_board_max; i++) {
-    int pos = onboard_pos[i];
+    position_t pos = onboard_pos[i];
 
     if (!IsLegal(game, pos, color)) {
       rate[i] = 0;
