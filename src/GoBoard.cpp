@@ -46,6 +46,7 @@ unsigned char nb4_empty[PAT3_MAX];  // 上下左右の空点の数
 eye_condition_t eye_condition[PAT3_MAX];
 unsigned char bad_move[PAT3_MAX];
 unsigned char replace_move[PAT3_MAX];
+eye_condition_t replace_eye_condition[PAT3_MAX];
 
 int border_dis_x[BOARD_MAX];                     // x方向の距離
 int border_dis_y[BOARD_MAX];                     // y方向の距離
@@ -680,31 +681,21 @@ InitializeEye( void )
     }
   }
 
-  const int replace_pat3[] = {
-    // ++O     +++     O+O
-    // O*O     O*O     O*O
-    // OOO     OOO     OOO
-    0x5550, 0x5540, 0x5551,
-
-    // ++O
-    // O*O
-    // OO+
-    0x1550,
+  const int replace_pat3_1[] = {
+    // ++O     O+O
+    // O*O     O*O
+    // OOO     OOO
+    0x5550, 0x5551,
 
     // O+O
     // O*O
     // ###
     0xFD51,
 
-    // ++#     O+#
-    // O*#     O*#
-    // ###     ###
-    0xFF70, 0xFF71,
-
-    // +++
-    // O*O
-    // +O+
-    0x1140,
+    // O+#
+    // O*#
+    // ###
+    0xFF71,
 
     // X+O
     // O*O
@@ -712,11 +703,47 @@ InitializeEye( void )
     0x5552,
   };
 
-  for (int p : replace_pat3) {
+  const int replace_pat3_2[] = {
+    // +++
+    // O*O
+    // OOO
+    0x5540,
+
+    // ++O
+    // O*O
+    // OO+
+    0x1550,
+
+    // ++#
+    // O*#
+    // ###
+    0xFF70,
+
+    // +++
+    // O*O
+    // +O+
+    0x1140,
+  };
+
+  fill_n(replace_eye_condition, PAT3_MAX, E_NOT_EYE);
+
+  for (int p : replace_pat3_1) {
     Pat3Transpose8(p, transp);
     for (int j = 0; j < 8; j++) {
       replace_move[transp[j]] = S_BLACK;
       replace_move[Pat3Reverse(transp[j])] = S_WHITE;
+      replace_eye_condition[transp[j]] = E_HALF_1_EYE;
+      replace_eye_condition[Pat3Reverse(transp[j])] = E_HALF_1_EYE;
+    }
+  }
+
+  for (int p : replace_pat3_2) {
+    Pat3Transpose8(p, transp);
+    for (int j = 0; j < 8; j++) {
+      replace_move[transp[j]] = S_BLACK;
+      replace_move[Pat3Reverse(transp[j])] = S_WHITE;
+      replace_eye_condition[transp[j]] = E_HALF_2_EYE;
+      replace_eye_condition[Pat3Reverse(transp[j])] = E_HALF_2_EYE;
     }
   }
 

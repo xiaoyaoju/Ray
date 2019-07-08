@@ -194,6 +194,7 @@ extern unsigned char nb4_empty[PAT3_MAX];
 
 // 眼の状態
 extern eye_condition_t eye_condition[PAT3_MAX];
+extern eye_condition_t replace_eye_condition[PAT3_MAX];
 
 // x方向の距離
 extern int border_dis_x[BOARD_MAX]; 
