@@ -11,7 +11,7 @@
 #include "ZobristHash.h"
 #include "UctSearch.h"
 #include "Ladder.h"
-#include "Rating.h"
+#include "Rating2.h"
 
 using namespace std;
 
@@ -2073,6 +2073,8 @@ WritePlanes(
   int color,
   int tran)
 {
+  using namespace rating_v2;
+
 #define OUTPUT_FEATURE(data, x)	data.push_back((x) ? 1.0f : 0.0f)
   const int opp = FLIP_COLOR(color);
 
@@ -2117,7 +2119,8 @@ WritePlanes(
     double rate[PURE_BOARD_MAX];
 
     for (int side = 0; side < 2; side++) {
-      AnalyzePoRating(game, side == 0 ? S_BLACK : S_WHITE, rate);
+      rating_context_t ctx(game);
+      AnalyzePoRating(ctx, side == 0 ? S_BLACK : S_WHITE, rate);
 
       for (int i = 0; i < F_MAX1; i++) {
         OUTPUT({
