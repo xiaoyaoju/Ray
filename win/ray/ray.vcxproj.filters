@@ -90,6 +90,9 @@
     <ClCompile Include="..\..\src\SgfExtractor.cpp">
       <Filter>ソース ファイル</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\Rating2.cpp">
+      <Filter>ソース ファイル</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\src\Simulation.h">
@@ -155,10 +158,13 @@
     <ClInclude Include="..\..\src\OpeningBook.h">
       <Filter>ヘッダー ファイル</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\src\SgfExtractor.h">
+    <ClInclude Include="..\..\src\Train.h">
       <Filter>ヘッダー ファイル</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\src\Train.h">
+    <ClInclude Include="..\..\src\Rating2.h">
+      <Filter>ヘッダー ファイル</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\SgfExtractor.h">
       <Filter>ヘッダー ファイル</Filter>
     </ClInclude>
   </ItemGroup>

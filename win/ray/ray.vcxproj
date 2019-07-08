@@ -163,6 +163,7 @@
     <ClCompile Include="..\..\src\GoBoard.cpp" />
     <ClCompile Include="..\..\src\Gtp.cpp" />
     <ClCompile Include="..\..\src\Ladder.cpp" />
+    <ClCompile Include="..\..\src\Rating2.cpp" />
     <ClCompile Include="..\..\src\SgfExtractor.cpp" />
     <ClCompile Include="..\..\src\Train.cpp" />
     <ClCompile Include="..\..\src\Message.cpp" />
@@ -189,6 +190,8 @@
     <ClInclude Include="..\..\src\GoBoard.h" />
     <ClInclude Include="..\..\src\Gtp.h" />
     <ClInclude Include="..\..\src\Ladder.h" />
+    <ClInclude Include="..\..\src\Rating2.h" />
+    <ClInclude Include="..\..\src\SgfExtractor.h" />
     <ClInclude Include="..\..\src\Train.h" />
     <ClInclude Include="..\..\src\Message.h" />
     <ClInclude Include="..\..\src\MoveCache.h" />
