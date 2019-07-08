@@ -11,8 +11,6 @@ using namespace std;
 #define ALIVE true
 #define DEAD  false
 
-// シチョウ探索
-static bool IsLadderCaptured( const int depth, search_game_info_t *game, const int ren_xy, const int turn_color );
 
 ////////////////////////////////
 //  現在の局面のシチョウ探索  //
@@ -79,7 +77,7 @@ LadderExtension( const game_info_t *game, int color, bool *ladder_pos )
 ////////////////////
 //  シチョウ探索  //
 ////////////////////
-static bool
+bool
 IsLadderCaptured( const int depth, search_game_info_t *game, const int ren_xy, const int turn_color )
 {
   const char *board = game->board;
