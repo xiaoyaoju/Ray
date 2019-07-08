@@ -21,6 +21,7 @@
 #include "Message.h"
 #include "Point.h"
 #include "Rating.h"
+#include "Rating2.h"
 #include "Simulation.h"
 #include "UctSearch.h"
 #include "Utility.h"
@@ -290,6 +291,7 @@ GTP_boardsize( void )
     SetBoardSize(size);
     SetParameter();
     SetNeighbor();
+    rating_v2::SetNeighbor();
     InitializeNakadeHash();
   }
 
