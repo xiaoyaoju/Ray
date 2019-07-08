@@ -72,8 +72,8 @@ main( int argc, char **argv )
     GTP_main();
     break;
   case RUN_MODE::TRAIN:
-    //Train();
-    ThinkOpeningBook();
+    Train();
+    //ThinkOpeningBook();
     break;
   }
 

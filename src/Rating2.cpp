@@ -46,9 +46,9 @@ static float po_tactical_set1[PO_TACTICALS_MAX1];
 // 戦術的特徴2
 static float po_tactical_set2[PO_TACTICALS_MAX2];
 
-double po_temperature_set1 = 0.5;
-double po_temperature_set2 = 1.0;
-double po_temperature_pattern = 1.0;
+double po_temperature_set1 = 0.36;
+double po_temperature_set2 = 0.68;
+double po_temperature_pattern = 0.78;
 double po_offset = -1000;
 
 // ビットマスク
