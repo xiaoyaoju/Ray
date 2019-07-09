@@ -291,6 +291,10 @@ GetPattern(game_info_t *game, int color, int pos) {
   return po_pattern[md2];
 }
 
+static inline long long ToRate(double gamma)
+{
+  return max((long long)1, (long long) min(gamma, numeric_limits<long long>::max() / 100.0 / pure_board_max));
+}
 
 //////////////////////
 //  着手( rating )  // 
@@ -398,7 +402,6 @@ Neighbor12( int previous_move, int distance_2[], int distance_3[], int distance_
 void
 NeighborUpdate( game_info_t *game, int color, long long *sum_rate, long long *sum_rate_row, long long *rate, int *update, bool *flag, int index )
 {
-  double gamma;
   double bias[4];
   bool self_atari_flag;
 
@@ -434,11 +437,11 @@ NeighborUpdate( game_info_t *game, int color, long long *sum_rate, long long *su
       } else {
 	PoCheckCaptureAndAtari(game, color, pos);
 
-	gamma = GetPattern(game, color, pos) * po_previous_distance[index];
+	double  gamma = GetPattern(game, color, pos) * po_previous_distance[index];
 	gamma *= po_tactical_set1[game->tactical_features1[pos]];
 	gamma *= po_tactical_set2[game->tactical_features2[pos]];
 	gamma *= bias[i];
-	rate[pos] = (long long)(gamma)+1;
+	rate[pos] = ToRate(gamma);
 
 	// 新たに計算したレートを代入
 	*sum_rate += rate[pos];
@@ -459,7 +462,6 @@ NeighborUpdate( game_info_t *game, int color, long long *sum_rate, long long *su
 void
 NakadeUpdate( game_info_t *game, int color, long long *sum_rate, long long *sum_rate_row, long long *rate, position_t *nakade_pos, int nakade_num, bool *flag, position_t pm1 )
 {
-  double gamma;
   bool self_atari_flag;
 
   for (int i = 0; i < nakade_num; i++) {
@@ -476,6 +478,7 @@ NakadeUpdate( game_info_t *game, int color, long long *sum_rate, long long *sum_
       } else {
 	PoCheckCaptureAndAtari(game, color, pos);
 	int dis = DIS(pm1, pos);
+	double gamma;
 	if (dis < 5) {
 	  gamma = 10000.0 * po_previous_distance[dis - 2];
 	} else {
@@ -484,7 +487,7 @@ NakadeUpdate( game_info_t *game, int color, long long *sum_rate, long long *sum_
 	gamma *= GetPattern(game, color, pos);
 	gamma *= po_tactical_set1[game->tactical_features1[pos]];
 	gamma *= po_tactical_set2[game->tactical_features2[pos]];
-	rate[pos] = (long long)(gamma) + 1;
+	rate[pos] = ToRate(gamma);
 	// 新たに計算したレートを代入      
 	*sum_rate += rate[pos];
 	sum_rate_row[board_y[pos]] += rate[pos];     
@@ -504,7 +507,6 @@ NakadeUpdate( game_info_t *game, int color, long long *sum_rate, long long *sum_
 void
 OtherUpdate( game_info_t *game, int color, long long *sum_rate, long long *sum_rate_row, long long *rate, int update_num, position_t *update, bool *flag )
 {
-  double gamma;
   bool self_atari_flag;
 
   for (int i = 0; i < update_num; i++) {
@@ -523,10 +525,10 @@ OtherUpdate( game_info_t *game, int color, long long *sum_rate, long long *sum_r
 	rate[pos] = 0;
       } else {
 	PoCheckCaptureAndAtari(game, color, pos);
-	gamma = GetPattern(game, color, pos);
+	double gamma = GetPattern(game, color, pos);
 	gamma *= po_tactical_set1[game->tactical_features1[pos]];
 	gamma *= po_tactical_set2[game->tactical_features2[pos]];
-	rate[pos] = (long long)(gamma) + 1;
+	rate[pos] = ToRate(gamma);
 
 	// 新たに計算したレートを代入
 	*sum_rate += rate[pos];
@@ -548,7 +550,6 @@ OtherUpdate( game_info_t *game, int color, long long *sum_rate, long long *sum_r
 void
 Neighbor12Update( game_info_t *game, int color, long long *sum_rate, long long *sum_rate_row, long long *rate, int update_num, position_t *update, bool *flag )
 {
-  double gamma;
   bool self_atari_flag;
 
   for (int i = 0; i < update_num; i++) {
@@ -568,10 +569,10 @@ Neighbor12Update( game_info_t *game, int color, long long *sum_rate, long long *
 	  rate[pos] = 0;
 	} else {
 	  PoCheckCaptureAndAtari(game, color, pos);
-	  gamma = GetPattern(game, color, pos);
+	  double gamma = GetPattern(game, color, pos);
 	  gamma *= po_tactical_set1[game->tactical_features1[pos]];
 	  gamma *= po_tactical_set2[game->tactical_features2[pos]];
-	  rate[pos] = (long long)(gamma) + 1;
+	  rate[pos] = ToRate(gamma);
 
 	  // 新たに計算したレートを代入
 	  *sum_rate += rate[pos];
@@ -671,7 +672,6 @@ Rating( game_info_t *game, int color, long long *sum_rate, long long *sum_rate_r
 {
   position_t i, pos;
   position_t pm1 = PASS;
-  double gamma;
   int update_num = 0;
   position_t update_pos[PURE_BOARD_MAX];
   bool self_atari_flag;
@@ -710,7 +710,7 @@ Rating( game_info_t *game, int color, long long *sum_rate, long long *sum_rate_r
       if (!self_atari_flag) {
 	rate[pos] = 0;
       } else {
-	gamma = GetPattern(game, color, pos);
+	double gamma = GetPattern(game, color, pos);
 	gamma *= po_tactical_set1[game->tactical_features1[pos]];
 	gamma *= po_tactical_set2[game->tactical_features2[pos]];
 	if (pm1 != PASS) {
@@ -719,7 +719,7 @@ Rating( game_info_t *game, int color, long long *sum_rate, long long *sum_rate_r
 	    gamma *= po_previous_distance[dis - 2];
 	  }
 	}
-	rate[pos] = (long long)(gamma)+1;
+	rate[pos] = ToRate(gamma);
       }
 
       *sum_rate += rate[pos];
@@ -1776,6 +1776,6 @@ AnalyzePoRating( game_info_t *game, int color, double rate[] )
     gamma *= po_tactical_set2[game->tactical_features2[pos]];
     gamma *= GetPattern(game, color, pos);
     
-    rate[i] = (long long int)gamma + 1;
+    rate[i] = ToRate(gamma);
   }
 }
