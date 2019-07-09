@@ -1951,30 +1951,15 @@ UctSearch(uct_search_context_t& ctx, game_info_t *game, int color, mt19937_64 *m
         }
       }
     } else {
-      if (my_color == S_BLACK) {
-        if (score - dynamic_komi[0] + 0.1 >= 0) {
-          result = (color == S_BLACK ? 0 : 1);
-          if (score - dynamic_komi[0] - 0.1 >= 0) {
-            *winner = S_BLACK;
-          } else {
-            *winner = S_EMPTY;
-          }
-        } else {
-          result = (color == S_WHITE ? 0 : 1);
-          *winner = S_WHITE;
-        }
+      if (score - dynamic_komi[0] >= 0.1) {
+        result = (color == S_BLACK ? 0 : 1);
+        *winner = S_BLACK;
+      } else if (score - dynamic_komi[0] >= -0.1) {
+        result = 0;
+        *winner = S_EMPTY;
       } else {
-        if (score - dynamic_komi[0] - 0.1 > 0) {
-          result = (color == S_BLACK ? 0 : 1);
-          if (score - dynamic_komi[0] + 0.1 > 0) {
-            *winner = S_BLACK;
-          } else {
-            *winner = S_EMPTY;
-          }
-        } else {
-          result = (color == S_WHITE ? 0 : 1);
-          *winner = S_WHITE;
-        }
+        result = (color == S_WHITE ? 0 : 1);
+        *winner = S_WHITE;
       }
       if (end_of_game) {
         double value = *winner == S_EMPTY ? 0.5 : result;
