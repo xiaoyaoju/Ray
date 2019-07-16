@@ -104,6 +104,17 @@ public:
       return false;
     }
 
+    static std::atomic<int64_t> win_black;
+    static std::atomic<int64_t> win_white;
+    if (win_color == S_BLACK && win_black > win_white + 100)
+      return false;
+    if (win_color == S_WHITE && win_white > win_black + 100)
+      return false;
+    if (win_color == S_BLACK)
+      std::atomic_fetch_add(&win_black, (int64_t)1);
+    if (win_color == S_WHITE)
+      std::atomic_fetch_add(&win_white, (int64_t)1);
+
     int player_color = 0;
     SetHandicapNum(0);
     SetKomi(kifu.komi);
