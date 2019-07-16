@@ -1955,7 +1955,7 @@ UctSearch(uct_search_context_t& ctx, game_info_t *game, int color, mt19937_64 *m
         result = (color == S_BLACK ? 0 : 1);
         *winner = S_BLACK;
       } else if (score - dynamic_komi[0] >= -0.1) {
-        result = 0;
+        result = 1;
         *winner = S_EMPTY;
       } else {
         result = (color == S_WHITE ? 0 : 1);
