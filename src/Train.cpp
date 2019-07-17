@@ -57,6 +57,7 @@ struct DataSet {
   std::vector<float> move;
   std::vector<float> statistic;
   std::vector<float> score;
+  std::vector<float> score_value;
 };
 
 class Reader {
@@ -319,6 +320,7 @@ public:
           for (int j = 0; j < SCORE_DIM; j++) {
             data.score.push_back(score_label == j ? 1.0f : 0.0f);
           }
+          data.score_value.push_back(score);
 
           //cerr << "RE:" << kifu.result << " color:" << my_color << " RAND:" << kifu.random_move << " sum:" << sum << endl;
           data.num_req++;
@@ -349,6 +351,7 @@ public:
     data->move.reserve(pure_board_max * n);
     data->statistic.reserve(pure_board_max * n);
     data->score.reserve(SCORE_DIM * n);
+    data->score_value.reserve(n);
 
     while (data->num_req < n) {
       ReadOne(*data);
@@ -372,6 +375,7 @@ public:
   CNTK::Variable var_basic, var_features, var_history, var_color, var_komi, var_statistic;
   CNTK::Variable var_win, var_move;
   CNTK::Variable var_score;
+  CNTK::Variable var_score_value;
 
   explicit MinibatchReader(FunctionPtr net)
     : net(net) {
@@ -387,6 +391,7 @@ public:
     GetInputVariableByName(net, L"move", var_move);
     GetInputVariableByName(net, L"statistic", var_statistic);
     GetInputVariableByName(net, L"score", var_score);
+    GetInputVariableByName(net, L"score_value", var_score_value);
 
     //CNTK::Variable var_ol;
     //GetOutputVaraiableByName(net, L"ol_L2", var_ol);
@@ -413,6 +418,8 @@ public:
     CNTK::ValuePtr value_statistic = CNTK::MakeSharedObject<CNTK::Value>(CNTK::MakeSharedObject<CNTK::NDArrayView>(shape_statistic, data.statistic, true));
     CNTK::NDShape shape_score = var_score.Shape().AppendShape({ 1, num_req });
     CNTK::ValuePtr value_score = CNTK::MakeSharedObject<CNTK::Value>(CNTK::MakeSharedObject<CNTK::NDArrayView>(shape_score, data.score, true));
+    CNTK::NDShape shape_score_value = var_score_value.Shape().AppendShape({ 1, num_req });
+    CNTK::ValuePtr value_score_value = CNTK::MakeSharedObject<CNTK::Value>(CNTK::MakeSharedObject<CNTK::NDArrayView>(shape_score_value, data.score_value, true));
 
     std::unordered_map<CNTK::Variable, CNTK::ValuePtr> inputs = {
       { var_basic, value_basic },
@@ -424,6 +431,7 @@ public:
       { var_move, value_move },
       { var_statistic , value_statistic },
       { var_score , value_score },
+      { var_score_value , value_score_value },
     };
 
     return inputs;
@@ -720,11 +728,12 @@ Train()
       //GetVariableByName(net->Outputs(), L"ce_2", trainingLoss);
       GetVariableByName(net->Outputs(), L"ce", trainingLoss);
 
-      Variable err_move, err_value2, err_score, err_owner;
+      Variable err_move, err_value2, err_score, err_owner, mse_score;
       GetVariableByName(net->Outputs(), L"err_move", err_move);
       GetVariableByName(net->Outputs(), L"err_value2", err_value2);
       GetVariableByName(net->Outputs(), L"err_score", err_score);
       GetVariableByName(net->Outputs(), L"err_owner", err_owner);
+      GetVariableByName(net->Outputs(), L"mse_score", mse_score);
 
       InitializeSearchSetting();
       InitializeUctHash();
@@ -842,7 +851,7 @@ Train()
           const wstring ckpName = L"feedForward.net." + to_wstring(alt) + L"." + to_wstring(i);
           trainer->SaveCheckpoint(ckpName);
 
-          for (int j = 0; j < 4; j++) {
+          for (int j = 0; j < 5; j++) {
             Variable err;
             if (j == 0)
               err = err_move;
@@ -852,6 +861,8 @@ Train()
               err = err_score;
             else if (j == 3)
               err = err_owner;
+            else if (j == 4)
+              err = mse_score;
             auto tester = CreateTrainer(net, trainingLoss, err,
               { SGDLearner(parameters, learningRatePerSample, option) });
 
