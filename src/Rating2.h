@@ -162,6 +162,7 @@ void PartialRating( rating_context_t& ctx, int color, long long *sum_rate, long 
 //  現局面の評価値
 void AnalyzePoRating( rating_context_t& ctx, int color, double rate[] );
 
+rating_ladder_state_t GetLadderState( rating_context_t& ctx, int id, position_t lib, int color );
 }
 
 #endif

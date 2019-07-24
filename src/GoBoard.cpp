@@ -2077,6 +2077,7 @@ WritePlanes(
 
 #define OUTPUT_FEATURE(data, x)	data.push_back((x) ? 1.0f : 0.0f)
   const int opp = FLIP_COLOR(color);
+  const position_t *string_id = game->string_id;
 
   bool ladder[2][BOARD_MAX] = { false };
 
@@ -2118,9 +2119,27 @@ WritePlanes(
 
     double rate[PURE_BOARD_MAX];
 
+    bool alive[MAX_STRING];
+    bool dead[MAX_STRING];
+
     for (int side = 0; side < 2; side++) {
       rating_context_t ctx(game);
       AnalyzePoRating(ctx, side == 0 ? S_BLACK : S_WHITE, rate);
+
+      for (int i = 0; i < MAX_STRING; i++) {
+        alive[i] = ctx.string_captured[i * 2 + 0] == rating_ladder_state_t::ALIVE
+          && (ctx.string_captured[i * 2 + 1] == rating_ladder_state_t::UNCHECKED || ctx.string_captured[i * 2 + 1] == rating_ladder_state_t::ALIVE);
+        dead[i] = ctx.string_captured[i * 2 + 0] == rating_ladder_state_t::DEAD
+          || ctx.string_captured[i * 2 + 1] == rating_ladder_state_t::DEAD;
+      }
+      OUTPUT({
+          int id = string_id[p];
+          OUTPUT_FEATURE(data_features, alive[id]);
+      });
+      OUTPUT({
+          int id = string_id[p];
+          OUTPUT_FEATURE(data_features, dead[id]);
+      });
 
       for (int i = 0; i < F_MAX1; i++) {
         OUTPUT({

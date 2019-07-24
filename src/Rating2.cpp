@@ -754,7 +754,7 @@ Rating( rating_context_t& ctx, int color, long long *sum_rate, long long *sum_ra
   }
 }
 
-static rating_ladder_state_t
+rating_ladder_state_t
 GetLadderState( rating_context_t& ctx, int id, position_t lib, int color )
 {
   //static std::atomic<int> num_query;
