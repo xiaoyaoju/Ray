@@ -107,14 +107,20 @@ public:
 
     static std::atomic<int64_t> win_black;
     static std::atomic<int64_t> win_white;
+    static std::atomic<int64_t> win_draw;
+
     if (win_color == S_BLACK && win_black > win_white + 100)
       return false;
     if (win_color == S_WHITE && win_white > win_black + 100)
+      return false;
+    if (win_color == S_EMPTY && win_draw > (win_black + win_white) * 0.05)
       return false;
     if (win_color == S_BLACK)
       std::atomic_fetch_add(&win_black, (int64_t)1);
     if (win_color == S_WHITE)
       std::atomic_fetch_add(&win_white, (int64_t)1);
+    if (win_color == S_EMPTY)
+      std::atomic_fetch_add(&win_draw, (int64_t)1);
 
     int player_color = 0;
     SetHandicapNum(0);
@@ -125,27 +131,28 @@ public:
 
     // Replay to random turn
     int dump_turn;
-#if 1
     if (kifu.random_move < 0) {
-#endif
       uniform_int_distribution<int> dist_turn(1, max(1, kifu.moves - 20));
 
       if (abs(kifu.komi - 7.5) > 1.1 && rand() % 100 < 75) {
         dist_turn = uniform_int_distribution<int>(kifu.moves * 3 / 4 - 20, kifu.moves - 1);
       }
-      if (pure_board_size == 9)
-        dist_turn = uniform_int_distribution<int>(1, max(1, kifu.moves - 5));
+      if (pure_board_size == 9) {
+        int limit = 55 + mt() % 45;
+        dist_turn = uniform_int_distribution<int>(1, max(1, min(limit, kifu.moves - 5)));
+      }
 
       dump_turn = dist_turn(mt);
-#if 1
     } else {
       //dump_turn = kifu.random_move - 1;
       uniform_int_distribution<int> dist_turn(kifu.random_move - 1, min(kifu.random_move + 8, kifu.moves - 1));
-      if (pure_board_size == 9)
-        dist_turn = uniform_int_distribution<int>(kifu.random_move - 1, max(kifu.random_move, kifu.moves - 5));
+      if (pure_board_size == 9) {
+        //dist_turn = uniform_int_distribution<int>(kifu.random_move - 1, min(55, max(kifu.random_move, kifu.moves - 5)));
+        int limit = 55 + mt() % 45;
+        dist_turn = uniform_int_distribution<int>(kifu.random_move - 1, min(limit, max(kifu.random_move, kifu.moves - 5)));
+      }
       dump_turn = dist_turn(mt);
     }
-#endif
 
     int color = S_BLACK;
     double rate[PURE_BOARD_MAX];
@@ -298,6 +305,29 @@ public:
           default:
             break;
           }
+
+#if 0
+          if (score != sum) {
+            cerr << "################################################################################" << endl;
+            cerr << kifu.filename << endl;
+            cerr << "sum:" << sum << " score:" << score << endl;
+            PrintBoard(game);
+
+            ClearBoard(game);
+            int color = S_BLACK;
+            for (int i = 0; i < kifu.moves - 1; i++) {
+              int pos = GetKifuMove(&kifu, i);
+              PutStone(game, pos, color);
+              color = FLIP_COLOR(color);
+            }
+            PrintBoard(game);
+
+            extern void Simulation( game_info_t *game, int starting_color, std::mt19937_64 *mt, bool print );
+            Simulation(game, color, &mt, true);
+            PrintBoard(game);
+          }
+#endif
+
           //cerr << "sum:" << sum << " score:" << score << endl;
           static std::atomic<int64_t> score_error;
           static std::atomic<int64_t> sum_komi;
@@ -493,8 +523,7 @@ ReadFiles(int thread_no, size_t offset, size_t size, vector<SGF_record_t> *recor
       continue;
     }
 
-    if (kifu->moves > pure_board_max * 0.9)
-      kifu->moves = pure_board_max * 0.9;
+    //if (kifu->moves > pure_board_max * 0.9) kifu->moves = pure_board_max * 0.9;
 
     ClearBoard(game);
     int color = S_BLACK;
@@ -583,8 +612,7 @@ Train()
         continue;
       }
 
-      if (kifu->moves > pure_board_max * 0.9)
-        kifu->moves = pure_board_max * 0.9;
+      //if (kifu->moves > pure_board_max * 0.9) kifu->moves = pure_board_max * 0.9;
 
       ClearBoard(cv_game);
       int color = S_BLACK;
@@ -791,12 +819,12 @@ Train()
 
       //double rate = 2.0e-8 + 1.0e-3 / stepsize * (stepsize - abs(alt % (stepsize * 2) - stepsize));
       //double rate = 2.0e-7 + 8.0e-6 / stepsize * (stepsize - abs(alt % (stepsize * 2) - stepsize));
-      double lr_scale = pow(2, -alt / stepsize / 2.0);
+      double lr_scale = pow(1.5, -alt / stepsize / 2.0);
       double lr_max0 = max(lr_max * lr_scale, lr_min);
       double rate = lr_min + (lr_max0 - lr_min) / stepsize * (stepsize - alt % stepsize);
       if (alt < stepsize * 2)
         rate = lr_min + (lr_max0 - lr_min) / stepsize * (stepsize - abs(alt % (stepsize * 2) - stepsize));
-      //rate *= lr_scale;
+      rate *= lr_scale;
       cerr << rate << endl;
       LearningRateSchedule learningRatePerSample = TrainingParameterPerSampleSchedule(rate);
       //LearningRateSchedule learningRatePerSample = TrainingParameterPerSampleSchedule(4.00e-07);

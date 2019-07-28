@@ -62,6 +62,7 @@ ExtractKifu( const char *file_name, SGF_record_t *kifu )
 
   int cursor = 0;
 
+  kifu->filename = string(file_name);
   kifu->board_size = 19;
   kifu->result = R_UNKNOWN;
   kifu->moves = 0;

@@ -4,6 +4,7 @@
 #include <string>
 
 struct SGF_record_t {
+  std::string filename;
   int start_color;      // 最初に着手した色
   int moves;            // 着手数
   int move_x[800];      // 着手(x座標)
