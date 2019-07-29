@@ -42,6 +42,7 @@ const string command[COMMAND_MAX] = {
   "--verbose",
   "--kifu-dir",
   "--train",
+  "--weights",
 };
 
 //  コマンドの説明
@@ -67,6 +68,7 @@ const string errmessage[COMMAND_MAX] = {
   "Verbose log mode",
   "Set directory to store kifu files",
   "Train parameters",
+  "Set location of weights file",
 };
 
 static RUN_MODE run_mode = RUN_MODE::GTP;
@@ -173,6 +175,9 @@ AnalyzeCommand( int argc, char **argv )
         break;
       case COMMAND_TRAIN:
         run_mode = RUN_MODE::TRAIN;
+        break;
+      case COMMAND_WEIGHTS_FILE:
+        nn_model_file = argv[++i];
         break;
       default:
 	for (int j = 0; j < COMMAND_MAX; j++){

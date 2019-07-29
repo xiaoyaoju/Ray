@@ -169,6 +169,9 @@ extern double criticality[BOARD_MAX];
 // Scoring Rule
 extern SCORING_MODE scoring_mode;
 
+// model
+extern std::string nn_model_file;
+
 
 ////////////
 //  関数  //

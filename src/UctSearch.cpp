@@ -230,6 +230,7 @@ static int eval_count;
 static double owner_nn[BOARD_MAX];
 
 static CNTK::FunctionPtr nn_model;
+std::string nn_model_file;
 
 // Opening book scale
 const int book_equivalent_move = 10;
@@ -2852,26 +2853,38 @@ CNTK::FunctionPtr GetPolicyNetwork()
 void
 ReadWeights()
 {
-  wchar_t name[1024];
-  mbstate_t ps;
-  memset(&ps, 0, sizeof(ps));
-  const char * src = uct_params_path;
-  mbsrtowcs(name, &src, 1024, &ps);
-  wstring path = name;
+  if (GetDebugMessageMode() && GetVerbose())
+    cerr << "Init CNTK" << endl;
 
-  cerr << "Init CNTK" << endl;
+  wstring model_name;
+
+  if (nn_model_file.size() > 0) {
+    vector<wchar_t> name(nn_model_file.size() + 1);
+    const char *src = nn_model_file.c_str();
+    mbstate_t ps;
+    mbsrtowcs(name.data(), &src, name.size(), &ps);
+    model_name = name.data();
+    if (GetDebugMessageMode() && GetVerbose())
+      wcerr << L"Load " << model_name << endl;
+  } else {
+    wchar_t name[1024];
+    mbstate_t ps;
+    memset(&ps, 0, sizeof(ps));
+    const char * src = uct_params_path;
+    mbsrtowcs(name, &src, 1024, &ps);
+    wstring path = name;
+
+    if (pure_board_size == 19) {
+      model_name = path + L"/model7a.bin";
+    } else if (pure_board_size == 9) {
+      model_name = path + L"/model7a_9.bin";
+    } else {
+      cerr << "Unsupported board size " << pure_board_size << endl;
+      abort();
+    }
+  }
 
   auto device = GetDevice();
-
-  wstring model_name = path;
-  if (pure_board_size == 19) {
-    model_name += L"/model7a.bin";
-  } else if (pure_board_size == 9) {
-    model_name += L"/model7a_9.bin";
-  } else {
-    cerr << "Unsupported board size " << pure_board_size << endl;
-    abort();
-  }
   nn_model = CNTK::Function::Load(model_name, device);
 
   if (!nn_model)
