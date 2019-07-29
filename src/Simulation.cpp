@@ -1,5 +1,6 @@
 #include <cstring>
 #include <random>
+#include <iostream>
 
 #include "GoBoard.h"
 #include "Message.h"
@@ -14,7 +15,7 @@ using namespace std;
 //  終局までシミュレーション  //
 ////////////////////////////////
 void
-Simulation( game_info_t *game, int starting_color, std::mt19937_64 *mt )
+Simulation( game_info_t *game, int starting_color, std::mt19937_64 *mt, bool print )
 {
   int color = starting_color, pos = -1;
   int pass_count = 0;
@@ -45,7 +46,17 @@ Simulation( game_info_t *game, int starting_color, std::mt19937_64 *mt )
     pass_count = (pos == PASS) ? (pass_count + 1) : 0;
     // 手番の入れ替え
     color = FLIP_COLOR(color);
+    if (print) {
+      cerr << "move:" << FormatMove(pos) << " pass:" << pass_count << endl;
+      PrintBoard(game);
+    }
   }
+}
+
+void
+Simulation( game_info_t *game, int starting_color, std::mt19937_64 *mt )
+{
+  Simulation(game, starting_color, mt, false);
 }
 
 ////////////////////////////////

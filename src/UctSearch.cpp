@@ -77,7 +77,7 @@ void EvalNode();
 ////////////
 
 // ノード展開の閾値
-const int EXPAND_THRESHOLD_9 = 10;
+const int EXPAND_THRESHOLD_9 = 3;
 const int EXPAND_THRESHOLD_13 = 11;
 const int EXPAND_THRESHOLD_19 = 12;
 
