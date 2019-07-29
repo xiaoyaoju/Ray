@@ -835,7 +835,8 @@ UctSearchGenmove( game_info_t *game, int color )
     pos = PASS;
   } else if (!early_pass && count == 0 && pass_wp >= PASS_THRESHOLD && max_count < uct_child[PASS_INDEX].move_count) {
     pos = PASS;
-  } else if (best_wp <= resign_threshold && (!use_nn || best_wpv < resign_threshold)) {
+  } else if ((best_wp <= resign_threshold && (!use_nn || best_wpv < resign_threshold))
+             || (best_wp <= 0.01)) {
     if (abs(nn_score) > 10) {
       pos = RESIGN;
     } else {
@@ -854,8 +855,6 @@ UctSearchGenmove( game_info_t *game, int color )
       }
       pos = uct_child[select_index].pos;
     }
-  } else if (best_wp <= 0.01) {
-    pos = RESIGN;
   } else {
     pos = uct_child[select_index].pos;
   }
