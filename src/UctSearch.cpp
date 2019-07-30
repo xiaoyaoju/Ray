@@ -2117,7 +2117,7 @@ UpdatePolicyRate(int current)
     }
     uct_child[i].nnrate = max(rate, root_policy_rate_min);
     if (uct_child[i].trivial)
-      uct_child[i].nnrate = min(0.01, uct_child[i].nnrate);
+      uct_child[i].nnrate = min(0.001, uct_child[i].nnrate);
   }
 
   if (in_opening && current == current_root) {
