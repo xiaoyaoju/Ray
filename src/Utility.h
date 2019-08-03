@@ -31,4 +31,9 @@ std::unique_ptr<T> make_unique(Args&& ...args)
 #endif
 #endif
 
+template<typename T>
+T inline clip(T n, T lower, T upper) {
+  return std::max(lower, std::min(n, upper));
+}
+
 #endif

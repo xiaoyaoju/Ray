@@ -63,6 +63,7 @@ const int VIRTUAL_LOSS = 1;
 
 const int SCORE_DIM = 81;
 const int SCORE_OFFSET = 7 - 40;
+const float SCORE_WIN_OFFSET = 7.5f - 40;
 
 extern double c_puct;
 extern double value_scale;

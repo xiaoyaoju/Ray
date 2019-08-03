@@ -231,6 +231,8 @@ static double owner_nn[BOARD_MAX];
 
 static CNTK::FunctionPtr nn_model;
 std::string nn_model_file;
+static CNTK::Variable var_basic, var_features, var_history, var_color, var_komi;
+static CNTK::Variable var_p, var_p2, var_ol, var_score;
 
 // Opening book scale
 const int book_equivalent_move = 10;
@@ -2327,12 +2329,17 @@ SelectMaxUcbChild( const game_info_t *game, int current, int color )
           p_vn = value_win / value_move_count;
         }
 
-        double score_diff;
-        if (color == S_BLACK)
-          score_diff = score - average_root_score;
-        else
-          score_diff = average_root_score - score;
-        double p_score = tanh(score_diff * k_score);
+        double p_score;
+        if (var_score.IsInitialized()) {
+          double score_diff;
+          if (color == S_BLACK)
+            score_diff = score - average_root_score;
+          else
+            score_diff = average_root_score - score;
+          p_score = tanh(score_diff * k_score);
+        } else {
+          p_score = 0;
+        }
 
         double rate = uct_child[i].nnrate;
 
@@ -2909,6 +2916,17 @@ ReadWeights()
   }
 #endif
 
+  GetInputVariableByName(nn_model, L"basic", var_basic);
+  GetInputVariableByName(nn_model, L"features", var_features);
+  GetInputVariableByName(nn_model, L"history", var_history);
+  GetInputVariableByName(nn_model, L"color", var_color);
+  //GetInputVariableByName(nn_model, L"komi", var_komi);
+
+  GetOutputVaraiableByName(nn_model, L"value_out", var_p);
+  GetOutputVaraiableByName(nn_model, L"value2_out", var_p2);
+  GetOutputVaraiableByName(nn_model, L"move_out_raw", var_ol);
+  GetOutputVaraiableByName(nn_model, L"score_out", var_score);
+
   cerr << "ok" << endl;
 }
 
@@ -2952,20 +2970,6 @@ EvalValue(
 
   auto device = GetDevice();
 
-  CNTK::Variable var_basic, var_features, var_history, var_color, var_komi;
-  GetInputVariableByName(nn_model, L"basic", var_basic);
-  GetInputVariableByName(nn_model, L"features", var_features);
-  GetInputVariableByName(nn_model, L"history", var_history);
-  GetInputVariableByName(nn_model, L"color", var_color);
-  //GetInputVariableByName(nn_model, L"komi", var_komi);
-
-  CNTK::Variable var_p;
-  GetOutputVaraiableByName(nn_model, L"value_out", var_p);
-  CNTK::Variable var_ol;
-  GetOutputVaraiableByName(nn_model, L"move_out_raw", var_ol);
-  CNTK::Variable var_score;
-  GetOutputVaraiableByName(nn_model, L"score_out", var_score);
-
   size_t num_req = requests.size();
 
   CNTK::NDShape shape_basic = var_basic.Shape().AppendShape({ 1, num_req });
@@ -2980,6 +2984,7 @@ EvalValue(
   //CNTK::ValuePtr value_komi = CNTK::MakeSharedObject<CNTK::Value>(CNTK::MakeSharedObject<CNTK::NDArrayView>(shape_komi, data_komi, true));
 
   CNTK::ValuePtr value_p;
+  CNTK::ValuePtr value_p2;
   CNTK::ValuePtr value_ol;
   CNTK::ValuePtr value_score;
 
@@ -2991,10 +2996,14 @@ EvalValue(
     //{ var_komi, value_komi },
   };
   std::unordered_map<CNTK::Variable, CNTK::ValuePtr> outputs = {
-    { var_p, value_p },
     { var_ol, value_ol },
-    { var_score, value_score },
   };
+  if (var_score.IsInitialized())
+    outputs[var_score] = value_score;
+  if (var_p.IsInitialized())
+    outputs[var_p] = value_p;
+  if (var_p2.IsInitialized())
+    outputs[var_p2] = value_p2;
 
   try {
     nn_model->Forward(inputs, outputs, device);
@@ -3006,15 +3015,44 @@ EvalValue(
     abort();
   }
 
-  value_p = outputs[var_p];
-  CNTK::NDShape shape_p = var_p.Shape().AppendShape({ 1, num_req });
-  vector<float> win(shape_p.TotalSize());
-  CNTK::NDArrayViewPtr cpu_p = CNTK::MakeSharedObject<CNTK::NDArrayView>(shape_p, win, false);
-  cpu_p->CopyFrom(*value_p->Data());
+  vector<float> win;
+  if (var_p.IsInitialized()) {
+    value_p = outputs[var_p];
+    CNTK::NDShape shape_p = var_p.Shape().AppendShape({ 1, num_req });
+    win.resize(shape_p.TotalSize());
+    CNTK::NDArrayViewPtr cpu_p = CNTK::MakeSharedObject<CNTK::NDArrayView>(shape_p, win, false);
+    cpu_p->CopyFrom(*value_p->Data());
 
-  if (win.size() != requests.size()) {
-    cerr << "Eval win error " << win.size() << endl;
-    return;
+    if (win.size() != requests.size()) {
+      cerr << "Eval win error " << win.size() << endl;
+      return;
+    }
+  }
+  if (var_p2.IsInitialized()) {
+    value_p2 = outputs[var_p2];
+    CNTK::NDShape shape_p2 = var_p2.Shape().AppendShape({ 1, num_req });
+    vector<float> win2(shape_p2.TotalSize());
+    CNTK::NDArrayViewPtr cpu_p2 = CNTK::MakeSharedObject<CNTK::NDArrayView>(shape_p2, win2, false);
+    cpu_p2->CopyFrom(*value_p2->Data());
+
+    if (win2.size() != requests.size() * SCORE_DIM) {
+      cerr << "Eval win error " << win2.size() << endl;
+      return;
+    }
+
+    int komi_min = clip((int)round(dynamic_komi[0] - SCORE_WIN_OFFSET - 0.4), 0, SCORE_DIM - 1);
+    int komi_max = clip((int)round(dynamic_komi[0] - SCORE_WIN_OFFSET + 0.4), 0, SCORE_DIM - 1);
+
+    for (int i = 0; i < requests.size(); i++) {
+      float v_min = win2[SCORE_DIM * i + komi_min];
+      float v_max = win2[SCORE_DIM * i + komi_max];
+      if (rand() % 1000 == 0) {
+        cerr << "Use komi:" << dynamic_komi[0] << " " <<  komi_min + SCORE_WIN_OFFSET << ".." << komi_max + SCORE_WIN_OFFSET
+             << " value:" << v_min << ".." << v_max
+             << endl;
+      }
+      win.push_back((v_min + v_max) / 2);
+    }
   }
 
   value_ol = outputs[var_ol];
@@ -3028,24 +3066,27 @@ EvalValue(
     return;
   }
 
-  value_score = outputs[var_score];
-  CNTK::NDShape shape_score = var_score.Shape().AppendShape({ 1, num_req });
-  vector<float> score(shape_score.TotalSize());
-  CNTK::NDArrayViewPtr cpu_score = CNTK::MakeSharedObject<CNTK::NDArrayView>(shape_score, score, false);
-  cpu_score->CopyFrom(*value_score->Data());
+  vector<float> score;
+  if (var_score.IsInitialized()) {
+    value_score = outputs[var_score];
+    CNTK::NDShape shape_score = var_score.Shape().AppendShape({ 1, num_req });
+    score.resize(shape_score.TotalSize());
+    CNTK::NDArrayViewPtr cpu_score = CNTK::MakeSharedObject<CNTK::NDArrayView>(shape_score, score, false);
+    cpu_score->CopyFrom(*value_score->Data());
 
-  if (score.size() != requests.size() * SCORE_DIM) {
-    cerr << "Eval score error " << score.size() << endl;
-    return;
-  }
+    if (score.size() != requests.size() * SCORE_DIM) {
+      cerr << "Eval score error " << score.size() << endl;
+      return;
+    }
 
-  double sum = 0;
-  for (int i = 0; i < SCORE_DIM; i++) {
-    //score[i] = exp(score[i]);
-    sum += score[i];
-  }
-  for (int i = 0; i < SCORE_DIM; i++) {
-    score[i] /= sum;
+    double sum = 0;
+    for (int i = 0; i < SCORE_DIM; i++) {
+      //score[i] = exp(score[i]);
+      sum += score[i];
+    }
+    for (int i = 0; i < SCORE_DIM; i++) {
+      score[i] /= sum;
+    }
   }
 
   //cerr << "Eval " << indices.size() << " " << path.size() << endl;
@@ -3102,8 +3143,10 @@ EvalValue(
       atomic_fetch_add(&uct_node[current].value_move_count, 1);
       atomic_fetch_add(&uct_node[current].value_win, value);
 
-      for (int k = 0; k < SCORE_DIM; k++) {
-        atomic_fetch_add(&uct_node[current].score[k], score[k]);
+      if (score.size() > 0) {
+        for (int k = 0; k < SCORE_DIM; k++) {
+          atomic_fetch_add(&uct_node[current].score[k], score[k]);
+        }
       }
       value = 1 - value;
     }

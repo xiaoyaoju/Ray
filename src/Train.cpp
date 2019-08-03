@@ -54,6 +54,7 @@ struct DataSet {
   std::vector<float> color;
   std::vector<float> komi;
   std::vector<float> win;
+  std::vector<float> win2;
   std::vector<float> move;
   std::vector<float> statistic;
   std::vector<float> score;
@@ -341,6 +342,14 @@ public:
               << endl;
           }
 
+          for (int j = 0; j < SCORE_DIM; j++) {
+            float komi = SCORE_WIN_OFFSET + j;
+            if (score > komi)
+              data.win2.push_back(1);
+            else
+              data.win2.push_back(-1);
+          }
+
           //data.score.push_back(score);
           int score_label = round(score - SCORE_OFFSET);
           if (score_label < 0)
@@ -378,6 +387,7 @@ public:
     data->color.reserve(n);
     data->komi.reserve(n);
     data->win.reserve(n);
+    data->win2.reserve(SCORE_DIM * n);
     data->move.reserve(pure_board_max * n);
     data->statistic.reserve(pure_board_max * n);
     data->score.reserve(SCORE_DIM * n);
@@ -406,6 +416,7 @@ public:
   CNTK::Variable var_win, var_move;
   CNTK::Variable var_score;
   CNTK::Variable var_score_value;
+  CNTK::Variable var_win2;
 
   explicit MinibatchReader(FunctionPtr net)
     : net(net) {
@@ -418,6 +429,7 @@ public:
     GetInputVariableByName(net, L"komi", var_komi);
 
     GetInputVariableByName(net, L"win", var_win);
+    GetInputVariableByName(net, L"win2", var_win2);
     GetInputVariableByName(net, L"move", var_move);
     GetInputVariableByName(net, L"statistic", var_statistic);
     GetInputVariableByName(net, L"score", var_score);
@@ -440,29 +452,42 @@ public:
     //CNTK::NDShape shape_komi = var_komi.Shape().AppendShape({ 1, num_req });
     //CNTK::ValuePtr value_komi = CNTK::MakeSharedObject<CNTK::Value>(CNTK::MakeSharedObject<CNTK::NDArrayView>(shape_komi, data.komi, true));
 
-    CNTK::NDShape shape_win = var_win.Shape().AppendShape({ 1, num_req });
-    CNTK::ValuePtr value_win = CNTK::MakeSharedObject<CNTK::Value>(CNTK::MakeSharedObject<CNTK::NDArrayView>(shape_win, data.win, true));
     CNTK::NDShape shape_move = var_move.Shape().AppendShape({ 1, num_req });
     CNTK::ValuePtr value_move = CNTK::MakeSharedObject<CNTK::Value>(CNTK::MakeSharedObject<CNTK::NDArrayView>(shape_move, data.move, true));
-    CNTK::NDShape shape_statistic = var_statistic.Shape().AppendShape({ 1, num_req });
-    CNTK::ValuePtr value_statistic = CNTK::MakeSharedObject<CNTK::Value>(CNTK::MakeSharedObject<CNTK::NDArrayView>(shape_statistic, data.statistic, true));
-    CNTK::NDShape shape_score = var_score.Shape().AppendShape({ 1, num_req });
-    CNTK::ValuePtr value_score = CNTK::MakeSharedObject<CNTK::Value>(CNTK::MakeSharedObject<CNTK::NDArrayView>(shape_score, data.score, true));
-    CNTK::NDShape shape_score_value = var_score_value.Shape().AppendShape({ 1, num_req });
-    CNTK::ValuePtr value_score_value = CNTK::MakeSharedObject<CNTK::Value>(CNTK::MakeSharedObject<CNTK::NDArrayView>(shape_score_value, data.score_value, true));
 
     std::unordered_map<CNTK::Variable, CNTK::ValuePtr> inputs = {
       { var_basic, value_basic },
       { var_features, value_features },
       { var_history, value_history },
       { var_color, value_color },
-      //{ var_komi, value_komi },
-      { var_win, value_win },
       { var_move, value_move },
-      { var_statistic , value_statistic },
-      { var_score , value_score },
-      { var_score_value , value_score_value },
     };
+
+    if (var_win.IsInitialized()) {
+      CNTK::NDShape shape_win = var_win.Shape().AppendShape({ 1, num_req });
+      CNTK::ValuePtr value_win = CNTK::MakeSharedObject<CNTK::Value>(CNTK::MakeSharedObject<CNTK::NDArrayView>(shape_win, data.win, true));
+      inputs[var_win] = value_win;
+    }
+    if (var_win2.IsInitialized()) {
+      CNTK::NDShape shape_win2 = var_win2.Shape().AppendShape({ 1, num_req });
+      CNTK::ValuePtr value_win2 = CNTK::MakeSharedObject<CNTK::Value>(CNTK::MakeSharedObject<CNTK::NDArrayView>(shape_win2, data.win2, true));
+      inputs[var_win2] = value_win2;
+    }
+    if (var_statistic.IsInitialized()) {
+      CNTK::NDShape shape_statistic = var_statistic.Shape().AppendShape({ 1, num_req });
+      CNTK::ValuePtr value_statistic = CNTK::MakeSharedObject<CNTK::Value>(CNTK::MakeSharedObject<CNTK::NDArrayView>(shape_statistic, data.statistic, true));
+      inputs[var_statistic] = value_statistic;
+    }
+    if (var_score.IsInitialized()) {
+      CNTK::NDShape shape_score = var_score.Shape().AppendShape({ 1, num_req });
+      CNTK::ValuePtr value_score = CNTK::MakeSharedObject<CNTK::Value>(CNTK::MakeSharedObject<CNTK::NDArrayView>(shape_score, data.score, true));
+      inputs[var_score] = value_score;
+    }
+    if (var_score_value.IsInitialized()) {
+      CNTK::NDShape shape_score_value = var_score_value.Shape().AppendShape({ 1, num_req });
+      CNTK::ValuePtr value_score_value = CNTK::MakeSharedObject<CNTK::Value>(CNTK::MakeSharedObject<CNTK::NDArrayView>(shape_score_value, data.score_value, true));
+      inputs[var_score_value] = value_score_value;
+    }
 
     return inputs;
   }
@@ -815,6 +840,8 @@ Train()
         GetOutputVaraiableByName(net, L"err_score", prediction);
         break;
       }
+      if (!prediction.IsInitialized())
+        GetOutputVaraiableByName(net, L"ce", prediction);
       wcerr << prediction.AsString() << endl;
 
       //double rate = 2.0e-8 + 1.0e-3 / stepsize * (stepsize - abs(alt % (stepsize * 2) - stepsize));
@@ -891,6 +918,8 @@ Train()
               err = err_owner;
             else if (j == 4)
               err = mse_score;
+            if (!err.IsInitialized())
+              continue;
             auto tester = CreateTrainer(net, trainingLoss, err,
               { SGDLearner(parameters, learningRatePerSample, option) });
 
