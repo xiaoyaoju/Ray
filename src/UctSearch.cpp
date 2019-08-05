@@ -77,7 +77,7 @@ void EvalNode();
 ////////////
 
 // ノード展開の閾値
-const int EXPAND_THRESHOLD_9 = 3;
+const int EXPAND_THRESHOLD_9 = 40;
 const int EXPAND_THRESHOLD_13 = 11;
 const int EXPAND_THRESHOLD_19 = 12;
 
@@ -214,7 +214,7 @@ double seach_threshold_policy_rate = 0.005;
 double root_policy_rate_min = 0.0;
 
 double pass_po_limit = 0.5;
-int batch_size = 4;
+int batch_size = 1;
 
 double c_score = 0.05;
 double k_score = 0.5;
@@ -1882,7 +1882,6 @@ static int
 UctSearch(uct_search_context_t& ctx, game_info_t *game, int color, mt19937_64 *mt, int current, int *winner)
 {
   int result = 0, next_index;
-  double score;
   child_node_t *uct_child = uct_node[current].child;
   bool evaled = uct_node[current].evaled;
 
@@ -1949,7 +1948,7 @@ UctSearch(uct_search_context_t& ctx, game_info_t *game, int color, mt19937_64 *m
     Simulation(game, color, mt);
 
     // コミを含めない盤面のスコアを求める
-    score = (double)CalculateScore(game);
+    double score = (double)CalculateScore(game);
 
     // コミを考慮した勝敗
     result = CalculateResult(score, color, winner);
@@ -2305,14 +2304,13 @@ SelectMaxUcbChild( const game_info_t *game, int current, int color )
 
   double sum_visited_nnrate = 0;
   for (int i = start_child; i < child_num; i++) {
-    if (uct_child[i].index >= 0) {
+    if (uct_child[i].index >= 0 && uct_node[uct_child[i].index].evaled) {
       sum_visited_nnrate += uct_child[i].nnrate;
     }
   }
 
   const double cfg_fpu_reduction = 0.125f;
   double fpu_reduction = cfg_fpu_reduction * sqrt(sum_visited_nnrate);
-  double fpu_eval = p_v0 - fpu_reduction;
 
   int max_move_count = 0;
   int max_move_child = 0;
