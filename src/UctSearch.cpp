@@ -1862,6 +1862,7 @@ UctSearch(uct_search_context_t& ctx, game_info_t *game, int color, mt19937_64 *m
   int result = 0, next_index;
   double score;
   child_node_t *uct_child = uct_node[current].child;
+  bool evaled = uct_node[current].evaled;
 
   // 現在見ているノードをロック
   LOCK_NODE(current);
@@ -1881,7 +1882,7 @@ UctSearch(uct_search_context_t& ctx, game_info_t *game, int color, mt19937_64 *m
 
   // Enqueue value
   if (use_nn
-    && uct_node[current].evaled
+    && evaled
     //&& (n >= expand_threshold * value_evaluation_threshold || mode == CONST_PLAYOUT_MODE)
     ) {
 
