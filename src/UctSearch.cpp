@@ -309,6 +309,9 @@ static void Statistic( game_info_t *game, int winner );
 // UCT探索(1回の呼び出しにつき, 1回の探索)
 static int UctSearch( uct_search_context_t& ctx, game_info_t *game, int color, mt19937_64 *mt, int current, int *winner );
 
+// コミを考慮した勝敗
+static int CalculateResult( double score, int color, int *winner );
+
 // 各ノードの統計情報の更新
 static void UpdateNodeStatistic( game_info_t *game, int winner, statistic_t *node_statistic );
 
@@ -1926,60 +1929,24 @@ UctSearch(uct_search_context_t& ctx, game_info_t *game, int color, mt19937_64 *m
     score = (double)CalculateScore(game);
 
     // コミを考慮した勝敗
-    if (scoring_mode == SCORING_MODE::JAPANESE) {
-      if (my_color == S_BLACK) {
-        if (score - dynamic_komi[my_color] + 0.1 >= 0) {
-          result = (color == S_BLACK ? 0 : 1);
-          if (score - dynamic_komi[my_color] - 0.1 >= 0) {
-            *winner = S_BLACK;
-          } else {
-            *winner = S_EMPTY;
-          }
-        } else {
-          result = (color == S_WHITE ? 0 : 1);
-          *winner = S_WHITE;
-        }
-      } else {
-        if (score - dynamic_komi[my_color] - 0.1 > 0) {
-          result = (color == S_BLACK ? 0 : 1);
-          if (score - dynamic_komi[my_color] + 0.1 > 0) {
-            *winner = S_BLACK;
-          } else {
-            *winner = S_EMPTY;
-          }
-        } else {
-          result = (color == S_WHITE ? 0 : 1);
-          *winner = S_WHITE;
-        }
-      }
-    } else {
-      if (score - dynamic_komi[0] >= 0.1) {
-        result = (color == S_BLACK ? 0 : 1);
-        *winner = S_BLACK;
-      } else if (score - dynamic_komi[0] >= -0.1) {
-        result = 1;
-        *winner = S_EMPTY;
-      } else {
-        result = (color == S_WHITE ? 0 : 1);
-        *winner = S_WHITE;
-      }
-      if (end_of_game) {
-        double value = *winner == S_EMPTY ? 0.5 : result;
-        int score_label = round(score - SCORE_OFFSET);
-        if (score_label < 0)
-          score_label = 0;
-        if (score_label >= SCORE_DIM)
-          score_label = SCORE_DIM - 1;
+    result = CalculateResult(score, color, winner);
 
-        for (int i = ctx.path.size() - 1; i >= 0; i--) {
-          int current = ctx.path[i];
-          atomic_fetch_add(&uct_node[current].value_move_count, 1);
-          atomic_fetch_add(&uct_node[current].value_win, value);
+    if (end_of_game) {
+      double value = *winner == S_EMPTY ? 0.5 : result;
+      int score_label = round(score - SCORE_OFFSET);
+      if (score_label < 0)
+        score_label = 0;
+      if (score_label >= SCORE_DIM)
+        score_label = SCORE_DIM - 1;
 
-          atomic_fetch_add(&uct_node[current].score[score_label], 1);
+      for (int i = ctx.path.size() - 1; i >= 0; i--) {
+        int current = ctx.path[i];
+        atomic_fetch_add(&uct_node[current].value_move_count, 1);
+        atomic_fetch_add(&uct_node[current].value_win, value);
 
-          value = 1 - value;
-        }
+        atomic_fetch_add(&uct_node[current].score[score_label], 1);
+
+        value = 1 - value;
       }
     }
 
@@ -2021,6 +1988,52 @@ UctSearch(uct_search_context_t& ctx, game_info_t *game, int color, mt19937_64 *m
   return 1 - result;
 }
 
+static int
+CalculateResult( double score, int color, int *winner )
+{
+  // コミを考慮した勝敗
+  int result;
+  if (scoring_mode == SCORING_MODE::JAPANESE) {
+    if (my_color == S_BLACK) {
+      if (score - dynamic_komi[my_color] + 0.1 >= 0) {
+        result = (color == S_BLACK ? 0 : 1);
+        if (score - dynamic_komi[my_color] - 0.1 >= 0) {
+          *winner = S_BLACK;
+        } else {
+          *winner = S_EMPTY;
+        }
+      } else {
+        result = (color == S_WHITE ? 0 : 1);
+        *winner = S_WHITE;
+      }
+    } else {
+      if (score - dynamic_komi[my_color] - 0.1 > 0) {
+        result = (color == S_BLACK ? 0 : 1);
+        if (score - dynamic_komi[my_color] + 0.1 > 0) {
+          *winner = S_BLACK;
+        } else {
+          *winner = S_EMPTY;
+        }
+      } else {
+        result = (color == S_WHITE ? 0 : 1);
+        *winner = S_WHITE;
+      }
+    }
+  } else {
+    if (score - dynamic_komi[0] >= 0.1) {
+      result = (color == S_BLACK ? 0 : 1);
+      *winner = S_BLACK;
+    } else if (score - dynamic_komi[0] >= -0.1) {
+      result = 1;
+      *winner = S_EMPTY;
+    } else {
+      result = (color == S_WHITE ? 0 : 1);
+      *winner = S_WHITE;
+    }
+  }
+
+  return result;
+}
 
 //////////////////////////
 //  Virtual Lossの加算  //
