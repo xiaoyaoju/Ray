@@ -94,6 +94,9 @@ static void PoCheckCaptureAfterKo( game_info_t *game, const int color, position_
 //  自己アタリの判定
 static bool PoCheckSelfAtari( game_info_t *game, const int color, const position_t pos );
 
+//  自己アタリの判定
+static bool IsNotSelfAtari( const game_info_t *game, const int color, const int pos );
+
 //  トリとアタリの判定
 static void PoCheckCaptureAndAtari( game_info_t *game, const int color, const position_t pos );
 
@@ -1267,21 +1270,17 @@ PoCheckSnapBack( game_info_t *game, int color, int pos, int pos0 )
 //  自己アタリ  //
 //////////////////
 static bool
-PoCheckSelfAtari( game_info_t *game, const int color, const position_t pos )
+IsNotSelfAtari( const game_info_t *game, const int color, const int pos )
 {
-  char *board = game->board;
-  string_t *string = game->string;
-  position_t *string_id = game->string_id;
+  const char *board = game->board;
+  const string_t *string = game->string;
+  const position_t *string_id = game->string_id;
   int other = FLIP_COLOR(color);
   int size = 0;
   int already[4] = { 0 };
   int already_num = 0;
-  int lib, count = 0, libs = 0;
+  int libs = 0;
   int lib_candidate[10];
-  int i;
-  int id;
-  bool flag;
-  bool checked;
 
   // 上下左右が空点なら呼吸点の候補に入れる
   if (board[NORTH(pos)] == S_EMPTY) lib_candidate[libs++] = NORTH(pos);
@@ -1294,14 +1293,174 @@ PoCheckSelfAtari( game_info_t *game, const int color, const position_t pos )
 
   // 上を調べる
   if (board[NORTH(pos)] == color) {
-    id = string_id[NORTH(pos)];
+    int id = string_id[NORTH(pos)];
     if (string[id].libs > 2) return true;
-    lib = string[id].lib[0];
-    count = 0;
+    int lib = string[id].lib[0];
+    int count = 0;
     while (lib != LIBERTY_END) {
       if (lib != pos) {
-	checked = false;
-	for (i = 0; i < libs; i++) {
+        bool checked = false;
+        for (int i = 0; i < libs; i++) {
+          if (lib_candidate[i] == lib) {
+            checked = true;
+            break;
+          }
+        }
+        if (!checked) {
+          lib_candidate[libs + count] = lib;
+          count++;
+        }
+      }
+      lib = string[id].lib[lib];
+    }
+    libs += count;
+    size += string[id].size;
+    already[already_num++] = id;
+    if (libs >= 2) return true;
+  } else if (board[NORTH(pos)] == other &&
+	     string[string_id[NORTH(pos)]].libs == 1) {
+    return true;
+  }
+
+  // 左を調べる
+  if (board[WEST(pos)] == color) {
+    int id = string_id[WEST(pos)];
+    if (already[0] != id) {
+      if (string[id].libs > 2) return true;
+      int lib = string[id].lib[0];
+      int count = 0;
+      while (lib != LIBERTY_END) {
+        if (lib != pos) {
+          bool checked = false;
+          for (int i = 0; i < libs; i++) {
+            if (lib_candidate[i] == lib) {
+              checked = true;
+              break;
+            }
+          }
+          if (!checked) {
+            lib_candidate[libs + count] = lib;
+            count++;
+          }
+        }
+        lib = string[id].lib[lib];
+      }
+      libs += count;
+      size += string[id].size;
+      already[already_num++] = id;
+      if (libs >= 2) return true;
+    }
+  } else if (board[WEST(pos)] == other &&
+	     string[string_id[WEST(pos)]].libs == 1) {
+    return true;
+  }
+
+  // 右を調べる
+  if (board[EAST(pos)] == color) {
+    int id = string_id[EAST(pos)];
+    if (already[0] != id && already[1] != id) {
+      if (string[id].libs > 2) return true;
+      int lib = string[id].lib[0];
+      int count = 0;
+      while (lib != LIBERTY_END) {
+        if (lib != pos) {
+          bool checked = false;
+          for (int i = 0; i < libs; i++) {
+            if (lib_candidate[i] == lib) {
+              checked = true;
+              break;
+            }
+          }
+          if (!checked) {
+            lib_candidate[libs + count] = lib;
+            count++;
+          }
+        }
+        lib = string[id].lib[lib];
+      }
+      libs += count;
+      size += string[id].size;
+      already[already_num++] = id;
+      if (libs >= 2) return true;
+    }
+  } else if (board[EAST(pos)] == other &&
+	     string[string_id[EAST(pos)]].libs == 1) {
+    return true;
+  }
+
+
+  // 下を調べる
+  if (board[SOUTH(pos)] == color) {
+    int id = string_id[SOUTH(pos)];
+    if (already[0] != id && already[1] != id && already[2] != id) {
+      if (string[id].libs > 2) return true;
+      int lib = string[id].lib[0];
+      int count = 0;
+      while (lib != LIBERTY_END) {
+        if (lib != pos) {
+          bool checked = false;
+          for (int i = 0; i < libs; i++) {
+            if (lib_candidate[i] == lib) {
+              checked = true;
+              break;
+            }
+          }
+          if (!checked) {
+            lib_candidate[libs + count] = lib;
+            count++;
+          }
+        }
+        lib = string[id].lib[lib];
+      }
+      libs += count;
+      size += string[id].size;
+      already[already_num++] = id;
+      if (libs >= 2) return true;
+    }
+  } else if (board[SOUTH(pos)] == other &&
+	     string[string_id[SOUTH(pos)]].libs == 1) {
+    return true;
+  }
+
+  return false;
+}
+
+
+//////////////////
+//  自己アタリ  //
+//////////////////
+static bool
+PoCheckSelfAtari( game_info_t *game, const int color, const position_t pos )
+{
+  char *board = game->board;
+  string_t *string = game->string;
+  position_t *string_id = game->string_id;
+  int other = FLIP_COLOR(color);
+  int size = 0;
+  int already[4] = { 0 };
+  int already_num = 0;
+  int libs = 0;
+  int lib_candidate[10];
+
+  // 上下左右が空点なら呼吸点の候補に入れる
+  if (board[NORTH(pos)] == S_EMPTY) lib_candidate[libs++] = NORTH(pos);
+  if (board[ WEST(pos)] == S_EMPTY) lib_candidate[libs++] =  WEST(pos);
+  if (board[ EAST(pos)] == S_EMPTY) lib_candidate[libs++] =  EAST(pos);
+  if (board[SOUTH(pos)] == S_EMPTY) lib_candidate[libs++] = SOUTH(pos);
+
+  //  空点
+  if (libs >= 2) return true;
+
+  // 上を調べる
+  if (board[NORTH(pos)] == color) {
+    int id = string_id[NORTH(pos)];
+    if (string[id].libs > 2) return true;
+    int lib = string[id].lib[0];
+    int count = 0;
+    while (lib != LIBERTY_END) {
+      if (lib != pos) {
+	bool checked = false;
+	for (int i = 0; i < libs; i++) {
 	  if (lib_candidate[i] == lib) {
 	    checked = true;
 	    break;
@@ -1325,15 +1484,15 @@ PoCheckSelfAtari( game_info_t *game, const int color, const position_t pos )
 
   // 左を調べる
   if (board[WEST(pos)] == color) {
-    id = string_id[WEST(pos)];
+    int id = string_id[WEST(pos)];
     if (already[0] != id) {
       if (string[id].libs > 2) return true;
-      lib = string[id].lib[0];
-      count = 0;
+      int lib = string[id].lib[0];
+      int count = 0;
       while (lib != LIBERTY_END) {
 	if (lib != pos) {
-	  checked = false;
-	  for (i = 0; i < libs; i++) {
+	  bool checked = false;
+	  for (int i = 0; i < libs; i++) {
 	    if (lib_candidate[i] == lib) {
 	      checked = true;
 	      break;
@@ -1358,15 +1517,15 @@ PoCheckSelfAtari( game_info_t *game, const int color, const position_t pos )
 
   // 右を調べる
   if (board[EAST(pos)] == color) {
-    id = string_id[EAST(pos)];
+    int id = string_id[EAST(pos)];
     if (already[0] != id && already[1] != id) {
       if (string[id].libs > 2) return true;
-      lib = string[id].lib[0];
-      count = 0;
+      int lib = string[id].lib[0];
+      int count = 0;
       while (lib != LIBERTY_END) {
 	if (lib != pos) {
-	  checked = false;
-	  for (i = 0; i < libs; i++) {
+	  bool checked = false;
+	  for (int i = 0; i < libs; i++) {
 	    if (lib_candidate[i] == lib) {
 	      checked = true;
 	      break;
@@ -1392,15 +1551,15 @@ PoCheckSelfAtari( game_info_t *game, const int color, const position_t pos )
 
   // 下を調べる
   if (board[SOUTH(pos)] == color) {
-    id = string_id[SOUTH(pos)];
+    int id = string_id[SOUTH(pos)];
     if (already[0] != id && already[1] != id && already[2] != id) {
       if (string[id].libs > 2) return true;
-      lib = string[id].lib[0];
-      count = 0;
+      int lib = string[id].lib[0];
+      int count = 0;
       while (lib != LIBERTY_END) {
 	if (lib != pos) {
-	  checked = false;
-	  for (i = 0; i < libs; i++) {
+	  bool checked = false;
+	  for (int i = 0; i < libs; i++) {
 	    if (lib_candidate[i] == lib) {
 	      checked = true;
 	      break;
@@ -1452,6 +1611,7 @@ PoCheckSelfAtari( game_info_t *game, const int color, const position_t pos )
   // 自己アタリになる連の大きさが2以下,
   // または大きさが5以下でナカデの形になる場合は
   // 打っても良いものとする
+  bool flag;
   if (size == 0) {
     // Check snap back
     bool snapback =
@@ -1467,8 +1627,39 @@ PoCheckSelfAtari( game_info_t *game, const int color, const position_t pos )
     flag = true;
   } else if (size < 5) {
     if (IsNakadeSelfAtari(game, pos, color)) {
-      game->tactical_features2[pos] |= po_tactical_features_mask[F_SELF_ATARI_NAKADE];
-      flag = true;
+      bool safe_other_lib = false;
+      int lib = 0;
+      // 自分の連に接続できるか判定
+      for (int j = 0; j < already_num; j++) {
+        int id = already[j];
+        if (string[id].libs == 1) {
+          break;
+        }
+        position_t lib1 = string[id].lib[0];
+        position_t lib2 = string[id].lib[lib1];
+        if (pos == lib1)
+          lib = lib2;
+        else
+          lib = lib1;
+        if ((board[NORTH(lib)] == color && string_id[NORTH(lib)] != id) ||
+            (board[ WEST(lib)] == color && string_id[ WEST(lib)] != id) ||
+            (board[ EAST(lib)] == color && string_id[ EAST(lib)] != id) ||
+            (board[SOUTH(lib)] == color && string_id[SOUTH(lib)] != id)) {
+          if (IsNotSelfAtari(game, color, lib)) {
+            safe_other_lib = true;
+            break;
+          }
+        }
+      }
+      if (safe_other_lib) {
+        game->tactical_features2[pos] |= po_tactical_features_mask[F_SELF_ATARI_LARGE];
+        flag = false;
+        // PrintBoard(game);
+        // cerr << "######## NO NAKADE " << FormatMove(pos) << " " << FormatMove(lib) << endl;
+      } else {
+        game->tactical_features2[pos] |= po_tactical_features_mask[F_SELF_ATARI_NAKADE];
+        flag = true;
+      }
     } else {
       game->tactical_features2[pos] |= po_tactical_features_mask[F_SELF_ATARI_LARGE];
       flag = false;
