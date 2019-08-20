@@ -1903,7 +1903,7 @@ UctSearch(uct_search_context_t& ctx, game_info_t *game, int color, mt19937_64 *m
 
   // Enqueue value
   if (use_nn
-    && evaled
+    && (evaled || current == current_root)
     //&& (n >= expand_threshold * value_evaluation_threshold || mode == CONST_PLAYOUT_MODE)
     ) {
 
@@ -1961,6 +1961,10 @@ UctSearch(uct_search_context_t& ctx, game_info_t *game, int color, mt19937_64 *m
       if (score_label >= SCORE_DIM)
         score_label = SCORE_DIM - 1;
 
+      if (next_node_index >= 0) {
+        ctx.path.push_back(next_node_index);
+        value = 1 - value;
+      }
       for (int i = ctx.path.size() - 1; i >= 0; i--) {
         int current = ctx.path[i];
         atomic_fetch_add(&uct_node[current].value_move_count, 1);
