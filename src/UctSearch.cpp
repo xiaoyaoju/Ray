@@ -230,6 +230,7 @@ static int device_id = -2;
 static std::queue<std::shared_ptr<nn_eval_req>> eval_nn_queue;
 static int eval_count;
 static double owner_nn[BOARD_MAX];
+static std::atomic<double> dynamic_value[SCORE_DIM];
 
 static CNTK::FunctionPtr nn_model;
 std::string nn_model_file;
@@ -703,6 +704,10 @@ UctSearchGenmove( game_info_t *game, int color )
     owner_nn[pos] = 50;
   }
 
+  for (int i = 0; i < SCORE_DIM; i++) {
+    dynamic_value[i] = 0;
+  }
+
   if (!reuse_subtree) {
     ClearUctHash();
   }
@@ -911,8 +916,8 @@ UctSearchGenmove( game_info_t *game, int color )
         max_score = l;
     }
 
-    cerr << "Score histgram" << endl;
-    const int HEIGHT = 20;
+    cerr << "Score" << endl;
+    const int HEIGHT = 10;
     double scale = HEIGHT / max_score;
     int v[SCORE_DIM];
     for (int i = 0; i < SCORE_DIM; i++) {
@@ -951,6 +956,38 @@ UctSearchGenmove( game_info_t *game, int color )
       }
       cerr << endl;
     }
+
+    // plot various value
+    const int num_y = 20;
+    int komi_min = clip((int)round(dynamic_komi[0] - SCORE_WIN_OFFSET - 0.4), 0, SCORE_DIM - 1);
+    int komi_max = clip((int)round(dynamic_komi[0] - SCORE_WIN_OFFSET + 0.4), 0, SCORE_DIM - 1);
+    cerr << "komi/value" << endl;
+    for (int y = 0; y < num_y; y++) {
+      for (int i = 0; i < SCORE_DIM; i++) {
+        double v = dynamic_value[i] / uct_node[current_root].value_move_count;
+        v = (v + 1) / 2;
+        if (((1 - v) * num_y >= y) && ((1 - v) * num_y < y + 1)) {
+          cerr << '.';
+        } else {
+          if (i == komi_min || i == komi_max) {
+            cerr << '|';
+          } else if (y == num_y / 2 - 1) {
+            cerr << '-';
+          } else {
+            cerr << ' ';
+          }
+        }
+      }
+      cerr << endl;
+    }
+    for (int i = 0; i < SCORE_DIM; i++) {
+      if (i == komi_min || i == komi_max) {
+        cerr << '+';
+      } else {
+        cerr << '-';
+      }
+    }
+    cerr << endl;
   }
 
   return pos;
@@ -3081,6 +3118,12 @@ EvalValue(
       if (win2.size() != requests.size() * SCORE_DIM) {
         cerr << "Eval win error " << win2.size() << endl;
         return;
+      }
+
+      for (int i = 0; i < num_req; i++) {
+        for (int j = 0; j < SCORE_DIM; j++) {
+          atomic_fetch_add(&dynamic_value[j], win2[SCORE_DIM * i + j]);
+        }
       }
 
       int komi_min = clip((int)round(dynamic_komi[0] - SCORE_WIN_OFFSET - 0.4), 0, SCORE_DIM - 1);
