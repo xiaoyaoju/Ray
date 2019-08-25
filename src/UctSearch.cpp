@@ -903,7 +903,6 @@ UctSearchGenmove( game_info_t *game, int color )
     if (uct_child[select_index].index >= 0) {
       cerr << "Opponent Moves" << endl;
       PrintMoveStat(cerr, game, uct_node, uct_child[select_index].index);
-
     }
     //PrintOwnerNN(S_BLACK, owner_nn);
 
@@ -916,78 +915,82 @@ UctSearchGenmove( game_info_t *game, int color )
         max_score = l;
     }
 
-    cerr << "Score" << endl;
-    const int HEIGHT = 10;
-    double scale = HEIGHT / max_score;
-    int v[SCORE_DIM];
-    for (int i = 0; i < SCORE_DIM; i++) {
-      v[i] = scale * uct_node[current_root].score[i];
-    }
-    int draw_line;
-    int win_line;
-    if (komi[0] == (int) komi[0]) {
-      draw_line = komi[0] - SCORE_OFFSET;
-      win_line = -1;
-    } else {
-      draw_line = -1;
-      win_line = round(komi[0] - SCORE_OFFSET - 0.5);
-    }
-    for (int y = 0; y <= HEIGHT; y++) {
-      if (y == 0)
-        cerr << setw(4) << (int)(100 * max_score / sum) << '|';
-      else
-        cerr << "    |";
+    if (var_score.IsInitialized()) {
+      cerr << "Score" << endl;
+      const int HEIGHT = 10;
+      double scale = HEIGHT / max_score;
+      int v[SCORE_DIM];
       for (int i = 0; i < SCORE_DIM; i++) {
-        char c = ' ';
-        if (v[i] > HEIGHT - y) {
-          if (i == draw_line)
-            c = '#';
-          else
+        v[i] = scale * uct_node[current_root].score[i];
+      }
+      int draw_line;
+      int win_line;
+      if (komi[0] == (int) komi[0]) {
+        draw_line = komi[0] - SCORE_OFFSET;
+        win_line = -1;
+      } else {
+        draw_line = -1;
+        win_line = round(komi[0] - SCORE_OFFSET - 0.5);
+      }
+      for (int y = 0; y <= HEIGHT; y++) {
+        if (y == 0)
+          cerr << setw(4) << (int)(100 * max_score / sum) << '|';
+        else
+          cerr << "    |";
+        for (int i = 0; i < SCORE_DIM; i++) {
+          char c = ' ';
+          if (v[i] > HEIGHT - y) {
+            if (i == draw_line)
+              c = '#';
+            else
             c = '*';
-        } else {
-          if (i == draw_line)
-            c = '!';
-          else
-            c = ' ';
-        }
-        cerr << c;
+          } else {
+            if (i == draw_line)
+              c = '!';
+            else
+              c = ' ';
+          }
+          cerr << c;
         if (i == win_line)
           cerr << '|';
+        }
+        cerr << endl;
       }
-      cerr << endl;
     }
 
     // plot various value
-    const int num_y = 20;
-    int komi_min = clip((int)round(dynamic_komi[0] - SCORE_WIN_OFFSET - 0.4), 0, SCORE_DIM - 1);
-    int komi_max = clip((int)round(dynamic_komi[0] - SCORE_WIN_OFFSET + 0.4), 0, SCORE_DIM - 1);
-    cerr << "komi/value" << endl;
-    for (int y = 0; y < num_y; y++) {
-      for (int i = 0; i < SCORE_DIM; i++) {
-        double v = dynamic_value[i] / uct_node[current_root].value_move_count;
-        v = (v + 1) / 2;
-        if (((1 - v) * num_y >= y) && ((1 - v) * num_y < y + 1)) {
-          cerr << '.';
-        } else {
-          if (i == komi_min || i == komi_max) {
-            cerr << '|';
-          } else if (y == num_y / 2 - 1) {
-            cerr << '-';
+    if (var_p2.IsInitialized()) {
+      const int num_y = 20;
+      int komi_min = clip((int)round(dynamic_komi[0] - SCORE_WIN_OFFSET - 0.4), 0, SCORE_DIM - 1);
+      int komi_max = clip((int)round(dynamic_komi[0] - SCORE_WIN_OFFSET + 0.4), 0, SCORE_DIM - 1);
+      cerr << "komi/value" << endl;
+      for (int y = 0; y < num_y; y++) {
+        for (int i = 0; i < SCORE_DIM; i++) {
+          double v = dynamic_value[i] / uct_node[current_root].value_move_count;
+          v = (v + 1) / 2;
+          if (((1 - v) * num_y >= y) && ((1 - v) * num_y < y + 1)) {
+            cerr << '.';
           } else {
-            cerr << ' ';
+            if (i == komi_min || i == komi_max) {
+              cerr << '|';
+            } else if (y == num_y / 2 - 1) {
+              cerr << '-';
+            } else {
+              cerr << ' ';
           }
+          }
+        }
+        cerr << endl;
+      }
+      for (int i = 0; i < SCORE_DIM; i++) {
+        if (i == komi_min || i == komi_max) {
+          cerr << '+';
+        } else {
+          cerr << '-';
         }
       }
       cerr << endl;
     }
-    for (int i = 0; i < SCORE_DIM; i++) {
-      if (i == komi_min || i == komi_max) {
-        cerr << '+';
-      } else {
-        cerr << '-';
-      }
-    }
-    cerr << endl;
   }
 
   return pos;
