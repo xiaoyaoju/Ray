@@ -304,7 +304,7 @@ static void RatingNode( game_info_t *game, int color, int index, int depth );
 static int RateComp( const void *a, const void *b );
 
 // UCB値が最大の子ノードを返す
-static int SelectMaxUcbChild(const game_info_t *game, int current, int color );
+static int SelectMaxUcbChild( uct_search_context_t& ctx, const game_info_t *game, int current, int color );
 
 // 各座標の統計処理
 static void Statistic( game_info_t *game, int winner );
@@ -1928,7 +1928,7 @@ UctSearch(uct_search_context_t& ctx, game_info_t *game, int color, mt19937_64 *m
   // 現在見ているノードをロック
   LOCK_NODE(current);
   // UCB値最大の手を求める
-  next_index = SelectMaxUcbChild(game, current, color);
+  next_index = SelectMaxUcbChild(ctx, game, current, color);
   // 選んだ手を着手
   PutStone(game, uct_child[next_index].pos, color);
   // 色を入れ替える
@@ -1970,14 +1970,14 @@ UctSearch(uct_search_context_t& ctx, game_info_t *game, int color, mt19937_64 *m
     }
   }
 
+  // Virtual Lossを加算
+  int n = AddVirtualLoss(&uct_child[next_index], current);
+
   if ((no_expand || uct_child[next_index].move_count < expand_threshold || end_of_game)
     //&& (next_node_index < 0 || !uct_node[next_node_index].evaled)
     //|| (next_node_index < 0 || !uct_node[next_node_index].evaled)
     ) {
     int start = game->moves;
-
-    // Virtual Lossを加算
-    int n = AddVirtualLoss(&uct_child[next_index], current);
 
     memcpy(game->seki, uct_node[current].seki, sizeof(bool) * BOARD_MAX);
 
@@ -2019,8 +2019,6 @@ UctSearch(uct_search_context_t& ctx, game_info_t *game, int color, mt19937_64 *m
     // 統計情報の記録
     Statistic(game, *winner);
   } else {
-    // Virtual Lossを加算
-    AddVirtualLoss(&uct_child[next_index], current);
     // ノードの展開の確認
     if (uct_child[next_index].index == -1) {
       // ノードの展開中はロック
@@ -2046,7 +2044,11 @@ UctSearch(uct_search_context_t& ctx, game_info_t *game, int color, mt19937_64 *m
   }
 
   // 探索結果の反映
-  UpdateResult(&uct_child[next_index], result, current);
+  if (*winner == S_EMPTY) {
+    result = n % 3 == 0;
+    UpdateResult(&uct_child[next_index], result, current);
+  } else
+    UpdateResult(&uct_child[next_index], result, current);
 
   // 統計情報の更新
   UpdateNodeStatistic(game, *winner, uct_node[current].statistic);
@@ -2236,7 +2238,7 @@ static double average_root_score;
 //  UCBが最大となる子ノードのインデックスを返す関数  //
 /////////////////////////////////////////////////////
 static int
-SelectMaxUcbChild( const game_info_t *game, int current, int color )
+SelectMaxUcbChild( uct_search_context_t& ctx, const game_info_t *game, int current, int color )
 {
   bool evaled = uct_node[current].evaled;
 #if 0
@@ -2356,6 +2358,10 @@ SelectMaxUcbChild( const game_info_t *game, int current, int color )
   const double cfg_fpu_reduction = 0.125f;
   double fpu_reduction = cfg_fpu_reduction * sqrt(sum_visited_nnrate);
 
+  bool use_nnrate = ctx.move_count % 5 > 0;
+  if (!use_nnrate)
+    fpu_reduction = cfg_fpu_reduction;
+
   int max_move_count = 0;
   int max_move_child = 0;
 
@@ -2419,7 +2425,7 @@ SelectMaxUcbChild( const game_info_t *game, int current, int color )
           p_score = 0;
         }
 
-        double rate = uct_child[i].nnrate;
+        double rate = use_nnrate ? uct_child[i].nnrate : 1.0;
 
         double u_po = sqrt(sum + 1) / (move_count + 1);
         double ucb_po = p_po + c_puct * u_po * rate;
