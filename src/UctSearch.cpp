@@ -346,6 +346,35 @@ ClearEvalQueue()
   cond_queue.notify_all();
 }
 
+static bool
+IsTrivialMove( const game_info_t *game, const position_t pos, const int color )
+{
+  int pat3 = Pat3(game->pat, pos);
+  if (territory[pat3] == color && eye_condition[pat3] == E_COMPLETE_ONE_EYE) {
+    const char *board = game->board;
+    const position_t *string_id = game->string_id;
+    const string_t *string = game->string;
+    int id = 0;
+    if (board[NORTH(pos)] == color)
+      id = string_id[NORTH(pos)];
+    else if (board[WEST(pos)] == color)
+      id = string_id[WEST(pos)];
+    else if (board[EAST(pos)] == color)
+      id = string_id[EAST(pos)];
+    else if (board[SOUTH(pos)] == color)
+      id = string_id[SOUTH(pos)];
+    else
+      return false;
+    for (int lib = string[id].lib[0]; lib != LIBERTY_END; lib = string[id].lib[lib]) {
+      if (lib == pos)
+        continue;
+      if (eye_condition[Pat3(game->pat, lib)] == E_COMPLETE_ONE_EYE)
+        return true;
+    }
+  }
+  return false;
+}
+
 /////////////////////
 //  予測読みの設定  //
 /////////////////////
@@ -851,18 +880,32 @@ UctSearchGenmove( game_info_t *game, int color )
   if (pass_wp >= PASS_THRESHOLD &&
       (early_pass || count == 0) &&
       (game->moves > 1 && game->record[game->moves - 1].pos == PASS)){
+    if (GetDebugMessageMode()) {
+      cerr << "PASS Win" << endl;
+    }
     pos = PASS;
   } else if (game->moves >= MAX_MOVES) {
+    if (GetDebugMessageMode()) {
+      cerr << "PASS Long game" << endl;
+    }
     pos = PASS;
   } else if (game->moves > 3 &&
              early_pass &&
 	     game->record[game->moves - 1].pos == PASS &&
 	     game->record[game->moves - 3].pos == PASS) {
+    if (GetDebugMessageMode()) {
+      cerr << "PASS End" << endl;
+    }
     pos = PASS;
-  } else if (!early_pass && count == 0 && pass_wp >= PASS_THRESHOLD && max_count < uct_child[PASS_INDEX].move_count) {
+  } else if (!early_pass && count == 0
+             && (pass_wp >= PASS_THRESHOLD || uct_node[current_root].may_pass)
+             && max_count < uct_child[PASS_INDEX].move_count) {
     pos = PASS;
   } else if ((best_wp <= resign_threshold && (!use_nn || best_wpv < resign_threshold))
              || (best_wp <= 0.01)) {
+    if (GetDebugMessageMode()) {
+      cerr << "Losing mode" << endl;
+    }
     if (abs(nn_score) > 10) {
       pos = RESIGN;
     } else {
@@ -1293,11 +1336,7 @@ ExpandRoot( game_info_t *game, int color )
         // 探索候補かつ合法手であれば探索対象にする
         if (candidates[pos] && IsLegal(game, pos, color)) {
           InitializeCandidate(&uct_child[child_num], pos, ladder[pos]);
-          if (IsLegalNotEye(game, pos, color)) {
-            uct_child[child_num].trivial = false;
-          } else {
-            uct_child[child_num].trivial = true;
-          }
+          uct_child[child_num].trivial = IsTrivialMove(game, pos, color);
           child_num++;
         }
       }
@@ -1307,11 +1346,7 @@ ExpandRoot( game_info_t *game, int color )
         // 探索候補かつ合法手であれば探索対象にする
         if (candidates[pos] && IsLegal(game, pos, color)) {
           InitializeCandidate(&uct_child[child_num], pos, ladder[pos]);
-          if (IsLegalNotEye(game, pos, color)) {
-            uct_child[child_num].trivial = false;
-          } else {
-            uct_child[child_num].trivial = true;
-          }
+          uct_child[child_num].trivial = IsTrivialMove(game, pos, color);
           child_num++;
         }
       }
@@ -1348,7 +1383,8 @@ MayPassNode( game_info_t *game, int color, int index )
 
   for (int i = 1; i < child_num; i++) {
     int pos = uct_child[i].pos;
-    if (!IsLegalNotEye(game, pos, color))
+    int pat3 = Pat3(game->pat, pos);
+    if (territory[pat3] == color && eye_condition[pat3] != E_NOT_EYE)
       continue;
 	if (IsSelfAtari(game, color, pos))
       continue;
@@ -1408,6 +1444,7 @@ ExpandNode( game_info_t *game, int color )
   memset(uct_node[index].statistic, 0, sizeof(statistic_t) * BOARD_MAX);
   fill_n(uct_node[index].seki, BOARD_MAX, false);
   child_node_t *uct_child = uct_node[index].child;
+  bool trivial = false;
 
   int child_num = 0;
   // パスノードの展開
@@ -1420,11 +1457,8 @@ ExpandNode( game_info_t *game, int color )
     // 探索候補でなければ除外
     if (candidates[pos] && IsLegal(game, pos, color)) {
       InitializeCandidate(&uct_child[child_num], pos, ladder[pos]);
-      if (IsLegalNotEye(game, pos, color)) {
-        uct_child[child_num].trivial = false;
-      } else {
-        uct_child[child_num].trivial = true;
-      }
+      uct_child[child_num].trivial = IsTrivialMove(game, pos, color);
+      trivial |= uct_child[child_num].trivial;
       child_num++;
     }
   }
@@ -1435,9 +1469,14 @@ ExpandNode( game_info_t *game, int color )
   uct_node[index].may_pass = MayPassNode(game, color, index);
 
 /*
-  if (uct_node[index].trivial) {
-    cerr << "TRIVIAL NODE " << color << endl;
+  if (trivial) {
     PrintBoard(game);
+    for (int i = 1; i < pure_board_max; i++) {
+      int pos = onboard_pos[i];
+      if (uct_child[i].trivial) {
+        cerr << "TRIVIAL NODE " << FormatMove(uct_child[i].pos) << endl;
+      }
+    }
   }
 */
 
