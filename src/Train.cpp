@@ -596,6 +596,8 @@ ReadGames(int thread_no)
   }
 }
 
+#define CHECK_FEATURE_MODE 1
+
 void
 Train()
 {
@@ -621,11 +623,17 @@ Train()
     ListFiles();
     shuffle(begin(filenames), end(filenames), mt);
 
+#if CHECK_FEATURE_MODE
+    const int cv_size = 1024 * 100;
+#else
     const int cv_size = 1024;
+#endif
     vector<SGF_record_t> cv_records(cv_size);
     game_info_t* cv_game = AllocateGame();
     InitializeBoard(cv_game);
     for (int i = 0; i < cv_size; i++) {
+      if (i % 10000 == 0)
+        cerr << (100.0 * i / cv_size) << "%" << endl;
       auto f = filenames.back();
       filenames.pop_back();
 
@@ -679,8 +687,132 @@ Train()
     vector<unique_ptr<DataSet>> cv_data;
     Reader cv_reader{ 0, &cv_records, 1 };
     for (int i = 0; i < cv_size / minibatch_size; i++) {
+      if (i % 100 == 0)
+        cerr << (100.0 * i / (cv_size / minibatch_size)) << "%" << endl;
       cv_data.push_back(move(cv_reader.Read(minibatch_size)));
     }
+
+#if CHECK_FEATURE_MODE
+    {
+      std::vector<Parameter> parameters;
+      for (auto p : net->Parameters()) {
+        parameters.push_back(p);
+      }
+
+      LearningRateSchedule learningRatePerSample = TrainingParameterPerSampleSchedule(1e-10);
+      AdditionalLearningOptions option;
+      MinibatchReader reader{ net };
+
+      Variable err_move, err_value2, err_score, err_owner, mse_score;
+      GetVariableByName(net->Outputs(), L"err_move", err_move);
+      GetVariableByName(net->Outputs(), L"err_value2", err_value2);
+      GetVariableByName(net->Outputs(), L"err_score", err_score);
+      GetVariableByName(net->Outputs(), L"err_owner", err_owner);
+      GetVariableByName(net->Outputs(), L"mse_score", mse_score);
+      Variable trainingLoss;
+      GetVariableByName(net->Outputs(), L"ce", trainingLoss);
+
+      DataSet data;
+      for (int k = 0; k < 105; k++) {
+        for (int side = 0; side < 2; side++) {
+          cerr << "MASK " << k << endl;
+          int mf = 0;
+          for (int j = 0; j < 5; j++) {
+            Variable err;
+            if (j == 0)
+              err = err_move;
+            else if (j == 1)
+              err = err_value2;
+            else if (j == 2)
+              err = err_score;
+            /*
+              else if (j == 3)
+              err = err_owner;
+              else if (j == 4)
+              err = mse_score;
+            */
+            if (!err.IsInitialized())
+              continue;
+            auto tester = CreateTrainer(net, trainingLoss, err,
+              { SGDLearner(parameters, learningRatePerSample, option) });
+
+            double accumulatedError = 0;
+            double error = 0;
+            size_t totalNumberOfSamples = 0;
+            size_t numberOfMinibatches = 0;
+            uint64_t masked = 0;
+
+            //auto checkpoint = m_cv.m_source->GetCheckpointState();
+            for (int i = 0; i < cv_data.size(); i++) {
+              const auto& ref = cv_data[i];
+              data.num_req = ref->num_req;
+#define COPY_VEC(a, b) {b.resize(a.size()); std::copy(a.begin(), a.end(), b.begin());}
+
+              COPY_VEC(ref->basic, data.basic);
+              COPY_VEC(ref->features, data.features);
+              COPY_VEC(ref->history, data.history);
+              COPY_VEC(ref->color, data.color);
+              COPY_VEC(ref->komi, data.komi);
+              COPY_VEC(ref->win, data.win);
+              COPY_VEC(ref->win2, data.win2);
+              COPY_VEC(ref->move, data.move);
+              COPY_VEC(ref->statistic, data.statistic);
+              COPY_VEC(ref->score, data.score);
+              COPY_VEC(ref->score_value, data.score_value);
+
+              int kk = k;
+              kk -= 1;
+              if (kk >= 0 && kk < 24) {
+                mf = kk;
+                if (data.basic.size() % (pure_board_max * 24) != 0) {
+                  cerr << "********* BAD BASIC " << kk << " " << data.basic.size() << endl;
+                }
+                for (int i = 0; i < data.basic.size() / pure_board_max / 24; i++) {
+                  for (int j = 0; j < pure_board_max; j++) {
+                    int pos = j + (i * 24 + kk) * pure_board_max;
+                    if (data.basic[pos] != side) {
+                      masked++;
+                    }
+                    data.basic[pos] = side;
+                  }
+                }
+              }
+              kk -= 24;
+              if (kk >= 0 && kk < 80) {
+                mf = kk;
+                if (data.features.size() % (pure_board_max * 80) != 0) {
+                  cerr << "********* BAD FEATURES " << kk << " " << data.basic.size() << endl;
+                }
+                for (int i = 0; i < data.features.size() / pure_board_max / 80; i++) {
+                  for (int j = 0; j < pure_board_max; j++) {
+                    int pos = j + (i * 80 + kk) * pure_board_max;
+                    if (data.features[pos] != side) {
+                      masked++;
+                    }
+                    data.features[pos] = side;
+                  }
+                }
+              }
+
+              unordered_map<Variable, ValuePtr> minibatch = reader.GetMiniBatchData(data);
+              error = tester->TestMinibatch(minibatch, device);
+              accumulatedError += error * data.num_req;
+              totalNumberOfSamples += data.num_req;
+              numberOfMinibatches++;
+            }
+            fwprintf(stderr, L"CV %s\t%.8g"
+                     "\t%d\t%d\t%d"
+                     "\t%lld\n",
+              err.AsString().c_str(),
+              accumulatedError / totalNumberOfSamples,
+              k, mf, side,
+              masked);
+          }
+        }
+      }
+      abort();
+    }
+#endif
 
     records_a.resize(step * threads);
     records_b.resize(step * threads);
