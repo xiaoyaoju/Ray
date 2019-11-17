@@ -17,6 +17,9 @@
 #include <thread>
 #include <vector>
 
+#include <boost/iostreams/filtering_stream.hpp>
+#include <boost/iostreams/filter/gzip.hpp>
+
 using namespace std;
 using namespace CNTK;
 
@@ -668,7 +671,10 @@ Train()
 {
   try {
     {
-      ifstream in("C:\\tmp\\train_6ee288bd_0\\train_6ee288bd_0");
+      ifstream fin("C:\\tmp\\train_6ee288bd\\train_6ee288bd_1.gz", ios_base::in | ios_base::binary);
+      boost::iostreams::filtering_istream in;
+      in.push(boost::iostreams::gzip_decompressor());
+      in.push(fin);
       if (in.fail()) {
         cerr << "fail to open" << endl;
         abort();
