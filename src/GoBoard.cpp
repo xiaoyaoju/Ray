@@ -2095,7 +2095,7 @@ WritePlanes(
 			}\
 		}
 
-    data_basic.reserve(data_basic.size() + pure_board_max * 24);
+    data_basic.reserve(data_basic.size() + pure_board_max * 18);
 
     ClearBoard(game_work);
     int start = game->moves - 8;

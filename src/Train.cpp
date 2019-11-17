@@ -1,6 +1,6 @@
 #include "Train.h"
 #include "UctSearch.h"
-#include "SgfExtractor.h"
+//#include "SgfExtractor.h"
 #include "DynamicKomi.h"
 #include "Rating.h"
 #include "Message.h"
@@ -49,6 +49,11 @@ inline void PrintTrainingProgress(const TrainerPtr trainer, size_t minibatchIdx,
   }
 }
 
+struct LZ_record_t {
+  string filename;
+  vector<vector<size_t>> pos;
+};
+
 void ReadLzPlane(const string& plane, int color, game_info_t* game)
 {
   for (auto n = size_t{ 0 }, bit = size_t{ 0 }; n < plane.size(); n++, bit += 4) {
@@ -81,6 +86,7 @@ void ReadLzPlane(const string& plane, int color, game_info_t* game)
 
 void ReadLzTrainingData(istream& in, game_info_t* game, int& color, float* prob, int& win)
 {
+  ClearBoard(game);
   string line[16];
   for (int i = 0; i < 16; i++)
     getline(in, line[i]);
@@ -115,6 +121,58 @@ void ReadLzTrainingData(istream& in, game_info_t* game, int& color, float* prob,
     abort();
 }
 
+void
+ExtractKifu(const string& filename, LZ_record_t* rec)
+{
+  rec->filename = filename;
+  ifstream fin(filename, ios_base::in | ios_base::binary);
+  boost::iostreams::filtering_stream<boost::iostreams::input_seekable> in;
+  in.push(boost::iostreams::gzip_decompressor());
+  in.push(fin);
+  if (in.fail()) {
+    cerr << "fail to open" << endl;
+    abort();
+  }
+  auto game = AllocateGame();
+  InitializeBoard(game);
+  float prob[362];
+  int win;
+  int color;
+
+  auto begin_time = ray_clock::now();
+  int num = 0;
+  int num_games = 0;
+  int last_moves = 0;
+  size_t last_pos = 0;
+  rec->pos.push_back({});
+  while (!in.eof()) {
+    last_pos = in.tellg();
+    ReadLzTrainingData(in, game, color, prob, win);
+    /*
+    cerr
+    << "COLOR:" << color
+    << "\tWIN:" << win << endl;
+    */
+    if (game->moves == 1) {
+      rec->pos.push_back({});
+      num_games++;
+    }
+    rec->pos[rec->pos.size() - 1].push_back(last_pos);
+    last_moves = game->moves;
+    ClearBoard(game);
+    num++;
+  }
+  FreeGame(game);
+  num_games++;
+  auto finish_time = GetSpendTime(begin_time);
+  cerr
+    << filename << "\t"
+    << num << "steps\t"
+    << num_games << "games\t"
+    << finish_time << "sec"
+    << endl;
+}
+
 struct DataSet {
   size_t num_req;
 
@@ -137,10 +195,10 @@ public:
   game_info_t* game_work;
   const int offset;
 
-  const vector<SGF_record_t> *records;
+  const vector<LZ_record_t> *records;
   const int threads;
 
-  explicit Reader(int offset, const vector<SGF_record_t> *records, int threads)
+  explicit Reader(int offset, const vector<LZ_record_t> *records, int threads)
     : offset(offset), records(records), threads(threads) {
     random_device rd;
     mt.seed(rd());
@@ -158,286 +216,139 @@ public:
     FreeGame(game_work);
   }
 
-  bool Play(DataSet& data, const SGF_record_t& kifu) {
+  bool Play(DataSet& data, const LZ_record_t& kifu) {
+    int num_game = mt() % kifu.pos.size();
+    const vector<size_t>& file_pos = kifu.pos[num_game];
+    int dump_turn = mt() % file_pos.size();
+    ifstream fin(kifu.filename, ios_base::in | ios_base::binary);
+    boost::iostreams::filtering_stream<boost::iostreams::input_seekable> in;
+    in.push(boost::iostreams::gzip_decompressor());
+    in.push(fin);
+    in.seekg(file_pos[dump_turn]);
+
+    float prob[362];
+    int color;
     int win_color;
-    if (kifu.handicaps > 0)
-      return false;
-    if (kifu.moves == 0)
-      return false;
-    switch (kifu.result) {
-    case R_BLACK:
-      win_color = S_BLACK;
-      break;
-    case R_WHITE:
-      win_color = S_WHITE;
-      break;
-    case R_JIGO:
-      win_color = S_EMPTY;
-      break;
-    default:
-      return false;
-    }
-
-    static std::atomic<int64_t> win_black;
-    static std::atomic<int64_t> win_white;
-    static std::atomic<int64_t> win_draw;
-
-    if (win_color == S_BLACK && win_black > win_white + 100)
-      return false;
-    if (win_color == S_WHITE && win_white > win_black + 100)
-      return false;
-    if (win_color == S_EMPTY && win_draw > (win_black + win_white) * 0.05)
-      return false;
-    if (win_color == S_BLACK)
-      std::atomic_fetch_add(&win_black, (int64_t)1);
-    if (win_color == S_WHITE)
-      std::atomic_fetch_add(&win_white, (int64_t)1);
-    if (win_color == S_EMPTY)
-      std::atomic_fetch_add(&win_draw, (int64_t)1);
+    ReadLzTrainingData(in, game, color, prob, win_color);
 
     int player_color = 0;
-    SetHandicapNum(0);
-    SetKomi(kifu.komi);
-    ClearBoard(game);
+    //SetHandicapNum(0);
+    //SetKomi(kifu.komi);
+    //ClearBoard(game);
 
-    stringstream out;
+    cerr << "RAND " << dump_turn << endl;
+    PrintBoard(game);
 
-    // Replay to random turn
-    int dump_turn;
-    if (kifu.random_move < 0) {
-      uniform_int_distribution<int> dist_turn(1, max(1, kifu.moves - 20));
+    /*
+    cerr << "RAND " << FormatMove(pos) << endl;
+    PrintBoard(game);
+    AnalyzePoRating(game, color, rate);
+    DumpFeature(&store_node, color, move, win_color == color ? 1 : -1, game, trans, true);
+    //dump_turn += 3;
+    trans++;
+    */
+    int my_color = color;
+    int trans = mt() % 8;
+    WritePlanes(data.basic, data.features,
+      game, game_work, color, trans);
+    data.color.push_back(color - 1);
 
-      if (abs(kifu.komi - 7.5) > 1.1 && rand() % 100 < 75) {
-        dist_turn = uniform_int_distribution<int>(kifu.moves * 3 / 4 - 20, kifu.moves - 1);
+    int ofs = data.move.size();
+    data.move.resize(ofs + pure_board_max);
+    for (int i = 0; i < pure_board_max; i++) {
+      int moveT = RevTransformMove(onboard_pos[i], trans);
+      data.move[ofs + PureBoardPos(moveT)] = prob[i];
+    }
+    data.move[ofs + pure_board_max] = prob[pure_board_max];
+
+    if (win_color == S_BLACK)
+      data.win.push_back(1);
+    else if (win_color == S_WHITE)
+      data.win.push_back(-1);
+    else
+      data.win.push_back(0);
+
+    in.seekg(file_pos[file_pos.size() - 1]);
+    ReadLzTrainingData(in, game, color, prob, win_color);
+    PrintBoard(game);
+    Simulation(game, color, &mt);
+
+    PrintBoard(game);
+    float sum = 0;
+    for (int j = 0; j < pure_board_max; j++) {
+      int pos = TransformMove(onboard_pos[j], trans);
+      int c = game->board[pos];
+      if (c == S_EMPTY)
+        c = territory[Pat3(game->pat, pos)];
+      float o;
+      if (c == S_EMPTY)
+        o = 0;
+      else if (c == S_BLACK)
+        o = 1;
+      else
+        o = -1;
+      sum += o;
+      data.statistic.push_back(o);
+    }
+    double score = sum;
+
+#if 0
+    if (score != sum) {
+      cerr << "################################################################################" << endl;
+      cerr << kifu.filename << endl;
+      cerr << "sum:" << sum << " score:" << score << endl;
+      PrintBoard(game);
+
+      ClearBoard(game);
+      int color = S_BLACK;
+      for (int i = 0; i < kifu.moves - 1; i++) {
+        int pos = GetKifuMove(&kifu, i);
+        PutStone(game, pos, color);
+        color = FLIP_COLOR(color);
       }
-      if (pure_board_size == 9) {
-        int limit = 55 + mt() % 45;
-        dist_turn = uniform_int_distribution<int>(1, max(1, min(limit, kifu.moves - 5)));
-      }
+      PrintBoard(game);
 
-      dump_turn = dist_turn(mt);
-    } else {
-      //dump_turn = kifu.random_move - 1;
-      uniform_int_distribution<int> dist_turn(kifu.random_move - 1, min(kifu.random_move + 8, kifu.moves - 1));
-      if (pure_board_size == 9) {
-        //dist_turn = uniform_int_distribution<int>(kifu.random_move - 1, min(55, max(kifu.random_move, kifu.moves - 5)));
-        int limit = 55 + mt() % 45;
-        dist_turn = uniform_int_distribution<int>(kifu.random_move - 1, min(limit, max(kifu.random_move, kifu.moves - 5)));
-      }
-      dump_turn = dist_turn(mt);
+      extern void Simulation(game_info_t *game, int starting_color, std::mt19937_64 *mt, bool print);
+      Simulation(game, color, &mt, true);
+      PrintBoard(game);
+    }
+#endif
+
+    //cerr << "sum:" << sum << " score:" << score << endl;
+    static std::atomic<int64_t> score_error;
+    //static std::atomic<int64_t> sum_komi;
+    static std::atomic<int64_t> score_num;
+    std::atomic_fetch_add(&score_num, (int64_t)1);
+    std::atomic_fetch_add(&score_error, (int64_t)abs(score - sum));
+    //std::atomic_fetch_add(&sum_komi, (int64_t)kifu.komi);
+    if (score_num % 100000 == 0) {
+      cerr << "score error: " << (score_error / (double)score_num)
+        //<< " komi:" << (sum_komi / (double)score_num)
+        << endl;
     }
 
-    int color = S_BLACK;
-    double rate[PURE_BOARD_MAX];
-    for (int i = 0; i < kifu.moves - 1; i++) {
-      int pos = GetKifuMove(&kifu, i);
-      //PrintBoard(game);
-      //cerr << "#" << i << " " << FormatMove(pos) << " " << color << endl;
-      if (!IsLegal(game, pos, color))
-        return false;
-      PutStone(game, pos, color);
-      color = FLIP_COLOR(color);
-      //PrintBoard(game);
-
-      int move = GetKifuMove(&kifu, i + 1);
-
-      if (move != PASS && move != RESIGN) {
-        int ts[] = { 0, 1, 2, 3, 4, 5, 6, 7 };
-        shuffle(begin(ts), end(ts), mt);
-        AnalyzePoRating(game, color, rate);
-#if 0
-        DumpFeature(&store_node, color, move, win_color == color ? 1 : -1, game, ts[0], true);
-#elif 0
-        if (i < 10) {
-          for (int t = 0; t < 4; t++) {
-            DumpFeature(nullptr, color, move, win_color == color ? 1 : -1, game, ts[t], false);
-          }
-        } else if (i < 50) {
-          for (int t = 0; t < 2; t++) {
-            DumpFeature(nullptr, color, move, win_color == color ? 1 : -1, game, ts[t], false);
-          }
-        } else {
-          DumpFeature(nullptr, color, move, win_color == color ? 1 : -1, game, ts[0], false);
-        }
-#else
-        if (dump_turn == i) {
-          /*
-          cerr << "RAND " << FormatMove(pos) << endl;
-          PrintBoard(game);
-          AnalyzePoRating(game, color, rate);
-          DumpFeature(&store_node, color, move, win_color == color ? 1 : -1, game, trans, true);
-          //dump_turn += 3;
-          trans++;
-          */
-          int my_color = color;
-          int trans = mt() % 8;
-          WritePlanes(data.basic, data.features,
-            game, game_work, color, trans);
-          data.color.push_back(color - 1);
-          int moveT = RevTransformMove(move, trans);
-
-#if 0
-          int ofs = data.move.size();
-          data.move.resize(ofs + pure_board_max);
-          if (kifu.comment[i + 1].size() > 0) {
-            stringstream in{ kifu.comment[i + 1] };
-            vector<float> rate;
-            rate.reserve(pure_board_max);
-            while (!in.eof()) {
-              float r;
-              in >> r;
-              if (in.fail() || in.eof())
-                break;
-              in.ignore(1, ' ');
-              rate.push_back(r);
-            }
-            for (int j = 0; j < pure_board_max; j++) {
-              int pos = RevTransformMove(onboard_pos[j], trans);
-              data.move[ofs + PureBoardPos(pos)] = rate[j];
-            }
-            //cerr << "Read rate " << data.move.size() << endl;
-            if (rate.size() != pure_board_max) {
-              cerr << "bad rate" << endl;
-              cerr << kifu.comment[i + 1] << endl;
-              for (int i = 0; i < data.move.size(); i++)
-                cerr << data.move[i] << " ";
-              cerr << endl;
-              break;
-            }
-          } else {
-            data.move[ofs + PureBoardPos(moveT)] = 1;
-          }
-#else
-          int x = CORRECT_X(moveT) - 1;
-          int y = CORRECT_Y(moveT) - 1;
-          int label = x + y * pure_board_size;
-          for (int j = 0; j < pure_board_max; j++) {
-#if 1
-            data.move.push_back(label == j ? 1.0f : 0.0f);
-#else
-            if (color == win_color)
-              data.move.push_back(label == j ? 1.0f : 0.0f);
-            else
-              data.move.push_back(0.0f);
-#endif
-          }
-#endif
-          if (win_color == S_BLACK)
-            data.win.push_back(1);
-          else if (win_color == S_WHITE)
-            data.win.push_back(-1);
-          else
-            data.win.push_back(0);
-          i++;
-          for (; i < kifu.moves - 1; i++) {
-            int pos = GetKifuMove(&kifu, i);
-            if (!IsLegal(game, pos, color)) {
-              cerr << "illegal move" << endl;
-              abort();
-              //return false;
-            }
-            PutStone(game, pos, color);
-            color = FLIP_COLOR(color);
-          }
-          //PrintBoard(game);
-          Simulation(game, color, &mt);
-
-          //PrintBoard(game);
-          float sum = 0;
-          for (int j = 0; j < pure_board_max; j++) {
-            int pos = TransformMove(onboard_pos[j], trans);
-            int c = game->board[pos];
-            if (c == S_EMPTY)
-              c = territory[Pat3(game->pat, pos)];
-            float o;
-            if (c == S_EMPTY)
-              o = 0;
-            else if (c == S_BLACK)
-              o = 1;
-            else
-              o = -1;
-            sum += o;
-            data.statistic.push_back(o);
-          }
-          double score = sum;
-          switch (kifu.result) {
-          case R_BLACK:
-            if (kifu.score != 0)
-              score = kifu.komi + kifu.score;
-            break;
-          case R_WHITE:
-            if (kifu.score != 0)
-              score = kifu.komi - kifu.score;
-            break;
-          case R_JIGO:
-            score = kifu.komi;
-            break;
-          default:
-            break;
-          }
-
-#if 0
-          if (score != sum) {
-            cerr << "################################################################################" << endl;
-            cerr << kifu.filename << endl;
-            cerr << "sum:" << sum << " score:" << score << endl;
-            PrintBoard(game);
-
-            ClearBoard(game);
-            int color = S_BLACK;
-            for (int i = 0; i < kifu.moves - 1; i++) {
-              int pos = GetKifuMove(&kifu, i);
-              PutStone(game, pos, color);
-              color = FLIP_COLOR(color);
-            }
-            PrintBoard(game);
-
-            extern void Simulation( game_info_t *game, int starting_color, std::mt19937_64 *mt, bool print );
-            Simulation(game, color, &mt, true);
-            PrintBoard(game);
-          }
-#endif
-
-          //cerr << "sum:" << sum << " score:" << score << endl;
-          static std::atomic<int64_t> score_error;
-          static std::atomic<int64_t> sum_komi;
-          static std::atomic<int64_t> score_num;
-          std::atomic_fetch_add(&score_num, (int64_t)1);
-          std::atomic_fetch_add(&score_error, (int64_t)abs(score - sum));
-          std::atomic_fetch_add(&sum_komi, (int64_t)kifu.komi);
-          if (score_num % 100000 == 0) {
-            cerr << "score error: " << (score_error / (double)score_num)
-              << " komi:" << (sum_komi / (double)score_num)
-              << endl;
-          }
-
-          for (int j = 0; j < SCORE_DIM; j++) {
-            float komi = SCORE_WIN_OFFSET + j;
-            if (score > komi)
-              data.win2.push_back(1);
-            else
-              data.win2.push_back(-1);
-          }
-
-          //data.score.push_back(score);
-          int score_label = round(score - SCORE_OFFSET);
-          if (score_label < 0)
-            score_label = 0;
-          if (score_label >= SCORE_DIM)
-            score_label = SCORE_DIM - 1;
-          for (int j = 0; j < SCORE_DIM; j++) {
-            data.score.push_back(score_label == j ? 1.0f : 0.0f);
-          }
-          data.score_value.push_back(score);
-
-          //cerr << "RE:" << kifu.result << " color:" << my_color << " RAND:" << kifu.random_move << " sum:" << sum << endl;
-          data.num_req++;
-          return true;
-        }
-#endif
-      }
+    for (int j = 0; j < SCORE_DIM; j++) {
+      float komi = SCORE_WIN_OFFSET + j;
+      if (score > komi)
+        data.win2.push_back(1);
+      else
+        data.win2.push_back(-1);
     }
-    return false;
+
+    //data.score.push_back(score);
+    int score_label = round(score - SCORE_OFFSET);
+    if (score_label < 0)
+      score_label = 0;
+    if (score_label >= SCORE_DIM)
+      score_label = SCORE_DIM - 1;
+    for (int j = 0; j < SCORE_DIM; j++) {
+      data.score.push_back(score_label == j ? 1.0f : 0.0f);
+    }
+    data.score_value.push_back(score);
+
+    //cerr << "RE:" << kifu.result << " color:" << my_color << " RAND:" << kifu.random_move << " sum:" << sum << endl;
+    data.num_req++;
+    return true;
   }
 
   void ReadOne(DataSet& data) {
@@ -561,10 +472,10 @@ public:
 static vector<string> filenames;
 static mutex mutex_records;
 //static vector<SGF_record> *records_next;
-static vector<SGF_record_t> *records_current;
-static vector<SGF_record_t> records_a;
-static vector<SGF_record_t> records_b;
-static map<SGF_record_t*, shared_ptr<float[]>> statistic;
+static vector<LZ_record_t> *records_current;
+static vector<LZ_record_t> records_a;
+static vector<LZ_record_t> records_b;
+static map<LZ_record_t*, shared_ptr<float[]>> statistic;
 extern int threads;
 
 static void
@@ -576,7 +487,7 @@ ListFiles()
     cerr << "Reading from " << dir << endl;
     size_t count = filenames.size();
     for (auto entry : fs::recursive_directory_iterator(dir)) {
-      if (entry.path().extension() == ".sgf") {
+      if (entry.path().extension() == ".gz") {
         filenames.push_back(entry.path().string());
         //cerr << "Read " << entry.path().string() << endl;
         //if (records.size() > 1000) break;
@@ -589,7 +500,7 @@ ListFiles()
 }
 
 static void
-ReadFiles(int thread_no, size_t offset, size_t size, vector<SGF_record_t> *records)
+ReadFiles(int thread_no, size_t offset, size_t size, vector<LZ_record_t> *records)
 {
   vector<string> files;
   files.reserve(size);
@@ -606,14 +517,9 @@ ReadFiles(int thread_no, size_t offset, size_t size, vector<SGF_record_t> *recor
   for (size_t i = 0; i < size; i++) {
     auto kifu = &(*records)[i * threads + thread_no];
     ExtractKifu(files[i].c_str(), kifu);
-    if (kifu->moves < 20 || kifu->result == R_UNKNOWN) {
-      //cerr << "Bad file " << files[i] << endl;
-      kifu->moves = 0;
-      continue;
-    }
 
     //if (kifu->moves > pure_board_max * 0.9) kifu->moves = pure_board_max * 0.9;
-
+    /*
     ClearBoard(game);
     int color = S_BLACK;
     for (int i = 0; i < kifu->moves - 1; i++) {
@@ -630,6 +536,7 @@ ReadFiles(int thread_no, size_t offset, size_t size, vector<SGF_record_t> *recor
       PutStone(game, pos, color);
       color = FLIP_COLOR(color);
     }
+    */
   }
 
   FreeGame(game);
@@ -727,7 +634,7 @@ Train()
 #else
     const int cv_size = 1024;
 #endif
-    vector<SGF_record_t> cv_records(cv_size);
+    vector<LZ_record_t> cv_records(cv_size);
     game_info_t* cv_game = AllocateGame();
     InitializeBoard(cv_game);
     for (int i = 0; i < cv_size; i++) {
@@ -738,6 +645,7 @@ Train()
 
       auto kifu = &cv_records[i];
       ExtractKifu(f.c_str(), kifu);
+      /*
       if (kifu->moves < 20 || kifu->result == R_UNKNOWN) {
         //cerr << "Bad file " << f << endl;
         i--;
@@ -779,6 +687,7 @@ Train()
         PutStone(cv_game, pos, color);
         color = FLIP_COLOR(color);
       }
+      */
     }
 
     FreeGame(cv_game);
@@ -985,7 +894,7 @@ Train()
       //auto finish_time = GetSpendTime(begin_time) * 1000;
       //cerr << "read sgf " << finish_time << endl;
 
-      vector<SGF_record_t> *records_next;
+      vector<LZ_record_t> *records_next;
       if (alt % 2 == 0) {
         records_current = &records_a;
         records_next = &records_b;
