@@ -101,6 +101,7 @@ void ReadLzPlane(const string& plane, int color, game_info_t* game)
 bool ReadLzTrainingData(istream& in, game_info_t* game, int& color, float* prob, int& win)
 {
   ClearBoard(game);
+  string dummy;
   string line[16];
   for (int i = 0; i < 16; i++)
     getline(in, line[i]);
@@ -112,6 +113,10 @@ bool ReadLzTrainingData(istream& in, game_info_t* game, int& color, float* prob,
     color = S_BLACK;
   else
     color = S_WHITE;
+
+  getline(in, dummy);
+  if (dummy.length() != 0)
+    abort();
   int col = color;
   for (int i = 7; i >= 0; i--) {
     ReadLzPlane(line[color == S_BLACK ? i : 8 + i], col, game);
@@ -119,19 +124,38 @@ bool ReadLzTrainingData(istream& in, game_info_t* game, int& color, float* prob,
     // PrintBoard(game);
   }
 
+#if 0
   for (int i = 0; i < pure_board_max + 1; i++) {
     in >> prob[i];
     if (prob[i] > 0.01) {
       // cerr << FormatMove(i == pure_board_max ? PASS : onboard_pos[i]) << ":" << prob[i] << endl;
     }
   }
+#else
+  string prob_line;
+  getline(in, prob_line);
+
+  const char* ptr = prob_line.c_str();
+  for (int i = 0; i < pure_board_max + 1; i++) {
+    if (*ptr == '\0') {
+      cerr << "Illegal data" << endl;
+      abort();
+    }
+    prob[i] = atof(ptr);
+    while (*ptr != '\0' && *ptr != ' ')
+      ptr++;
+    ptr++;
+    if (prob[i] > 0.01) {
+      // cerr << FormatMove(i == pure_board_max ? PASS : onboard_pos[i]) << ":" << prob[i] << endl;
+    }
+  }
+#endif
   in >> c;
   if (c > 0)
     win = color;
   else
     win = FLIP_COLOR(color);
 
-  string dummy;
   getline(in, dummy);
   if (dummy.length() != 0)
     abort();
@@ -365,7 +389,7 @@ public:
     auto& rec = (*records)[(current_rec * threads + offset) % records->size()];
 
     {
-      lock_guard<mutex> lock(extract_mutex);
+      //lock_guard<mutex> lock(extract_mutex);
       if (rec.pos.size() == 0) {
         ExtractKifu(&rec);
       }
