@@ -120,9 +120,7 @@ struct DataSet {
 
   std::vector<float> basic;
   std::vector<float> features;
-  std::vector<float> history;
   std::vector<float> color;
-  std::vector<float> komi;
   std::vector<float> win;
   std::vector<float> win2;
   std::vector<float> move;
@@ -136,6 +134,7 @@ public:
   size_t current_rec;
   std::mt19937_64 mt;
   game_info_t* game;
+  game_info_t* game_work;
   const int offset;
 
   const vector<SGF_record_t> *records;
@@ -148,12 +147,15 @@ public:
 
     game = AllocateGame();
     InitializeBoard(game);
+    game_work = AllocateGame();
+    InitializeBoard(game_work);
 
     current_rec = 0;
   }
 
   ~Reader() {
     FreeGame(game);
+    FreeGame(game_work);
   }
 
   bool Play(DataSet& data, const SGF_record_t& kifu) {
@@ -269,10 +271,9 @@ public:
           */
           int my_color = color;
           int trans = mt() % 8;
-          WritePlanes(data.basic, data.features, data.history,
-            nullptr, game, nullptr, color, trans);
+          WritePlanes(data.basic, data.features,
+            game, game_work, color, trans);
           data.color.push_back(color - 1);
-          data.komi.push_back(kifu.komi);
           int moveT = RevTransformMove(move, trans);
 
 #if 0
@@ -449,11 +450,9 @@ public:
   unique_ptr<DataSet> Read(size_t n) {
     auto data = make_unique<DataSet>();
     data->num_req = 0;
-    data->basic.reserve(pure_board_max * 24 * n);
-    data->features.reserve(pure_board_max * (F_MAX1 + F_MAX2) * 2 * n);
-    data->history.reserve(pure_board_max * n);
+    data->basic.reserve(pure_board_max * 18 * n);
+    data->features.reserve(pure_board_max * 90 * n);
     data->color.reserve(n);
-    data->komi.reserve(n);
     data->win.reserve(n);
     data->win2.reserve(SCORE_DIM * n);
     data->move.reserve(pure_board_max * n);
@@ -480,7 +479,8 @@ public:
 class MinibatchReader {
 public:
   FunctionPtr net;
-  CNTK::Variable var_basic, var_features, var_history, var_color, var_komi, var_statistic;
+  CNTK::Variable var_basic, var_features;
+  CNTK::Variable var_color, var_komi, var_statistic;
   CNTK::Variable var_win, var_move;
   CNTK::Variable var_score;
   CNTK::Variable var_score_value;
@@ -492,7 +492,6 @@ public:
 
     GetInputVariableByName(net, L"basic", var_basic);
     GetInputVariableByName(net, L"features", var_features);
-    GetInputVariableByName(net, L"history", var_history);
     GetInputVariableByName(net, L"color", var_color);
     GetInputVariableByName(net, L"komi", var_komi);
 
@@ -513,8 +512,6 @@ public:
     CNTK::ValuePtr value_basic = CNTK::MakeSharedObject<CNTK::Value>(CNTK::MakeSharedObject<CNTK::NDArrayView>(shape_basic, data.basic, true));
     CNTK::NDShape shape_features = var_features.Shape().AppendShape({ 1, num_req });
     CNTK::ValuePtr value_features = CNTK::MakeSharedObject<CNTK::Value>(CNTK::MakeSharedObject<CNTK::NDArrayView>(shape_features, data.features, true));
-    CNTK::NDShape shape_history = var_history.Shape().AppendShape({ 1, num_req });
-    CNTK::ValuePtr value_history = CNTK::MakeSharedObject<CNTK::Value>(CNTK::MakeSharedObject<CNTK::NDArrayView>(shape_history, data.history, true));
     CNTK::NDShape shape_color = var_color.Shape().AppendShape({ 1, num_req });
     CNTK::ValuePtr value_color = CNTK::MakeSharedObject<CNTK::Value>(CNTK::MakeSharedObject<CNTK::NDArrayView>(shape_color, data.color, true));
     //CNTK::NDShape shape_komi = var_komi.Shape().AppendShape({ 1, num_req });
@@ -526,7 +523,6 @@ public:
     std::unordered_map<CNTK::Variable, CNTK::ValuePtr> inputs = {
       { var_basic, value_basic },
       { var_features, value_features },
-      { var_history, value_history },
       { var_color, value_color },
       { var_move, value_move },
     };

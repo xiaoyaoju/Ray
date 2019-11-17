@@ -54,6 +54,7 @@ typedef std::pair<std::wstring, std::vector<float>*> MapEntry;
 typedef std::map<std::wstring, std::vector<float>*> Layer;
 
 struct uct_search_context_t {
+  game_info_t work;
   int move_count;
   std::vector<int> path;
 };
@@ -65,7 +66,6 @@ struct nn_eval_req {
   std::vector<int> path;
   std::vector<float> data_basic;
   std::vector<float> data_features;
-  std::vector<float> data_history;
 };
 
 void ReadWeights();
@@ -234,7 +234,7 @@ static std::atomic<double> dynamic_value[SCORE_DIM];
 
 static CNTK::FunctionPtr nn_model;
 std::string nn_model_file;
-static CNTK::Variable var_basic, var_features, var_history, var_color, var_komi;
+static CNTK::Variable var_basic, var_features, var_color, var_komi;
 static CNTK::Variable var_p, var_p2, var_ol, var_score;
 
 // Opening book scale
@@ -278,7 +278,7 @@ static void CorrectDescendentNodes( vector<int> &indexes, int index );
 static int ExpandNode( game_info_t *game, int color );
 
 // 子ノードの評価
-static void RatingExpandedNode( unsigned int index, game_info_t *game, int color, int current, const std::vector<int>& path );
+static void RatingExpandedNode( uct_search_context_t& ctx, unsigned int index, game_info_t *game, int color, int current, const std::vector<int>& path );
 
 // ルートの展開
 static int ExpandRoot( game_info_t *game, int color );
@@ -299,7 +299,7 @@ static void ParallelUctSearch( thread_arg_t *arg );
 static void ParallelUctSearchPondering( thread_arg_t *arg );
 
 // ノードのレーティング
-static void RatingNode( game_info_t *game, int color, int index, int depth );
+static void RatingNode( uct_search_context_t& ctx, game_info_t *game, int color, int index, int depth );
 
 static int RateComp( const void *a, const void *b );
 
@@ -425,6 +425,8 @@ SetThread( int new_thread )
   batch_size = max(new_thread, batch_size);
 
   ctx.resize(threads + nn_threads);
+  for (auto& c : ctx)
+    InitializeBoard(&c.work);
 
   InitRand();
 }
@@ -435,6 +437,8 @@ SetNNThread( int new_thread )
   nn_threads = new_thread;
 
   ctx.resize(threads + nn_threads);
+  for (auto& c : ctx)
+    InitializeBoard(&c.work);
 
   InitRand();
 }
@@ -626,6 +630,8 @@ InitializeSearchSetting( void )
 
   // Initialize
   ctx.resize(threads + nn_threads);
+  for (auto& c : ctx)
+    InitializeBoard(&c.work);
 
   // 持ち時間の初期化
   for (int i = 0; i < 3; i++) {
@@ -1295,7 +1301,7 @@ ExpandRoot( game_info_t *game, int color )
     uct_node[index].may_pass = MayPassNode(game, color, index);
 
     // 候補手のレーティング
-    RatingNode(game, color, index, path.size());
+    RatingNode(ctx[0], game, color, index, path.size());
 
     PrintReuseCount(uct_node[index].move_count);
 
@@ -1360,7 +1366,7 @@ ExpandRoot( game_info_t *game, int color )
     uct_node[index].may_pass = MayPassNode(game, color, index);
 
     // 候補手のレーティング
-    RatingNode(game, color, index, path.size());
+    RatingNode(ctx[0], game, color, index, path.size());
 
     // セキの確認
     CheckSeki(game, uct_node[index].seki);
@@ -1485,7 +1491,7 @@ ExpandNode( game_info_t *game, int color )
 
 
 static void
-RatingExpandedNode( unsigned int index, game_info_t *game, int color, int current, const std::vector<int>& path )
+RatingExpandedNode( uct_search_context_t& ctx, unsigned int index, game_info_t *game, int color, int current, const std::vector<int>& path )
 {
   int child_num = uct_node[index].child_num;
   child_node_t *uct_child = uct_node[index].child;
@@ -1493,7 +1499,7 @@ RatingExpandedNode( unsigned int index, game_info_t *game, int color, int curren
   lock_guard<mutex> lock(mutex_uctrating);
 
   // 候補手のレーティング
-  RatingNode(game, color, index, path.size() + 1);
+  RatingNode(ctx, game, color, index, path.size() + 1);
 
   // セキの確認
   CheckSeki(game, uct_node[index].seki);
@@ -1533,7 +1539,7 @@ RatingExpandedNode( unsigned int index, game_info_t *game, int color, int curren
 //  (Progressive Wideningのために)  //
 //////////////////////////////////////
 static void
-RatingNode( game_info_t *game, int color, int index, int depth )
+RatingNode( uct_search_context_t& ctx, game_info_t *game, int color, int index, int depth )
 {
   const int child_num = uct_node[index].child_num;
   const int moves = game->moves;
@@ -1577,8 +1583,8 @@ RatingNode( game_info_t *game, int color, int index, int depth )
       req->index = index;
       req->trans = rand() / (RAND_MAX / 8 + 1);
       //req.path.swap(path);
-      WritePlanes(req->data_basic, req->data_features, req->data_history, nullptr,
-        game, nullptr, color, req->trans);
+      WritePlanes(req->data_basic, req->data_features,
+        game, &ctx.work, color, req->trans);
 #if 1
       mutex_queue.lock();
       eval_nn_queue.push(req);
@@ -2000,8 +2006,8 @@ UctSearch(uct_search_context_t& ctx, game_info_t *game, int color, mt19937_64 *m
       req->color = color;
       copy(ctx.path.begin(), ctx.path.end(), back_inserter(req->path));
       req->trans = rand() / (RAND_MAX / 8 + 1);
-      WritePlanes(req->data_basic, req->data_features, req->data_history, nullptr,
-        game, nullptr, color, req->trans);
+      WritePlanes(req->data_basic, req->data_features,
+        game, &ctx.work, color, req->trans);
       mutex_queue.lock();
       eval_nn_queue.push(req);
       cond_queue.notify_all();
@@ -2071,7 +2077,7 @@ UctSearch(uct_search_context_t& ctx, game_info_t *game, int color, mt19937_64 *m
     if (uct_node[uct_child[next_index].index].width == 0) {
       //if (!uct_child[next_index].eval_value) cerr << "Unevaluated node " << endl;
       // ノードの評価
-      RatingExpandedNode(uct_child[next_index].index, game, color, current, ctx.path);
+      RatingExpandedNode(ctx, uct_child[next_index].index, game, color, current, ctx.path);
     }
     // 現在見ているノードのロックを解除
     UNLOCK_NODE(current);
@@ -3041,7 +3047,6 @@ ReadWeights()
 
   GetInputVariableByName(nn_model, L"basic", var_basic);
   GetInputVariableByName(nn_model, L"features", var_features);
-  GetInputVariableByName(nn_model, L"history", var_history);
   GetInputVariableByName(nn_model, L"color", var_color);
   //GetInputVariableByName(nn_model, L"komi", var_komi);
 
@@ -3085,7 +3090,7 @@ GetOutputVaraiableByName(CNTK::FunctionPtr evalFunc, wstring varName, CNTK::Vari
 void
 EvalValue(
   const std::vector<std::shared_ptr<nn_eval_req>>& requests,
-  std::vector<float>& data_basic, std::vector<float>& data_features, std::vector<float>& data_history,
+  std::vector<float>& data_basic, std::vector<float>& data_features,
   std::vector<float>& data_color, std::vector<float>& data_komi, std::vector<float>& data_safety)
 {
   size_t num_req = requests.size();
@@ -3105,8 +3110,6 @@ EvalValue(
     CNTK::ValuePtr value_basic = CNTK::MakeSharedObject<CNTK::Value>(CNTK::MakeSharedObject<CNTK::NDArrayView>(shape_basic, data_basic, true));
     CNTK::NDShape shape_features = var_features.Shape().AppendShape({ 1, num_req });
     CNTK::ValuePtr value_features = CNTK::MakeSharedObject<CNTK::Value>(CNTK::MakeSharedObject<CNTK::NDArrayView>(shape_features, data_features, true));
-    CNTK::NDShape shape_history = var_history.Shape().AppendShape({ 1, num_req });
-    CNTK::ValuePtr value_history = CNTK::MakeSharedObject<CNTK::Value>(CNTK::MakeSharedObject<CNTK::NDArrayView>(shape_history, data_history, true));
     CNTK::NDShape shape_color = var_color.Shape().AppendShape({ 1, num_req });
     CNTK::ValuePtr value_color = CNTK::MakeSharedObject<CNTK::Value>(CNTK::MakeSharedObject<CNTK::NDArrayView>(shape_color, data_color, true));
     //CNTK::NDShape shape_komi = var_komi.Shape().AppendShape({ 1, num_req });
@@ -3120,7 +3123,6 @@ EvalValue(
     std::unordered_map<CNTK::Variable, CNTK::ValuePtr> inputs = {
       { var_basic, value_basic },
       { var_features, value_features },
-      { var_history, value_history },
       { var_color, value_color },
       //{ var_komi, value_komi },
     };
@@ -3291,7 +3293,6 @@ EvalValue(
 void EvalNode() {
   std::vector<float> eval_input_data_basic;
   std::vector<float> eval_input_data_features;
-  std::vector<float> eval_input_data_history;
   std::vector<float> eval_input_data_color;
   std::vector<float> eval_input_data_komi;
   std::vector<float> eval_input_data_safety;
@@ -3332,19 +3333,17 @@ void EvalNode() {
 
       eval_input_data_basic.resize(0);
       eval_input_data_features.resize(0);
-      eval_input_data_history.resize(0);
       eval_input_data_color.resize(0);
       eval_input_data_komi.resize(0);
       for (auto& req : requests) {
         std::copy(req->data_basic.begin(), req->data_basic.end(), std::back_inserter(eval_input_data_basic));
         std::copy(req->data_features.begin(), req->data_features.end(), std::back_inserter(eval_input_data_features));
-        std::copy(req->data_history.begin(), req->data_history.end(), std::back_inserter(eval_input_data_history));
         eval_input_data_color.push_back(req->color - 1);
         eval_input_data_komi.push_back(komi[0]);
       }
       eval_input_data_safety.resize(requests.size() * pure_board_max * 8);
       num_eval += requests.size();
-      EvalValue(requests, eval_input_data_basic, eval_input_data_features, eval_input_data_history, eval_input_data_color, eval_input_data_komi, eval_input_data_safety);
+      EvalValue(requests, eval_input_data_basic, eval_input_data_features, eval_input_data_color, eval_input_data_komi, eval_input_data_safety);
     }
   }
 }
@@ -3381,8 +3380,9 @@ PolicyNetworkGenmove( game_info_t *game, int color )
   req->index = current_root;
   req->trans = rand() / (RAND_MAX / 8 + 1);
   //req.path.swap(path);
-  WritePlanes(req->data_basic, req->data_features, req->data_history, nullptr,
-    game, root, color, req->trans);
+  WritePlanes(req->data_basic, req->data_features,
+    game, &ctx[0].work,
+    color, req->trans);
 
   // Eval policy network
   vector<float> data_color;
@@ -3402,7 +3402,7 @@ PolicyNetworkGenmove( game_info_t *game, int color )
   eval_input_data_color.push_back(req->color - 1);
   eval_input_data_komi.push_back(komi[0]);
 
-  EvalValue(requests, req->data_basic, req->data_features, req->data_history, eval_input_data_color, eval_input_data_komi, eval_input_data_safety);
+  EvalValue(requests, req->data_basic, req->data_features, eval_input_data_color, eval_input_data_komi, eval_input_data_safety);
   policy_temperature = org_policy_temperature;
 
   // Select move

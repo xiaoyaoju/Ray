@@ -2066,10 +2066,8 @@ void
 WritePlanes(
   std::vector<float>& data_basic,
   std::vector<float>& data_features,
-  std::vector<float>& data_move,
-  std::vector<float>* data_owner,
   game_info_t *game,
-  const uct_node_t *root,
+  game_info_t *game_work,
   int color,
   int tran)
 {
@@ -2099,23 +2097,35 @@ WritePlanes(
 
     data_basic.reserve(data_basic.size() + pure_board_max * 24);
 
-    OUTPUT({ OUTPUT_FEATURE(data_basic, c == S_BLACK); });
-    OUTPUT({ OUTPUT_FEATURE(data_basic, c == S_WHITE); });
-    OUTPUT({ OUTPUT_FEATURE(data_basic, c == S_EMPTY); });
+    ClearBoard(game_work);
+    int start = game->moves - 8;
+    for (int i = 1; i < start && i < game->moves; i++) {
+      PutStone(game_work, game->record[i].pos, game->record[i].color);
+    }
+    for (int i = start; i < game->moves; i++) {
+      if (i > 0) {
+        PutStone(game_work, game->record[i].pos, game->record[i].color);
+        OUTPUT({ OUTPUT_FEATURE(data_basic, c == S_BLACK); });
+        OUTPUT({ OUTPUT_FEATURE(data_basic, c == S_WHITE); });
+      } else {
+        OUTPUT({ OUTPUT_FEATURE(data_basic, false); });
+        OUTPUT({ OUTPUT_FEATURE(data_basic, false); });
+      }
+    }
+
     OUTPUT({ OUTPUT_FEATURE(data_basic, color == S_BLACK); });
-    OUTPUT({ OUTPUT_FEATURE(data_basic, true); });
+    OUTPUT({ OUTPUT_FEATURE(data_basic, color == S_WHITE); });
 
-    OUTPUT({ OUTPUT_FEATURE(data_basic, p == ko); });
+    size_t new_features_size = data_features.size() + pure_board_max * 90;
+    data_features.reserve(new_features_size);
 
-    for (int i = 0; i < 8; i++)
-      OUTPUT({ int l = GetLibs(game, p); OUTPUT_FEATURE(data_basic, c == S_BLACK && l == i + 1); });
-    for (int i = 0; i < 8; i++)
-      OUTPUT({ int l = GetLibs(game, p); OUTPUT_FEATURE(data_basic, c == S_WHITE && l == i + 1); });
+    for (int i = 0; i < 4; i++)
+      OUTPUT({ int l = GetLibs(game, p); OUTPUT_FEATURE(data_features, c == S_BLACK && l >= i + 1); });
+    for (int i = 0; i < 4; i++)
+      OUTPUT({ int l = GetLibs(game, p); OUTPUT_FEATURE(data_features, c == S_WHITE && l >= i + 1); });
 
-    OUTPUT({ OUTPUT_FEATURE(data_basic, ladder[0][p]); });
-    OUTPUT({ OUTPUT_FEATURE(data_basic, ladder[1][p]); });
-
-    data_features.reserve(data_features.size() + pure_board_max * (F_MAX1 + F_MAX2) * 2);
+    OUTPUT({ OUTPUT_FEATURE(data_features, ladder[0][p]); });
+    OUTPUT({ OUTPUT_FEATURE(data_features, ladder[1][p]); });
 
     double rate[PURE_BOARD_MAX];
 
@@ -2156,58 +2166,9 @@ WritePlanes(
         });
       }
     }
-
-    /*count++;
-    if (count % 10000 == 0) {
-      cerr << "# FEATURE STAT" << endl;
-      for (int i = 0; i < F_MAX1; i++) {
-        cerr << "F1_" << i << ":" << (10000.0 * count1[i] / count / 361) << '\t' << count1[i]<< endl;
-      }
-      for (int i = 0; i < F_MAX2; i++) {
-        cerr << "F2_" << i << ":" << (10000.0 * count2[i] / count / 361) << '\t' << count2[i] << endl;
-      }
-    }*/
-
-    data_move.reserve(data_move.size() + pure_board_max * 1);
-    OUTPUT({ data_move.push_back(0.0); });
-    for (int i = 0; i < game->moves; i++) {
-      int p = RevTransformMove(game->record[game->moves - i - 1].pos, tran);
-      if (p == PASS || p == RESIGN)
-        continue;
-      int x = X(p) - OB_SIZE;
-      int y = Y(p) - OB_SIZE;
-      int n = x + y * pure_board_size;
-      if (n < 0 || n >= pure_board_max) {
-        cerr << "bad pos " << n << endl;
-      }
-      //if (i == 0 && pos == move) cerr << "bad pos2 " << n << endl;
-      if (data_move[n] == 0.0f)
-        data_move[n] = pow(2.0f, -i / 10.0f);
-    }
-
-    if (data_owner) {
-      data_owner->reserve(data_owner->size() + pure_board_max * 1);
-      const statistic_t *statistic = root->statistic;
-      for (int i = 1, y = board_start; y <= board_end; y++, i++) {
-        // cerr << setw(2) << (pure_board_size + 1 - i) << ":|";
-        for (int x = board_start; x <= board_end; x++) {
-          int pos = TransformMove(POS(x, y), tran);
-          // int pos = POS(x, y);
-          double owner = (double)statistic[pos].colors[S_BLACK] / root->move_count;
-          double o = round(owner * 100) / 100;
-          /*
-          if (owner > 0.5) {
-          player++;
-          }
-          else {
-          opponent++;
-          }
-          */
-          //own[pos] = owner * 100.0;
-          //cerr << setw(3) << (int)(owner * 100) << " ";
-          data_owner->push_back(o);
-        }
-      }
+    if (data_features.size() != new_features_size) {
+      cerr << "Illegal state actual:" << data_features.size() << " expect:" << new_features_size << endl;
+      abort();
     }
   }
 }

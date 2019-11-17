@@ -1077,13 +1077,12 @@ void DumpFeature(const uct_node_t* node, int color, int move, int win, game_info
 {
   std::vector<float> data_basic;
   std::vector<float> data_features;
-  std::vector<float> data_history;
-  std::vector<float> data_owner;
+  auto game_work = unique_ptr<game_info_t>(AllocateGame());
+  InitializeBoard(game_work.get());
 
   int moveT = RevTransformMove(move, t);
-  WritePlanes(data_basic, data_features, data_history,
-    dump_owner ? &data_owner : nullptr,
-    game, node, color, t);
+  WritePlanes(data_basic, data_features,
+    game, game_work.get(), color, t);
 
   int x = CORRECT_X(moveT) - 1;
   int y = CORRECT_Y(moveT) - 1;
@@ -1091,10 +1090,6 @@ void DumpFeature(const uct_node_t* node, int color, int move, int win, game_info
   if (label < 0 || label > 19 * 19) {
     cerr << "bad label " << x << " " << y << endl;
     abort();
-  }
-  if (dump_owner && isnan(data_owner[0])) {
-    cerr << "bad stat" << endl;
-    return;
   }
 
   if (!stream_ptr) {
@@ -1110,11 +1105,9 @@ void DumpFeature(const uct_node_t* node, int color, int move, int win, game_info
   DumpSparse(stream, data_basic);
   stream << "|features ";
   DumpSparse(stream, data_features);
-  stream << "|history ";
-  DumpSparse(stream, data_history);
   if (dump_owner) {
-    stream << "|statistic ";
-    DumpDense(stream, data_owner);
+    //stream << "|statistic ";
+    //DumpDense(stream, data_owner);
   }
   stream << endl;
 }
@@ -1192,8 +1185,8 @@ GTP_stat(void)
     std::vector<float> data_history;
     std::vector<float> data_owner;
 
-    WritePlanes(data_basic, data_features, data_history, &data_owner,
-      game, &store_node, player_color, t);
+    //WritePlanes(data_basic, data_features,
+    //  game, nullptr, player_color, t);
 
     std::vector<int> eval_node_index;
     std::vector<int> eval_node_color;

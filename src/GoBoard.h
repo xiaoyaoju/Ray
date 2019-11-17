@@ -274,9 +274,11 @@ void GetNeighbor4( position_t neighbor4[4], const position_t pos );
 
 struct uct_node_t;
 
-void WritePlanes(std::vector<float>& data_basic, std::vector<float>& data_features,
-  std::vector<float>& data_move, std::vector<float>* data_owner,
-  game_info_t *game, const uct_node_t *root,
+void WritePlanes(
+  std::vector<float>& data_basic,
+  std::vector<float>& data_features,
+  game_info_t *game,
+  game_info_t *game_work,
   int color, int tran);
 
 #define HASH_VMIRROR     1
