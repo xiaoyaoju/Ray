@@ -66,6 +66,7 @@ struct LZ_record_t {
   string filename;
   vector<vector<size_t>> pos;
 };
+mutex extract_mutex;
 
 void ReadLzPlane(const string& plane, int color, game_info_t* game)
 {
@@ -97,12 +98,14 @@ void ReadLzPlane(const string& plane, int color, game_info_t* game)
   }
 }
 
-void ReadLzTrainingData(istream& in, game_info_t* game, int& color, float* prob, int& win)
+bool ReadLzTrainingData(istream& in, game_info_t* game, int& color, float* prob, int& win)
 {
   ClearBoard(game);
   string line[16];
   for (int i = 0; i < 16; i++)
     getline(in, line[i]);
+  if (in.eof())
+    return false;
   int c;
   in >> c;
   if (c == 0)
@@ -132,12 +135,13 @@ void ReadLzTrainingData(istream& in, game_info_t* game, int& color, float* prob,
   getline(in, dummy);
   if (dummy.length() != 0)
     abort();
+  return true;
 }
 
 void
-ExtractKifu(const string& filename, LZ_record_t* rec)
+ExtractKifu(LZ_record_t* rec)
 {
-  rec->filename = filename;
+  auto& filename = rec->filename;
   vector<char> buf;
   Inflate(filename, buf);
   boost::interprocess::basic_ivectorstream<vector<char>> in(buf);
@@ -152,10 +156,10 @@ ExtractKifu(const string& filename, LZ_record_t* rec)
   int num_games = 0;
   int last_moves = 0;
   size_t last_pos = 0;
-  rec->pos.push_back({});
   while (!in.eof()) {
     last_pos = in.tellg();
-    ReadLzTrainingData(in, game, color, prob, win);
+    if (!ReadLzTrainingData(in, game, color, prob, win))
+      break;
     /*
     cerr
     << "COLOR:" << color
@@ -177,8 +181,10 @@ ExtractKifu(const string& filename, LZ_record_t* rec)
     << filename << "\t"
     << num << "steps\t"
     << num_games << "games\t"
-    << finish_time << "sec"
-    << endl;
+    << finish_time << "sec";
+  for (auto& v : rec->pos)
+    cerr << " " << v.size();
+  cerr << endl;
 }
 
 struct DataSet {
@@ -203,10 +209,10 @@ public:
   game_info_t* game_work;
   const int offset;
 
-  const vector<LZ_record_t> *records;
+  vector<LZ_record_t> *records;
   const int threads;
 
-  explicit Reader(int offset, const vector<LZ_record_t> *records, int threads)
+  explicit Reader(int offset, vector<LZ_record_t> *records, int threads)
     : offset(offset), records(records), threads(threads) {
     random_device rd;
     mt.seed(rd());
@@ -224,13 +230,10 @@ public:
     FreeGame(game_work);
   }
 
-  bool Play(DataSet& data, const LZ_record_t& kifu) {
+  bool Play(DataSet& data, LZ_record_t& kifu, istream& in) {
     int num_game = mt() % kifu.pos.size();
     const vector<size_t>& file_pos = kifu.pos[num_game];
     int dump_turn = mt() % file_pos.size();
-    vector<char> buf;
-    Inflate(kifu.filename, buf);
-    boost::interprocess::basic_ivectorstream<vector<char>> in(buf);
     in.seekg(file_pos[dump_turn]);
 
     float prob[362];
@@ -243,8 +246,8 @@ public:
     //SetKomi(kifu.komi);
     //ClearBoard(game);
 
-    cerr << "RAND " << dump_turn << endl;
-    PrintBoard(game);
+    //cerr << "RAND " << dump_turn << endl;
+    //PrintBoard(game);
 
     /*
     cerr << "RAND " << FormatMove(pos) << endl;
@@ -261,7 +264,7 @@ public:
     data.color.push_back(color - 1);
 
     int ofs = data.move.size();
-    data.move.resize(ofs + pure_board_max);
+    data.move.resize(ofs + pure_board_max + 1);
     for (int i = 0; i < pure_board_max; i++) {
       int moveT = RevTransformMove(onboard_pos[i], trans);
       data.move[ofs + PureBoardPos(moveT)] = prob[i];
@@ -277,10 +280,10 @@ public:
 
     in.seekg(file_pos[file_pos.size() - 1]);
     ReadLzTrainingData(in, game, color, prob, win_color);
-    PrintBoard(game);
+    //PrintBoard(game);
     Simulation(game, color, &mt);
 
-    PrintBoard(game);
+    //PrintBoard(game);
     float sum = 0;
     for (int j = 0; j < pure_board_max; j++) {
       int pos = TransformMove(onboard_pos[j], trans);
@@ -358,11 +361,24 @@ public:
     return true;
   }
 
-  void ReadOne(DataSet& data) {
-    auto& r = (*records)[(current_rec * threads + offset) % records->size()];
-    Play(data, r);
+  void ReadN(DataSet& data, int num) {
+    auto& rec = (*records)[(current_rec * threads + offset) % records->size()];
 
-    current_rec++;
+    {
+      lock_guard<mutex> lock(extract_mutex);
+      if (rec.pos.size() == 0) {
+        ExtractKifu(&rec);
+      }
+    }
+
+    vector<char> buf;
+    Inflate(rec.filename, buf);
+    boost::interprocess::basic_ivectorstream<vector<char>> in(buf);
+
+    for (int n = 0; n < num; n++) {
+      Play(data, rec, in);
+      current_rec++;
+    }
   }
 
   unique_ptr<DataSet> Read(size_t n) {
@@ -379,7 +395,7 @@ public:
     data->score_value.reserve(n);
 
     while (data->num_req < n) {
-      ReadOne(*data);
+      ReadN(*data, min(n - data->num_req, (size_t)10));
       /*
       cerr << data->num_req
         << " basic:" << data->basic.size()
@@ -430,8 +446,6 @@ public:
     CNTK::ValuePtr value_basic = CNTK::MakeSharedObject<CNTK::Value>(CNTK::MakeSharedObject<CNTK::NDArrayView>(shape_basic, data.basic, true));
     CNTK::NDShape shape_features = var_features.Shape().AppendShape({ 1, num_req });
     CNTK::ValuePtr value_features = CNTK::MakeSharedObject<CNTK::Value>(CNTK::MakeSharedObject<CNTK::NDArrayView>(shape_features, data.features, true));
-    CNTK::NDShape shape_color = var_color.Shape().AppendShape({ 1, num_req });
-    CNTK::ValuePtr value_color = CNTK::MakeSharedObject<CNTK::Value>(CNTK::MakeSharedObject<CNTK::NDArrayView>(shape_color, data.color, true));
     //CNTK::NDShape shape_komi = var_komi.Shape().AppendShape({ 1, num_req });
     //CNTK::ValuePtr value_komi = CNTK::MakeSharedObject<CNTK::Value>(CNTK::MakeSharedObject<CNTK::NDArrayView>(shape_komi, data.komi, true));
 
@@ -441,9 +455,14 @@ public:
     std::unordered_map<CNTK::Variable, CNTK::ValuePtr> inputs = {
       { var_basic, value_basic },
       { var_features, value_features },
-      { var_color, value_color },
       { var_move, value_move },
     };
+
+    if (var_color.IsInitialized()) {
+      CNTK::NDShape shape_color = var_color.Shape().AppendShape({ 1, num_req });
+      CNTK::ValuePtr value_color = CNTK::MakeSharedObject<CNTK::Value>(CNTK::MakeSharedObject<CNTK::NDArrayView>(shape_color, data.color, true));
+      inputs[var_color] = value_color;
+    }
 
     if (var_win.IsInitialized()) {
       CNTK::NDShape shape_win = var_win.Shape().AppendShape({ 1, num_req });
@@ -523,7 +542,7 @@ ReadFiles(int thread_no, size_t offset, size_t size, vector<LZ_record_t> *record
 
   for (size_t i = 0; i < size; i++) {
     auto kifu = &(*records)[i * threads + thread_no];
-    ExtractKifu(files[i].c_str(), kifu);
+    kifu->filename = files[i];
 
     //if (kifu->moves > pure_board_max * 0.9) kifu->moves = pure_board_max * 0.9;
     /*
@@ -634,7 +653,8 @@ Train()
 #if CHECK_FEATURE_MODE
     const int cv_size = 1024 * 100;
 #else
-    const int cv_size = 1024;
+    //const int cv_size = 1024;
+    const int cv_size = 256;
 #endif
     vector<LZ_record_t> cv_records(cv_size);
     game_info_t* cv_game = AllocateGame();
@@ -646,7 +666,7 @@ Train()
       filenames.pop_back();
 
       auto kifu = &cv_records[i];
-      ExtractKifu(f.c_str(), kifu);
+      kifu->filename = f;
       /*
       if (kifu->moves < 20 || kifu->result == R_UNKNOWN) {
         //cerr << "Bad file " << f << endl;

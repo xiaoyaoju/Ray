@@ -2095,7 +2095,8 @@ WritePlanes(
 			}\
 		}
 
-    data_basic.reserve(data_basic.size() + pure_board_max * 18);
+    const size_t new_basic_size = data_basic.size() + pure_board_max * 18;
+    data_basic.reserve(new_basic_size);
 
     ClearBoard(game_work);
     int start = game->moves - 8;
@@ -2116,7 +2117,12 @@ WritePlanes(
     OUTPUT({ OUTPUT_FEATURE(data_basic, color == S_BLACK); });
     OUTPUT({ OUTPUT_FEATURE(data_basic, color == S_WHITE); });
 
-    size_t new_features_size = data_features.size() + pure_board_max * 90;
+    if (data_basic.size() != new_basic_size) {
+      cerr << "Illegal state actual:" << data_basic.size() << " expect:" << new_basic_size << endl;
+      abort();
+    }
+
+    const size_t new_features_size = data_features.size() + pure_board_max * 90;
     data_features.reserve(new_features_size);
 
     for (int i = 0; i < 4; i++)
