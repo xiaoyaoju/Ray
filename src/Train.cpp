@@ -157,8 +157,6 @@ public:
 
     int color = S_BLACK;
     double rate[PURE_BOARD_MAX];
-    LGR lgr;
-    LGRContext ctx;
     for (int i = 0; i < kifu.moves - 1; i++) {
       int pos = GetKifuMove(&kifu, i);
       //PrintBoard(game);
@@ -596,7 +594,7 @@ ReadGames(int thread_no)
   }
 }
 
-#define CHECK_FEATURE_MODE 1
+#define CHECK_FEATURE_MODE 0
 
 void
 Train()
