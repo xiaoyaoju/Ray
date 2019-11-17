@@ -10,6 +10,7 @@
 
 #include <filesystem>
 #include <iostream>
+#include <fstream>
 #include <mutex>
 #include <queue>
 #include <random>
@@ -43,6 +44,72 @@ inline void PrintTrainingProgress(const TrainerPtr trainer, size_t minibatchIdx,
     //double trainLossValue = trainer->PreviousMinibatchLossAverage();
     //printf("Minibatch %d: CrossEntropy loss = %.8g\n", (int)minibatchIdx, trainLossValue);
   }
+}
+
+void ReadLzPlane(const string& plane, int color, game_info_t* game)
+{
+  for (auto n = size_t{ 0 }, bit = size_t{ 0 }; n < plane.size(); n++, bit += 4) {
+    char c = plane[n];
+    int hexbyte;
+    if (c >= '0' && c <= '9') {
+      hexbyte = c - '0';
+    }
+    else if (c >= 'a' && c <= 'f') {
+      hexbyte = 10 + c - 'a';
+    }
+    else {
+      cerr << "illegal input";
+      return;
+    }
+    if (bit < pure_board_max
+      && (hexbyte & 8) != 0 && game->board[onboard_pos[bit]] == S_EMPTY)
+      PutStone(game, onboard_pos[bit], color);
+    if (bit + 1 < pure_board_max
+      && (hexbyte & 4) != 0 && game->board[onboard_pos[bit + 1]] == S_EMPTY)
+      PutStone(game, onboard_pos[bit + 1], color);
+    if (bit + 2 < pure_board_max
+      && (hexbyte & 2) != 0 && game->board[onboard_pos[bit + 2]] == S_EMPTY)
+      PutStone(game, onboard_pos[bit + 2], color);
+    if (bit + 3 < pure_board_max
+      && (hexbyte & 1) != 0 && game->board[onboard_pos[bit + 3]] == S_EMPTY)
+      PutStone(game, onboard_pos[bit + 3], color);
+  }
+}
+
+void ReadLzTrainingData(istream& in, game_info_t* game, int& color, float* prob, int& win)
+{
+  string line[16];
+  for (int i = 0; i < 16; i++)
+    getline(in, line[i]);
+  int c;
+  in >> c;
+  if (c == 0)
+    color = S_BLACK;
+  else
+    color = S_WHITE;
+  int col = color;
+  for (int i = 7; i >= 0; i--) {
+    ReadLzPlane(line[color == S_BLACK ? i : 8 + i], col, game);
+    ReadLzPlane(line[color == S_BLACK ? 8 + i : i], FLIP_COLOR(col), game);
+    // PrintBoard(game);
+  }
+
+  for (int i = 0; i < pure_board_max + 1; i++) {
+    in >> prob[i];
+    if (prob[i] > 0.01) {
+      // cerr << FormatMove(i == pure_board_max ? PASS : onboard_pos[i]) << ":" << prob[i] << endl;
+    }
+  }
+  in >> c;
+  if (c > 0)
+    win = color;
+  else
+    win = FLIP_COLOR(color);
+
+  string dummy;
+  getline(in, dummy);
+  if (dummy.length() != 0)
+    abort();
 }
 
 struct DataSet {
@@ -600,6 +667,38 @@ void
 Train()
 {
   try {
+    {
+      ifstream in("C:\\tmp\\train_6ee288bd_0\\train_6ee288bd_0");
+      if (in.fail()) {
+        cerr << "fail to open" << endl;
+        abort();
+      }
+      auto game = AllocateGame();
+      InitializeBoard(game);
+      float prob[362];
+      int win;
+      int color;
+
+      auto begin_time = ray_clock::now();
+      int num = 0;
+      int num_games = 0;
+      while (!in.eof()) {
+        ReadLzTrainingData(in, game, color, prob, win);
+        /*
+        cerr
+          << "COLOR:" << color
+          << "\tWIN:" << win << endl;
+        */
+        if (game->moves == 1)
+          num_games++;
+        ClearBoard(game);
+        num++;
+      }
+      auto finish_time = GetSpendTime(begin_time);
+      cerr << num << "steps "
+        << num_games << "games "
+        << finish_time << endl;
+    }
     random_device rd;
     std::mt19937_64 mt{ 0 };
 
