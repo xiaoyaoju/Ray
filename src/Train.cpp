@@ -17,8 +17,10 @@
 #include <thread>
 #include <vector>
 
+#include <boost/iostreams/copy.hpp>
 #include <boost/iostreams/filtering_stream.hpp>
 #include <boost/iostreams/filter/gzip.hpp>
+#include <boost/interprocess/streams/vectorstream.hpp>
 
 using namespace std;
 using namespace CNTK;
@@ -35,6 +37,17 @@ SetKifuDirectory(const std::string dir)
   kifu_dir = dir;
 }
 
+static void Inflate(const string &filename, vector<char> &decompressed)
+{
+  ifstream fin(filename, ios_base::in | ios_base::binary);
+
+  boost::iostreams::filtering_ostream os;
+
+  os.push(boost::iostreams::gzip_decompressor());
+  os.push(boost::iostreams::back_inserter(decompressed));
+
+  boost::iostreams::copy(fin, os);
+}
 
 inline void PrintTrainingProgress(const TrainerPtr trainer, size_t minibatchIdx, size_t outputFrequencyInMinibatches)
 {
@@ -125,14 +138,9 @@ void
 ExtractKifu(const string& filename, LZ_record_t* rec)
 {
   rec->filename = filename;
-  ifstream fin(filename, ios_base::in | ios_base::binary);
-  boost::iostreams::filtering_stream<boost::iostreams::input_seekable> in;
-  in.push(boost::iostreams::gzip_decompressor());
-  in.push(fin);
-  if (in.fail()) {
-    cerr << "fail to open" << endl;
-    abort();
-  }
+  vector<char> buf;
+  Inflate(filename, buf);
+  boost::interprocess::basic_ivectorstream<vector<char>> in(buf);
   auto game = AllocateGame();
   InitializeBoard(game);
   float prob[362];
@@ -220,10 +228,9 @@ public:
     int num_game = mt() % kifu.pos.size();
     const vector<size_t>& file_pos = kifu.pos[num_game];
     int dump_turn = mt() % file_pos.size();
-    ifstream fin(kifu.filename, ios_base::in | ios_base::binary);
-    boost::iostreams::filtering_stream<boost::iostreams::input_seekable> in;
-    in.push(boost::iostreams::gzip_decompressor());
-    in.push(fin);
+    vector<char> buf;
+    Inflate(kifu.filename, buf);
+    boost::interprocess::basic_ivectorstream<vector<char>> in(buf);
     in.seekg(file_pos[dump_turn]);
 
     float prob[362];
@@ -574,14 +581,9 @@ Train()
 {
   try {
     {
-      ifstream fin("C:\\tmp\\train_6ee288bd\\train_6ee288bd_1.gz", ios_base::in | ios_base::binary);
-      boost::iostreams::filtering_istream in;
-      in.push(boost::iostreams::gzip_decompressor());
-      in.push(fin);
-      if (in.fail()) {
-        cerr << "fail to open" << endl;
-        abort();
-      }
+      vector<char> buf;
+      Inflate("C:\\tmp\\train_6ee288bd\\train_6ee288bd_1.gz", buf);
+      boost::interprocess::basic_ivectorstream<vector<char>> in(buf);
       auto game = AllocateGame();
       InitializeBoard(game);
       float prob[362];
