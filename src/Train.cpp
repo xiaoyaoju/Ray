@@ -165,7 +165,39 @@ bool ReadLzTrainingData(istream& in, game_info_t* game, int& color, float* prob,
 void
 ExtractKifu(LZ_record_t* rec)
 {
-  auto& filename = rec->filename;
+  auto begin_time = ray_clock::now();
+
+  const auto& filename = rec->filename;
+  ifstream index_in(filename + ".idx");
+  if (!index_in.fail()) {
+    while (!index_in.eof()) {
+      string line;
+      getline(index_in, line);
+
+      if (line.size() == 0)
+        break;
+      rec->pos.push_back({});
+
+      stringstream in(line);
+      while (!in.eof()) {
+        size_t pos;
+        in >> pos;
+        rec->pos[rec->pos.size() - 1].push_back(pos);
+      }
+    }
+    auto finish_time = GetSpendTime(begin_time);
+    /*
+    cerr
+      << filename << "\t"
+      << rec->pos.size() << "games\t"
+      << finish_time << "sec";
+    for (auto& v : rec->pos)
+      cerr << " " << v.size();
+    cerr << endl;
+    */
+    return;
+  }
+
   vector<char> buf;
   Inflate(filename, buf);
   boost::interprocess::basic_ivectorstream<vector<char>> in(buf);
@@ -175,7 +207,6 @@ ExtractKifu(LZ_record_t* rec)
   int win;
   int color;
 
-  auto begin_time = ray_clock::now();
   int num = 0;
   int num_games = 0;
   int last_moves = 0;
@@ -209,6 +240,16 @@ ExtractKifu(LZ_record_t* rec)
   for (auto& v : rec->pos)
     cerr << " " << v.size();
   cerr << endl;
+
+  ofstream index_out(filename + ".idx");
+  for (auto& v : rec->pos) {
+    for (size_t i = 0; i < v.size(); i++) {
+      if (i > 0)
+        index_out << ' ';
+      index_out << v[i];
+    }
+    index_out << endl;
+  }
 }
 
 struct DataSet {
