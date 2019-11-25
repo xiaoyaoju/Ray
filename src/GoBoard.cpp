@@ -2106,6 +2106,7 @@ WritePlanes(
     for (int i = start; i < game->moves; i++) {
       if (i > 0) {
         PutStone(game_work, game->record[i].pos, game->record[i].color);
+        const auto& game = game_work;
         OUTPUT({ OUTPUT_FEATURE(data_basic, c == S_BLACK); });
         OUTPUT({ OUTPUT_FEATURE(data_basic, c == S_WHITE); });
       } else {

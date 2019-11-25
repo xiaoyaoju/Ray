@@ -30,6 +30,7 @@ namespace fs = std::experimental::filesystem;
 #endif
 
 static string kifu_dir = "kifu";
+static bool use_easy_state = false;
 
 void
 SetKifuDirectory(const std::string dir)
@@ -80,7 +81,7 @@ void ReadLzPlane(const string& plane, int color, game_info_t* game)
       hexbyte = 10 + c - 'a';
     }
     else {
-      cerr << "illegal input";
+      cerr << "illegal input" << endl;
       return;
     }
     if (bit < pure_board_max
@@ -103,8 +104,14 @@ bool ReadLzTrainingData(istream& in, game_info_t* game, int& color, float* prob,
   ClearBoard(game);
   string dummy;
   string line[16];
-  for (int i = 0; i < 16; i++)
+  for (int i = 0; i < 16; i++) {
     getline(in, line[i]);
+    if (line[i].size() < 10) {
+      cerr
+        << "illegal plane: " << line[i]
+        << endl;
+    }
+  }
   if (in.eof())
     return false;
   int c;
@@ -295,10 +302,12 @@ public:
     FreeGame(game_work);
   }
 
-  bool Play(DataSet& data, LZ_record_t& kifu, istream& in) {
+  bool Play(DataSet& data, const LZ_record_t& kifu, istream& in) {
     int num_game = mt() % kifu.pos.size();
     const vector<size_t>& file_pos = kifu.pos[num_game];
     int dump_turn = mt() % file_pos.size();
+    if (use_easy_state && mt() % 2 == 0)
+      dump_turn = min(file_pos.size() / 2 + mt() % file_pos.size() / 2, file_pos.size() - 1);
     in.seekg(file_pos[dump_turn]);
 
     float prob[362];
@@ -608,6 +617,7 @@ ReadFiles(int thread_no, size_t offset, size_t size, vector<LZ_record_t> *record
   for (size_t i = 0; i < size; i++) {
     auto kifu = &(*records)[i * threads + thread_no];
     kifu->filename = files[i];
+    kifu->pos.clear();
 
     //if (kifu->moves > pure_board_max * 0.9) kifu->moves = pure_board_max * 0.9;
     /*
@@ -664,6 +674,7 @@ void
 Train()
 {
   try {
+#if 0
     {
       vector<char> buf;
       Inflate("C:\\tmp\\train_6ee288bd\\train_6ee288bd_1.gz", buf);
@@ -679,11 +690,10 @@ Train()
       int num_games = 0;
       while (!in.eof()) {
         ReadLzTrainingData(in, game, color, prob, win);
-        /*
+        PrintBoard(game);
         cerr
           << "COLOR:" << color
           << "\tWIN:" << win << endl;
-        */
         if (game->moves == 1)
           num_games++;
         ClearBoard(game);
@@ -694,6 +704,7 @@ Train()
         << num_games << "games "
         << finish_time << endl;
     }
+#endif
     random_device rd;
     std::mt19937_64 mt{ 0 };
 
@@ -705,7 +716,7 @@ Train()
     const size_t trainingCheckpointFrequency = 500;
     const int stepsize = 200;
     const double lr_min = 1.0e-6;
-    const double lr_max = 2.0e-4;
+    const double lr_max = 2.0e-3;
     //const double lr_max = 2.0e-5;
 
     const size_t loop_size = trainingCheckpointFrequency * 2;
@@ -1079,7 +1090,9 @@ Train()
       if (alt < stepsize * 2)
         rate = lr_min + (lr_max0 - lr_min) / stepsize * (stepsize - abs(alt % (stepsize * 2) - stepsize));
       rate *= lr_scale;
+      use_easy_state = alt < stepsize * 4;
       cerr << rate << endl;
+      cerr << use_easy_state << endl;
       LearningRateSchedule learningRatePerSample = TrainingParameterPerSampleSchedule(rate);
       //LearningRateSchedule learningRatePerSample = TrainingParameterPerSampleSchedule(4.00e-07);
       AdditionalLearningOptions option;
