@@ -2207,7 +2207,9 @@ UpdatePolicyRate(int current)
   int n = 0;
 
   double max_nnrate0 = numeric_limits<double>::min();
-  for (int i = 1; i < child_num; i++) {
+  for (int i = 0; i < child_num; i++) {
+    if (isnan(uct_child[i].nnrate0))
+      continue;
     max_nnrate0 = max(uct_child[i].nnrate0, max_nnrate0);
   }
   double offset = 10 - max_nnrate0;
@@ -2219,7 +2221,9 @@ UpdatePolicyRate(int current)
 
     sum = 0;
 
-    for (int i = 1; i < child_num; i++) {
+    for (int i = 0; i < child_num; i++) {
+      if (isnan(uct_child[i].nnrate0))
+        continue;
       double rate = exp((uct_child[i].nnrate0 + offset) / t);
       if (rate > max_rate)
         max_rate = rate;
@@ -2236,7 +2240,11 @@ UpdatePolicyRate(int current)
   } while (t > 0 && t < 10 && rate > policy_top_rate_max);
 
   uct_child[0].nnrate = 0.001;
-  for (int i = 1; i < child_num; i++) {
+  for (int i = 0; i < child_num; i++) {
+    if (isnan(uct_child[i].nnrate0)) {
+      uct_child[i].nnrate = 0;
+      continue;
+    }
     double rate = exp((uct_child[i].nnrate0 + offset) / t) / sum;
     uct_child[i].nnrate = max(rate, 0.0);
     if (uct_child[i].rate < uct_child[0].rate
@@ -2246,6 +2254,13 @@ UpdatePolicyRate(int current)
     uct_child[i].nnrate = max(rate, root_policy_rate_min);
     if (uct_child[i].trivial)
       uct_child[i].nnrate = min(0.001, uct_child[i].nnrate);
+    /*
+    if (current == current_root) {
+      cerr << "#" << n << "\tpos:" << FormatMove(uct_child[i].pos) << "\trate:" << (uct_child[i].nnrate * 100)
+           << "\t" << uct_child[i].nnrate0
+           << endl;
+    }
+    */
   }
 
   if (in_opening && current == current_root) {
@@ -2334,7 +2349,7 @@ SelectMaxUcbChild( uct_search_context_t& ctx, const game_info_t *game, int curre
 	dynamic_parameter = uct_owner[o_index[i]] + uct_criticality[c_index[i]];
 	order[i].rate = uct_child[i].rate + dynamic_parameter;
 	order[i].index = i;
-	uct_child[i].flag |= uct_child[i].nnrate > seach_threshold_policy_rate;
+	uct_child[i].flag = uct_child[i].nnrate > seach_threshold_policy_rate;
       }
       qsort(order, child_num, sizeof(rate_order_t), RateComp);
 
@@ -3010,9 +3025,9 @@ ReadWeights()
     wstring path = name;
 
     if (pure_board_size == 19) {
-      model_name = path + L"/model7a.bin";
+      model_name = path + L"/model8.bin";
     } else if (pure_board_size == 9) {
-      model_name = path + L"/model7a_9.bin";
+      model_name = path + L"/model8_9.bin";
     } else {
       cerr << "Unsupported board size " << pure_board_size << endl;
       abort();
@@ -3100,6 +3115,7 @@ EvalValue(
   vector<float> moves;
   vector<float> score;
   vector<float> win;
+  bool use_pass;
 
   {
     unique_lock<mutex> lock(mutex_cntk);
@@ -3110,8 +3126,6 @@ EvalValue(
     CNTK::ValuePtr value_basic = CNTK::MakeSharedObject<CNTK::Value>(CNTK::MakeSharedObject<CNTK::NDArrayView>(shape_basic, data_basic, true));
     CNTK::NDShape shape_features = var_features.Shape().AppendShape({ 1, num_req });
     CNTK::ValuePtr value_features = CNTK::MakeSharedObject<CNTK::Value>(CNTK::MakeSharedObject<CNTK::NDArrayView>(shape_features, data_features, true));
-    CNTK::NDShape shape_color = var_color.Shape().AppendShape({ 1, num_req });
-    CNTK::ValuePtr value_color = CNTK::MakeSharedObject<CNTK::Value>(CNTK::MakeSharedObject<CNTK::NDArrayView>(shape_color, data_color, true));
     //CNTK::NDShape shape_komi = var_komi.Shape().AppendShape({ 1, num_req });
     //CNTK::ValuePtr value_komi = CNTK::MakeSharedObject<CNTK::Value>(CNTK::MakeSharedObject<CNTK::NDArrayView>(shape_komi, data_komi, true));
 
@@ -3123,12 +3137,16 @@ EvalValue(
     std::unordered_map<CNTK::Variable, CNTK::ValuePtr> inputs = {
       { var_basic, value_basic },
       { var_features, value_features },
-      { var_color, value_color },
       //{ var_komi, value_komi },
     };
     std::unordered_map<CNTK::Variable, CNTK::ValuePtr> outputs = {
       { var_ol, value_ol },
     };
+    if (var_color.IsInitialized()) {
+      CNTK::NDShape shape_color = var_color.Shape().AppendShape({ 1, num_req });
+      CNTK::ValuePtr value_color = CNTK::MakeSharedObject<CNTK::Value>(CNTK::MakeSharedObject<CNTK::NDArrayView>(shape_color, data_color, true));
+      outputs[var_color] = value_color;
+    }
     if (var_score.IsInitialized())
       outputs[var_score] = value_score;
     if (var_p.IsInitialized())
@@ -3197,7 +3215,11 @@ EvalValue(
     CNTK::NDArrayViewPtr cpu_moves = CNTK::MakeSharedObject<CNTK::NDArrayView>(shape_ol, moves, false);
     cpu_moves->CopyFrom(*value_ol->Data());
 
-    if (moves.size() != pure_board_max * num_req) {
+    if (moves.size() == pure_board_max * num_req) {
+      use_pass = false;
+    } else if (moves.size() == (pure_board_max + 1) * num_req) {
+      use_pass = true;
+    } else {
       cerr << "Eval move error " << moves.size() << endl;
       return;
     }
@@ -3232,18 +3254,22 @@ EvalValue(
     const int index = req->index;
     const int child_num = uct_node[index].child_num;
     child_node_t *uct_child = uct_node[index].child;
-    const int ofs = pure_board_max * j;
+    const int ofs = (use_pass ? pure_board_max + 1 : pure_board_max) * j;
 
     LOCK_NODE(index);
 
-    for (int i = 1; i < child_num; i++) {
+    for (int i = 0; i < child_num; i++) {
+      if (i == 0 && !use_pass) {
+        uct_child[i].nnrate0 = numeric_limits<double>::quiet_NaN();
+        continue;
+      }
       int pos = RevTransformMove(uct_child[i].pos, req->trans);
 
       int x = X(pos) - OB_SIZE;
       int y = Y(pos) - OB_SIZE;
-      int n = x + y * pure_board_size;
+      int n = pos == PASS ?  pure_board_max : x + y * pure_board_size;
       double score = moves[n + ofs];
-      //if (depth == 1) cerr << "RAW POLICY " << uct_child[i].pos << " " << req->trans << " " << FormatMove(pos) << " " << x << "," << y << " " << ofs << " -> " << score << endl;
+      // if (req->path.size() == 0) cerr << "RAW POLICY " << uct_child[i].pos << " " << req->trans << " " << FormatMove(pos) << " " << x << "," << y << " " << ofs << " -> " << score << endl;
       if (isnan(score) || isinf(score))
         score = -10;
       if (uct_child[i].ladder) {
