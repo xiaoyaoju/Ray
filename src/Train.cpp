@@ -1094,11 +1094,14 @@ Train()
       cerr << rate << endl;
       cerr << use_easy_state << endl;
       LearningRateSchedule learningRatePerSample = TrainingParameterPerSampleSchedule(rate);
+      MomentumSchedule momentumSchedule = MomentumSchedule(0.9, minibatch_size);
       //LearningRateSchedule learningRatePerSample = TrainingParameterPerSampleSchedule(4.00e-07);
       AdditionalLearningOptions option;
       option.l2RegularizationWeight = 0.0001;
       //auto minibatchSource = TextFormatMinibatchSource(L"SimpleDataTrain_cntk_text.txt", { { L"features", inputDim }, { L"labels", numOutputClasses } });
-      auto trainer = CreateTrainer(net, trainingLoss, prediction, { SGDLearner(parameters, learningRatePerSample, option) });
+      auto trainer = CreateTrainer(net, trainingLoss, prediction, {
+        MomentumSGDLearner(parameters, learningRatePerSample, momentumSchedule, DefaultUnitGainValue(), option)
+      });
 
 #if 0
       {
