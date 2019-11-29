@@ -107,6 +107,10 @@ bool ReadLzTrainingData(istream& in, game_info_t* game, int& color, float* prob,
   for (int i = 0; i < 16; i++) {
     getline(in, line[i]);
     if (line[i].size() < 10) {
+      if (i == 0) {
+        if (in.eof())
+          return false;
+      }
       cerr
         << "illegal plane: " << line[i]
         << endl;
@@ -516,51 +520,92 @@ public:
 
   std::unordered_map<CNTK::Variable, CNTK::ValuePtr> GetMiniBatchData(DataSet& data) {
     size_t num_req = data.num_req;
-    CNTK::NDShape shape_basic = var_basic.Shape().AppendShape({ 1, num_req });
-    CNTK::ValuePtr value_basic = CNTK::MakeSharedObject<CNTK::Value>(CNTK::MakeSharedObject<CNTK::NDArrayView>(shape_basic, data.basic, true));
-    CNTK::NDShape shape_features = var_features.Shape().AppendShape({ 1, num_req });
-    CNTK::ValuePtr value_features = CNTK::MakeSharedObject<CNTK::Value>(CNTK::MakeSharedObject<CNTK::NDArrayView>(shape_features, data.features, true));
     //CNTK::NDShape shape_komi = var_komi.Shape().AppendShape({ 1, num_req });
     //CNTK::ValuePtr value_komi = CNTK::MakeSharedObject<CNTK::Value>(CNTK::MakeSharedObject<CNTK::NDArrayView>(shape_komi, data.komi, true));
 
     CNTK::NDShape shape_move = var_move.Shape().AppendShape({ 1, num_req });
     CNTK::ValuePtr value_move = CNTK::MakeSharedObject<CNTK::Value>(CNTK::MakeSharedObject<CNTK::NDArrayView>(shape_move, data.move, true));
+    if (shape_move.TotalSize() != data.move.size()) {
+      cerr << "bad move size" << endl;
+      abort();
+    }
 
     std::unordered_map<CNTK::Variable, CNTK::ValuePtr> inputs = {
-      { var_basic, value_basic },
-      { var_features, value_features },
       { var_move, value_move },
     };
+
+    if (var_basic.IsInitialized()) {
+      CNTK::NDShape shape_basic = var_basic.Shape().AppendShape({ 1, num_req });
+      CNTK::ValuePtr value_basic = CNTK::MakeSharedObject<CNTK::Value>(CNTK::MakeSharedObject<CNTK::NDArrayView>(shape_basic, data.basic, true));
+      if (shape_basic.TotalSize() != data.basic.size()) {
+        cerr << "bad basic size" << endl;
+        abort();
+      }
+      inputs[var_basic] = value_basic;
+    }
+    if (var_features.IsInitialized()) {
+      CNTK::NDShape shape_features = var_features.Shape().AppendShape({ 1, num_req });
+      CNTK::ValuePtr value_features = CNTK::MakeSharedObject<CNTK::Value>(CNTK::MakeSharedObject<CNTK::NDArrayView>(shape_features, data.features, true));
+      if (shape_features.TotalSize() != data.features.size()) {
+        cerr << "bad features size" << endl;
+        abort();
+      }
+      inputs[var_features] = value_features;
+    }
 
     if (var_color.IsInitialized()) {
       CNTK::NDShape shape_color = var_color.Shape().AppendShape({ 1, num_req });
       CNTK::ValuePtr value_color = CNTK::MakeSharedObject<CNTK::Value>(CNTK::MakeSharedObject<CNTK::NDArrayView>(shape_color, data.color, true));
+      if (shape_color.TotalSize() != data.color.size()) {
+        cerr << "bad color size" << endl;
+        abort();
+      }
       inputs[var_color] = value_color;
     }
 
     if (var_win.IsInitialized()) {
       CNTK::NDShape shape_win = var_win.Shape().AppendShape({ 1, num_req });
       CNTK::ValuePtr value_win = CNTK::MakeSharedObject<CNTK::Value>(CNTK::MakeSharedObject<CNTK::NDArrayView>(shape_win, data.win, true));
+      if (shape_win.TotalSize() != data.win.size()) {
+        cerr << "bad win size" << endl;
+        abort();
+      }
       inputs[var_win] = value_win;
     }
     if (var_win2.IsInitialized()) {
       CNTK::NDShape shape_win2 = var_win2.Shape().AppendShape({ 1, num_req });
       CNTK::ValuePtr value_win2 = CNTK::MakeSharedObject<CNTK::Value>(CNTK::MakeSharedObject<CNTK::NDArrayView>(shape_win2, data.win2, true));
+      if (shape_win2.TotalSize() != data.win2.size()) {
+        cerr << "bad win2 size" << endl;
+        abort();
+      }
       inputs[var_win2] = value_win2;
     }
     if (var_statistic.IsInitialized()) {
       CNTK::NDShape shape_statistic = var_statistic.Shape().AppendShape({ 1, num_req });
       CNTK::ValuePtr value_statistic = CNTK::MakeSharedObject<CNTK::Value>(CNTK::MakeSharedObject<CNTK::NDArrayView>(shape_statistic, data.statistic, true));
+      if (shape_statistic.TotalSize() != data.statistic.size()) {
+        cerr << "bad statistics size" << endl;
+        abort();
+      }
       inputs[var_statistic] = value_statistic;
     }
     if (var_score.IsInitialized()) {
       CNTK::NDShape shape_score = var_score.Shape().AppendShape({ 1, num_req });
       CNTK::ValuePtr value_score = CNTK::MakeSharedObject<CNTK::Value>(CNTK::MakeSharedObject<CNTK::NDArrayView>(shape_score, data.score, true));
+      if (shape_score.TotalSize() != data.score.size()) {
+        cerr << "bad score size" << endl;
+        abort();
+      }
       inputs[var_score] = value_score;
     }
     if (var_score_value.IsInitialized()) {
       CNTK::NDShape shape_score_value = var_score_value.Shape().AppendShape({ 1, num_req });
       CNTK::ValuePtr value_score_value = CNTK::MakeSharedObject<CNTK::Value>(CNTK::MakeSharedObject<CNTK::NDArrayView>(shape_score_value, data.score_value, true));
+      if (shape_score_value.TotalSize() != data.score_value.size()) {
+        cerr << "bad score_value size" << endl;
+        abort();
+      }
       inputs[var_score_value] = value_score_value;
     }
 
@@ -715,8 +760,13 @@ Train()
     const size_t outputFrequencyInMinibatches = 50;
     const size_t trainingCheckpointFrequency = 500;
     const int stepsize = 200;
+#if 0
     const double lr_min = 1.0e-6;
     const double lr_max = 2.0e-3;
+#else
+    const double lr_min = 1.0e-3;
+    const double lr_max = 5.0e-2;
+#endif
     //const double lr_max = 2.0e-5;
 
     const size_t loop_size = trainingCheckpointFrequency * 2;
@@ -737,7 +787,7 @@ Train()
     InitializeBoard(cv_game);
     for (int i = 0; i < cv_size; i++) {
       if (i % 10000 == 0)
-        cerr << (100.0 * i / cv_size) << "%" << endl;
+        cerr << "cv " << (100.0 * i / cv_size) << "%" << endl;
       auto f = filenames.back();
       filenames.pop_back();
 
@@ -794,7 +844,7 @@ Train()
     Reader cv_reader{ 0, &cv_records, 1 };
     for (int i = 0; i < cv_size / minibatch_size; i++) {
       if (i % 100 == 0)
-        cerr << (100.0 * i / (cv_size / minibatch_size)) << "%" << endl;
+        cerr << "cv " << (100.0 * i / (cv_size / minibatch_size)) << "%" << endl;
       cv_data.push_back(move(cv_reader.Read(minibatch_size)));
     }
 
@@ -1084,6 +1134,7 @@ Train()
 
       //double rate = 2.0e-8 + 1.0e-3 / stepsize * (stepsize - abs(alt % (stepsize * 2) - stepsize));
       //double rate = 2.0e-7 + 8.0e-6 / stepsize * (stepsize - abs(alt % (stepsize * 2) - stepsize));
+#if 0
       double lr_scale = pow(1.5, -alt / stepsize / 2.0);
       double lr_max0 = max(lr_max * lr_scale, lr_min);
       double rate = lr_min + (lr_max0 - lr_min) / stepsize * (stepsize - alt % stepsize);
@@ -1091,16 +1142,35 @@ Train()
         rate = lr_min + (lr_max0 - lr_min) / stepsize * (stepsize - abs(alt % (stepsize * 2) - stepsize));
       rate *= lr_scale;
       use_easy_state = alt < stepsize * 4;
+#else
+      int max_step = 10;
+      double llr_min = log(lr_min);
+      double llr_max = log(lr_max);
+      double lrate = llr_min + (llr_max - llr_min) / max_step * (max_step - min(max_step, alt / stepsize));
+      double rate = exp(lrate);
+      if (alt < stepsize)
+        rate = lr_min + (lr_max - lr_min) / stepsize * (stepsize - abs(alt % (stepsize * 2) - stepsize));
+      if (alt / stepsize > max_step) {
+        double lr_scale = pow(1.5, -(alt - max_step * stepsize) / stepsize / 2.0);
+        rate *= lr_scale;
+      }
+      cerr << "LR " << alt << " "
+           << min(max_step, alt / stepsize) << " "
+           << lrate << " "
+           << rate << endl;
+      use_easy_state = alt < stepsize;
+#endif
       cerr << rate << endl;
       cerr << use_easy_state << endl;
-      LearningRateSchedule learningRatePerSample = TrainingParameterPerSampleSchedule(rate);
-      MomentumSchedule momentumSchedule = MomentumSchedule(0.9, minibatch_size);
+      //LearningRateSchedule learningRate = TrainingParameterPerSampleSchedule(rate);
+      LearningRateSchedule learningRate = LearningRateSchedule(rate);
+      MomentumSchedule momentumSchedule = MomentumSchedule(0.9);
       //LearningRateSchedule learningRatePerSample = TrainingParameterPerSampleSchedule(4.00e-07);
       AdditionalLearningOptions option;
       option.l2RegularizationWeight = 0.0001;
       //auto minibatchSource = TextFormatMinibatchSource(L"SimpleDataTrain_cntk_text.txt", { { L"features", inputDim }, { L"labels", numOutputClasses } });
       auto trainer = CreateTrainer(net, trainingLoss, prediction, {
-        MomentumSGDLearner(parameters, learningRatePerSample, momentumSchedule, DefaultUnitGainValue(), option)
+        MomentumSGDLearner(parameters, learningRate, momentumSchedule, DefaultUnitGainValue(), option)
       });
 
 #if 0
@@ -1164,7 +1234,7 @@ Train()
             if (!err.IsInitialized())
               continue;
             auto tester = CreateTrainer(net, trainingLoss, err,
-              { SGDLearner(parameters, learningRatePerSample, option) });
+              { SGDLearner(parameters, learningRate, option) });
 
             // Cross validation
             double accumulatedError = 0;
