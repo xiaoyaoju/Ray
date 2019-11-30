@@ -29,8 +29,17 @@ using namespace CNTK;
 namespace fs = std::experimental::filesystem;
 #endif
 
+struct LZ_record_t {
+  string filename;
+  vector<vector<size_t>> pos;
+};
+
+const size_t num_games_per_file = (size_t)10;
+
 static string kifu_dir = "kifu";
 static bool use_easy_state = false;
+static std::mt19937_64 mt;
+static mutex extract_mutex;
 
 void
 SetKifuDirectory(const std::string dir)
@@ -62,12 +71,6 @@ inline void PrintTrainingProgress(const TrainerPtr trainer, size_t minibatchIdx,
     //printf("Minibatch %d: CrossEntropy loss = %.8g\n", (int)minibatchIdx, trainLossValue);
   }
 }
-
-struct LZ_record_t {
-  string filename;
-  vector<vector<size_t>> pos;
-};
-mutex extract_mutex;
 
 void ReadLzPlane(const string& plane, int color, game_info_t* game)
 {
@@ -283,13 +286,11 @@ public:
   std::mt19937_64 mt;
   game_info_t* game;
   game_info_t* game_work;
-  const int offset;
-
   vector<LZ_record_t> *records;
-  const int threads;
+  atomic<size_t> *records_cursor;
 
-  explicit Reader(int offset, vector<LZ_record_t> *records, int threads)
-    : offset(offset), records(records), threads(threads) {
+  explicit Reader(vector<LZ_record_t> *records, atomic<size_t> *records_cursor)
+    : records(records), records_cursor(records_cursor) {
     random_device rd;
     mt.seed(rd());
 
@@ -440,23 +441,25 @@ public:
   }
 
   void ReadN(DataSet& data, int num) {
-    auto& rec = (*records)[(current_rec * threads + offset) % records->size()];
+    auto cursor = std::atomic_fetch_add(records_cursor, (size_t)1);
+    LZ_record_t* rec = &(*records)[cursor % records->size()];
+    if (false) {
+      lock_guard<mutex> lock(extract_mutex);
+      cerr << "load " << cursor << " " << rec->filename << endl;
+    }
 
-    {
-      //lock_guard<mutex> lock(extract_mutex);
-      if (rec.pos.size() == 0) {
-        ExtractKifu(&rec);
-      }
+    if (rec->pos.size() == 0) {
+      ExtractKifu(rec);
     }
 
     vector<char> buf;
-    Inflate(rec.filename, buf);
+    Inflate(rec->filename, buf);
     boost::interprocess::basic_ivectorstream<vector<char>> in(buf);
 
     for (int n = 0; n < num; n++) {
-      Play(data, rec, in);
-      current_rec++;
+      Play(data, *rec, in);
     }
+    current_rec++;
   }
 
   unique_ptr<DataSet> Read(size_t n) {
@@ -473,7 +476,7 @@ public:
     data->score_value.reserve(n);
 
     while (data->num_req < n) {
-      ReadN(*data, min(n - data->num_req, (size_t)10));
+      ReadN(*data, min(n - data->num_req, num_games_per_file));
       /*
       cerr << data->num_req
         << " basic:" << data->basic.size()
@@ -615,11 +618,6 @@ public:
 
 
 static vector<string> filenames;
-static mutex mutex_records;
-//static vector<SGF_record> *records_next;
-static vector<LZ_record_t> *records_current;
-static vector<LZ_record_t> records_a;
-static vector<LZ_record_t> records_b;
 static map<LZ_record_t*, shared_ptr<float[]>> statistic;
 extern int threads;
 
@@ -644,60 +642,41 @@ ListFiles()
   cerr << "OK " << filenames.size() << endl;
 }
 
-static void
-ReadFiles(int thread_no, size_t offset, size_t size, vector<LZ_record_t> *records)
-{
-  vector<string> files;
-  files.reserve(size);
-  for (size_t i = 0; i < size; i++) {
-    files.push_back(filenames[(i + offset) % filenames.size()]);
-  }
-  random_device rd;
-  std::mt19937_64 mt{ rd() };
-  shuffle(begin(files), end(files), mt);
-
-  game_info_t* game = AllocateGame();
-  InitializeBoard(game);
-
-  for (size_t i = 0; i < size; i++) {
-    auto kifu = &(*records)[i * threads + thread_no];
-    kifu->filename = files[i];
-    kifu->pos.clear();
-
-    //if (kifu->moves > pure_board_max * 0.9) kifu->moves = pure_board_max * 0.9;
-    /*
-    ClearBoard(game);
-    int color = S_BLACK;
-    for (int i = 0; i < kifu->moves - 1; i++) {
-      int pos = GetKifuMove(kifu, i);
-      if (pos == PASS) {
-        kifu->moves = i;
-        break;
-      }
-      if (!IsLegal(game, pos, color)) {
-        //cerr << "Bad file illegal move " << files[i] << endl;
-        kifu->moves = 0;
-        break;
-      }
-      PutStone(game, pos, color);
-      color = FLIP_COLOR(color);
-    }
-    */
-  }
-
-  FreeGame(game);
-}
-
 static volatile bool running;
 static mutex mutex_queue;
 static queue<unique_ptr<DataSet>> data_queue;
 
+static mutex records_mutex;
+static vector<LZ_record_t> records_train;
+static atomic<size_t> records_cursor = {};
+
 static int minibatch_size;
+
+static void
+ReadFiles()
+{
+  cerr << "ReadFiles" << endl;
+  const size_t size = filenames.size();
+  vector<string> files;
+  files.reserve(size);
+  for (auto& s : filenames) {
+    files.emplace_back(s);
+  }
+  shuffle(begin(files), end(files), mt);
+
+  records_train.resize(size);
+  for (size_t i = 0; i < size; i++) {
+    auto& kifu = records_train[i];
+    kifu.filename = files[i];
+    kifu.pos.clear();
+  }
+  records_cursor = 0;
+}
 
 void
 ReadGames(int thread_no)
 {
-  Reader reader{ thread_no, records_current, threads };
+  Reader reader { &records_train, &records_cursor };
   while (running) {
     //cerr << "READ " << thread_no << endl;
     auto data = reader.Read(minibatch_size);
@@ -841,7 +820,8 @@ Train()
     FreeGame(cv_game);
 
     vector<unique_ptr<DataSet>> cv_data;
-    Reader cv_reader{ 0, &cv_records, 1 };
+    atomic<size_t> cv_cursor = {};
+    Reader cv_reader{ &cv_records, &cv_cursor };
     for (int i = 0; i < cv_size / minibatch_size; i++) {
       if (i % 100 == 0)
         cerr << "cv " << (100.0 * i / (cv_size / minibatch_size)) << "%" << endl;
@@ -970,8 +950,9 @@ Train()
     }
 #endif
 
-    records_a.resize(step * threads);
-    records_b.resize(step * threads);
+    //records.resize(step * threads);
+    //records_b.resize(step * threads);
+    ReadFiles();
 
     vector<unique_ptr<thread>> reader_handles;
 
@@ -1042,21 +1023,28 @@ Train()
       //auto finish_time = GetSpendTime(begin_time) * 1000;
       //cerr << "read sgf " << finish_time << endl;
 
-      vector<LZ_record_t> *records_next;
-      if (alt % 2 == 0) {
-        records_current = &records_a;
-        records_next = &records_b;
-      } else {
-        records_current = &records_b;
-        records_next = &records_a;
-      }
+      // vector<LZ_record_t> *records_next;
+      // if (alt % 2 == 0) {
+      //   records_current = &records_a;
+      //   records_next = &records_b;
+      // } else {
+      //   records_current = &records_b;
+      //   records_next = &records_a;
+      // }
 
-      for (int i = 0; i < threads; i++) {
-        reader_handles.push_back(make_unique<thread>(ReadFiles, i, (alt * threads + i) * step, step, records_next));
-      }
+      // for (int i = 0; i < threads; i++) {
+      //   reader_handles.push_back(make_unique<thread>(ReadFiles, i, (alt * threads + i) * step, step, records_next));
+      // }
 
       if (alt == start_step) {
         continue;
+      }
+
+      {
+        lock_guard<mutex> lock(records_mutex);
+        if (records_cursor >= records_train.size()) {
+          ReadFiles();
+        }
       }
 
       running = true;
