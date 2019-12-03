@@ -38,6 +38,7 @@ const size_t num_games_per_file = (size_t)10;
 
 static string kifu_dir = "kifu";
 static bool use_easy_state = false;
+static bool use_smooth_value = false;
 static std::mt19937_64 mt;
 static mutex extract_mutex;
 
@@ -350,11 +351,17 @@ public:
     }
     data.move[ofs + pure_board_max] = prob[pure_board_max];
 
-    if (win_color == S_BLACK)
-      data.win.push_back(1);
-    else if (win_color == S_WHITE)
-      data.win.push_back(-1);
-    else
+    if (win_color == S_BLACK) {
+      if (use_smooth_value)
+        data.win.push_back(min(1.0f, 0.5f + (dump_turn + 1.0f) / file_pos.size()));
+      else
+        data.win.push_back(1.0f);
+    } else if (win_color == S_WHITE) {
+      if (use_smooth_value)
+        data.win.push_back(-min(1.0f, 0.5f + (dump_turn + 1.0f) / file_pos.size()));
+      else
+        data.win.push_back(-1);
+    } else
       data.win.push_back(0);
 
     in.seekg(file_pos[file_pos.size() - 1]);
@@ -1208,9 +1215,10 @@ Train()
            << lrate << " "
            << rate << endl;
       use_easy_state = alt < stepsize;
+      use_smooth_value = alt / stepsize < max_step;
 #endif
       cerr << rate << endl;
-      cerr << use_easy_state << endl;
+      cerr << use_easy_state << " " << use_smooth_value << endl;
       //LearningRateSchedule learningRate = TrainingParameterPerSampleSchedule(rate);
       LearningRateSchedule learningRate = LearningRateSchedule(rate);
       MomentumSchedule momentumSchedule = MomentumSchedule(0.9);
