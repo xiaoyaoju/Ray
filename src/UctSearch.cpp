@@ -2019,7 +2019,7 @@ UctSearch(uct_search_context_t& ctx, game_info_t *game, int color, mt19937_64 *m
   int n = AddVirtualLoss(&uct_child[next_index], current);
 
   if ((no_expand || uct_child[next_index].move_count < expand_threshold || end_of_game)
-    //&& (next_node_index < 0 || !uct_node[next_node_index].evaled)
+    && (next_node_index < 0 || !uct_node[next_node_index].evaled)
     //|| (next_node_index < 0 || !uct_node[next_node_index].evaled)
     ) {
     int start = game->moves;
@@ -3106,7 +3106,7 @@ void
 EvalValue(
   const std::vector<std::shared_ptr<nn_eval_req>>& requests,
   std::vector<float>& data_basic, std::vector<float>& data_features,
-  std::vector<float>& data_color, std::vector<float>& data_komi, std::vector<float>& data_safety)
+  std::vector<float>& data_color, std::vector<float>& data_komi)
 {
   size_t num_req = requests.size();
   if (num_req == 0)
@@ -3321,7 +3321,6 @@ void EvalNode() {
   std::vector<float> eval_input_data_features;
   std::vector<float> eval_input_data_color;
   std::vector<float> eval_input_data_komi;
-  std::vector<float> eval_input_data_safety;
 
   int num_eval = 0;
   bool allow_skip = (!reuse_subtree && !ponder) || time_limit <= 1.0;
@@ -3367,9 +3366,8 @@ void EvalNode() {
         eval_input_data_color.push_back(req->color - 1);
         eval_input_data_komi.push_back(komi[0]);
       }
-      eval_input_data_safety.resize(requests.size() * pure_board_max * 8);
       num_eval += requests.size();
-      EvalValue(requests, eval_input_data_basic, eval_input_data_features, eval_input_data_color, eval_input_data_komi, eval_input_data_safety);
+      EvalValue(requests, eval_input_data_basic, eval_input_data_features, eval_input_data_color, eval_input_data_komi);
     }
   }
 }
@@ -3423,12 +3421,11 @@ PolicyNetworkGenmove( game_info_t *game, int color )
 
   std::vector<float> eval_input_data_color;
   std::vector<float> eval_input_data_komi;
-  std::vector<float> eval_input_data_safety;
 
   eval_input_data_color.push_back(req->color - 1);
   eval_input_data_komi.push_back(komi[0]);
 
-  EvalValue(requests, req->data_basic, req->data_features, eval_input_data_color, eval_input_data_komi, eval_input_data_safety);
+  EvalValue(requests, req->data_basic, req->data_features, eval_input_data_color, eval_input_data_komi);
   policy_temperature = org_policy_temperature;
 
   // Select move
