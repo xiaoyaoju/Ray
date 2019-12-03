@@ -3175,6 +3175,13 @@ EvalValue(
         cerr << "Eval win error " << win.size() << endl;
         return;
       }
+      if (rand() % 100 == 0) {
+      cerr << "win:";
+      for (auto w : win) {
+        cerr << " " << w ;
+      }
+      cerr << endl;
+      }
     }
     if (var_p2.IsInitialized()) {
       value_p2 = outputs[var_p2];

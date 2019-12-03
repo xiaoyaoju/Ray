@@ -37,6 +37,7 @@ struct LZ_record_t {
 const size_t num_games_per_file = (size_t)10;
 
 static string kifu_dir = "kifu";
+static string test_kifu_dir = "";
 static bool use_easy_state = false;
 static bool use_smooth_value = false;
 static std::mt19937_64 mt;
@@ -46,6 +47,12 @@ void
 SetKifuDirectory(const std::string dir)
 {
   kifu_dir = dir;
+}
+
+void
+SetTestKifuDirectory(const std::string dir)
+{
+  test_kifu_dir = dir;
 }
 
 static void Inflate(const string &filename, vector<char> &decompressed)
@@ -683,13 +690,13 @@ public:
 };
 
 
-static vector<string> filenames;
 static map<LZ_record_t*, shared_ptr<float[]>> statistic;
 extern int threads;
 
-static void
-ListFiles()
+static vector<string>
+ListFiles( const std::string& kifu_dir )
 {
+  vector<string> filenames;
   stringstream ss{ kifu_dir };
   std::string dir;
   while (getline(ss, dir, ',')) {
@@ -706,6 +713,7 @@ ListFiles()
   }
 
   cerr << "OK " << filenames.size() << endl;
+  return filenames;
 }
 
 static volatile bool running;
@@ -719,7 +727,7 @@ static atomic<size_t> records_cursor = {};
 static int minibatch_size;
 
 static void
-ReadFiles()
+ReadFiles( const vector<string>& filenames )
 {
   cerr << "ReadFiles" << endl;
   const size_t size = filenames.size();
@@ -759,6 +767,54 @@ ReadGames(int thread_no)
 }
 
 #define CHECK_FEATURE_MODE 0
+
+static void
+ReadCvData( vector<string>& filenames, vector<unique_ptr<DataSet>>& cv_data )
+{
+  vector<LZ_record_t> cv_records;
+  vector<string> test_filenames;
+  if (test_kifu_dir.size() > 0)
+    test_filenames = ListFiles(test_kifu_dir);
+
+  int cv_size;
+  if (test_filenames.size() > 0) {
+    cv_size = test_filenames.size() * num_games_per_file;
+    cv_records.resize(test_filenames.size());
+    for (auto i = 0; i < test_filenames.size(); i++) {
+      cerr << "test " << test_filenames[i] << endl;
+      cv_records[i].filename = test_filenames[i];
+    }
+  } else {
+#if CHECK_FEATURE_MODE
+    cv_size = 1024 * 100;
+#else
+    cv_size = 1024;
+    // cv_size = 256;
+#endif
+    cv_records.resize(cv_size / num_games_per_file);
+    for (int i = 0; i < cv_records.size(); i++) {
+      if (i % 10000 == 0)
+        cerr << "cv " << (100.0 * i / cv_size) << "%" << endl;
+      auto f = filenames.back();
+      filenames.pop_back();
+
+      auto kifu = &cv_records[i];
+      kifu->filename = f;
+      cerr << "test " << f << endl;
+    }
+  }
+
+  atomic<size_t> cv_cursor = {};
+  Reader cv_reader{ &cv_records, &cv_cursor };
+  cv_reader.mt.seed(0);
+  for (int i = 0; i < (cv_size + minibatch_size - 1) / minibatch_size; i++) {
+    int size = min(minibatch_size, (int)(cv_size - cv_data.size() * minibatch_size));
+    cerr << "cv " << (100.0 * i / (cv_size / minibatch_size)) << "%"
+      << " read " << size
+      << endl;
+    cv_data.push_back(move(cv_reader.Read(size)));
+  }
+}
 
 void
 Train()
@@ -818,83 +874,12 @@ Train()
     minibatch_size = 320;
     const size_t step = minibatch_size * loop_size / 2 / threads;
 
-    ListFiles();
+
+    vector<string> filenames = ListFiles(kifu_dir);
     shuffle(begin(filenames), end(filenames), mt);
 
-#if CHECK_FEATURE_MODE
-    const int cv_size = 1024 * 100;
-#else
-    const int cv_size = 1024;
-    //const int cv_size = 256;
-#endif
-    vector<LZ_record_t> cv_records(cv_size);
-    game_info_t* cv_game = AllocateGame();
-    InitializeBoard(cv_game);
-    for (int i = 0; i < cv_size; i++) {
-      if (i % 10000 == 0)
-        cerr << "cv " << (100.0 * i / cv_size) << "%" << endl;
-      auto f = filenames.back();
-      filenames.pop_back();
-
-      auto kifu = &cv_records[i];
-      kifu->filename = f;
-      /*
-      if (kifu->moves < 20 || kifu->result == R_UNKNOWN) {
-        //cerr << "Bad file " << f << endl;
-        i--;
-        continue;
-      }
-
-      //if (kifu->moves > pure_board_max * 0.9) kifu->moves = pure_board_max * 0.9;
-
-      ClearBoard(cv_game);
-      int color = S_BLACK;
-      for (int i = 0; i < kifu->moves - 1; i++) {
-        int pos = GetKifuMove(kifu, i);
-        if (pos == PASS) {
-          kifu->moves = i;
-          break;
-        }
-        if (!IsLegal(cv_game, pos, color)) {
-#if 0
-          {
-            PrintBoard(cv_game);
-            ClearBoard(cv_game);
-             color = S_BLACK;
-             for (int j = 0; j < i; j++) {
-               int pos = GetKifuMove(kifu, j);
-               cerr << i << " " << FormatMove(pos) << endl;
-               PrintBoard(cv_game);
-               PutStone(cv_game, pos, color);
-               color = FLIP_COLOR(color);
-             }
-          }
-#endif
-          cerr << "Bad file illegal move " << f
-            << " " << i
-            << " " << FormatMove(pos)
-            << endl;
-          kifu->moves = 0;
-          break;
-        }
-        PutStone(cv_game, pos, color);
-        color = FLIP_COLOR(color);
-      }
-      */
-    }
-
-    FreeGame(cv_game);
-
     vector<unique_ptr<DataSet>> cv_data;
-    atomic<size_t> cv_cursor = {};
-    Reader cv_reader{ &cv_records, &cv_cursor };
-    for (int i = 0; i < (cv_size + minibatch_size - 1) / minibatch_size; i++) {
-      int size = min(minibatch_size, (int)(cv_size - cv_data.size() * minibatch_size));
-      cerr << "cv " << (100.0 * i / (cv_size / minibatch_size)) << "%"
-           << " read " << size
-           << endl;
-      cv_data.push_back(move(cv_reader.Read(minibatch_size)));
-    }
+    ReadCvData(filenames, cv_data);
 
 #if CHECK_FEATURE_MODE
     {
@@ -1020,7 +1005,7 @@ Train()
 
     //records.resize(step * threads);
     //records_b.resize(step * threads);
-    ReadFiles();
+    ReadFiles(filenames);
 
     vector<unique_ptr<thread>> reader_handles;
 
@@ -1111,7 +1096,7 @@ Train()
       {
         lock_guard<mutex> lock(records_mutex);
         if (records_cursor >= records_train.size()) {
-          ReadFiles();
+          ReadFiles(filenames);
         }
       }
 

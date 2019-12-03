@@ -42,6 +42,7 @@ const string command[COMMAND_MAX] = {
   "--device-id",
   "--verbose",
   "--kifu-dir",
+  "--test-kifu-dir",
   "--train",
   "--weights",
 };
@@ -69,6 +70,7 @@ const string errmessage[COMMAND_MAX] = {
   "Set GPU to use",
   "Verbose log mode",
   "Set directory to store kifu files",
+  "Set directory to store kifu files for test",
   "Train parameters",
   "Set location of weights file",
 };
@@ -178,6 +180,9 @@ AnalyzeCommand( int argc, char **argv )
         break;
       case COMMAND_KIFU_DIR:
         SetKifuDirectory(argv[++i]);
+        break;
+      case COMMAND_TEST_KIFU_DIR:
+        SetTestKifuDirectory(argv[++i]);
         break;
       case COMMAND_TRAIN:
         run_mode = RUN_MODE::TRAIN;

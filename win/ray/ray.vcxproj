@@ -86,7 +86,7 @@
     <IncludePath>$(IncludePath)</IncludePath>
     <ReferencePath>$(ReferencePath)</ReferencePath>
     <LibraryPath>$(LibraryPath)</LibraryPath>
-    <TargetName>$(ProjectName)-train-nn2</TargetName>
+    <TargetName>$(ProjectName)</TargetName>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
