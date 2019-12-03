@@ -358,17 +358,15 @@ public:
       data.win.push_back(0);
 
     in.seekg(file_pos[file_pos.size() - 1]);
-    ReadLzTrainingData(in, game, color, prob, win_color);
+    ReadLzTrainingData(in, game_work, color, prob, win_color);
     //PrintBoard(game);
-    Simulation(game, color, &mt);
 
-    //PrintBoard(game);
-    float sum = 0;
+    size_t stat_ofs = data.statistic.size();
+    data.statistic.resize(stat_ofs + pure_board_max);
+
     for (int j = 0; j < pure_board_max; j++) {
       int pos = TransformMove(onboard_pos[j], trans);
-      int c = game->board[pos];
-      if (c == S_EMPTY)
-        c = territory[Pat3(game->pat, pos)];
+      int c = game_work->board[pos];
       float o;
       if (c == S_EMPTY)
         o = 0;
@@ -376,10 +374,53 @@ public:
         o = 1;
       else
         o = -1;
-      sum += o;
-      data.statistic.push_back(o);
+      data.statistic[stat_ofs + j] += o;
     }
-    double score = sum;
+
+    size_t score_ofs = data.score.size();
+    data.score.resize(score_ofs + SCORE_DIM);
+    int num_sim = 2;
+    float sum = 0;
+
+    for (int k = 0; k < num_sim; k++) {
+      CopyGame(game, game_work);
+      Simulation(game, color, &mt);
+
+      float score = 0;
+      //PrintBoard(game);
+      for (int j = 0; j < pure_board_max; j++) {
+        int pos = TransformMove(onboard_pos[j], trans);
+        int c = game->board[pos];
+        if (c == S_EMPTY)
+          c = territory[Pat3(game->pat, pos)];
+        float o;
+        if (c == S_EMPTY)
+          o = 0;
+        else if (c == S_BLACK)
+          o = 1;
+        else
+          o = -1;
+        sum += o;
+        score += o;
+        //data.statistic[stat_ofs + j] += o;
+      }
+
+
+      //data.score.push_back(score);
+      int score_label = round(score - SCORE_OFFSET);
+      if (score_label < 0)
+        score_label = 0;
+      if (score_label >= SCORE_DIM)
+        score_label = SCORE_DIM - 1;
+      for (int j = 0; j < SCORE_DIM; j++) {
+        data.score[score_ofs + j] += (score_label == j ? 1.0f : 0.0f) / num_sim;
+      }
+    }
+#if 0
+    for (int j = 0; j < pure_board_max; j++)
+      data.statistic[stat_ofs + j] /= num_sim;
+#endif
+    double score = sum / num_sim;
 
 #if 0
     if (score != sum) {
@@ -407,12 +448,39 @@ public:
     static std::atomic<int64_t> score_error;
     //static std::atomic<int64_t> sum_komi;
     static std::atomic<int64_t> score_num;
+    static std::atomic<int64_t> win_num;
+    static std::atomic<int64_t> win_error;
     std::atomic_fetch_add(&score_num, (int64_t)1);
     std::atomic_fetch_add(&score_error, (int64_t)abs(score - sum));
+    if (game_work->moves > 250) {
+      std::atomic_fetch_add(&win_num, (int64_t)1);
+      if (score > komi[0]) {
+        if (win_color == S_WHITE)
+          std::atomic_fetch_add(&win_error, (int64_t)1);
+      }
+      else {
+        if (win_color == S_BLACK)
+          std::atomic_fetch_add(&win_error, (int64_t)1);
+      }
+    }
+#if 0
+    {
+      lock_guard<mutex> lock(extract_mutex);
+      PrintBoard(game_work);
+
+      in.seekg(file_pos[file_pos.size() - 1]);
+      ReadLzTrainingData(in, game_work, color, prob, win_color);
+      PrintBoard(game_work);
+
+      PrintBoard(game);
+      cerr << "win:" << win_color << " score:" << (score - komi[0]) << endl;
+    }
+#endif
     //std::atomic_fetch_add(&sum_komi, (int64_t)kifu.komi);
     if (score_num % 100000 == 0) {
       cerr << "score error: " << (score_error / (double)score_num)
         //<< " komi:" << (sum_komi / (double)score_num)
+        << " win:" << (win_error / (double)win_num)
         << endl;
     }
 
@@ -424,15 +492,6 @@ public:
         data.win2.push_back(-1);
     }
 
-    //data.score.push_back(score);
-    int score_label = round(score - SCORE_OFFSET);
-    if (score_label < 0)
-      score_label = 0;
-    if (score_label >= SCORE_DIM)
-      score_label = SCORE_DIM - 1;
-    for (int j = 0; j < SCORE_DIM; j++) {
-      data.score.push_back(score_label == j ? 1.0f : 0.0f);
-    }
     data.score_value.push_back(score);
 
     //cerr << "RE:" << kifu.result << " color:" << my_color << " RAND:" << kifu.random_move << " sum:" << sum << endl;
@@ -749,7 +808,7 @@ Train()
     //const double lr_max = 2.0e-5;
 
     const size_t loop_size = trainingCheckpointFrequency * 2;
-    minibatch_size = 128;
+    minibatch_size = 320;
     const size_t step = minibatch_size * loop_size / 2 / threads;
 
     ListFiles();
@@ -758,8 +817,8 @@ Train()
 #if CHECK_FEATURE_MODE
     const int cv_size = 1024 * 100;
 #else
-    //const int cv_size = 1024;
-    const int cv_size = 256;
+    const int cv_size = 1024;
+    //const int cv_size = 256;
 #endif
     vector<LZ_record_t> cv_records(cv_size);
     game_info_t* cv_game = AllocateGame();
@@ -822,9 +881,11 @@ Train()
     vector<unique_ptr<DataSet>> cv_data;
     atomic<size_t> cv_cursor = {};
     Reader cv_reader{ &cv_records, &cv_cursor };
-    for (int i = 0; i < cv_size / minibatch_size; i++) {
-      if (i % 100 == 0)
-        cerr << "cv " << (100.0 * i / (cv_size / minibatch_size)) << "%" << endl;
+    for (int i = 0; i < (cv_size + minibatch_size - 1) / minibatch_size; i++) {
+      int size = min(minibatch_size, (int)(cv_size - cv_data.size() * minibatch_size));
+      cerr << "cv " << (100.0 * i / (cv_size / minibatch_size)) << "%"
+           << " read " << size
+           << endl;
       cv_data.push_back(move(cv_reader.Read(minibatch_size)));
     }
 
@@ -1131,13 +1192,13 @@ Train()
       rate *= lr_scale;
       use_easy_state = alt < stepsize * 4;
 #else
-      int max_step = 10;
+      int max_step = 5;
       double llr_min = log(lr_min);
       double llr_max = log(lr_max);
-      double lrate = llr_min + (llr_max - llr_min) / max_step * (max_step - min(max_step, alt / stepsize));
+      double lrate = llr_min + (llr_max - llr_min) / max_step * (max_step - alt / stepsize);
       double rate = exp(lrate);
       if (alt < stepsize)
-        rate = lr_min + (lr_max - lr_min) / stepsize * (stepsize - abs(alt % (stepsize * 2) - stepsize));
+        rate = lr_min + (lr_max - lr_min) / stepsize * (stepsize - abs(alt * 5 % (stepsize * 2) - stepsize));
       if (alt / stepsize > max_step) {
         double lr_scale = pow(1.5, -(alt - max_step * stepsize) / stepsize / 2.0);
         rate *= lr_scale;
