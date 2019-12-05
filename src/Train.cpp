@@ -139,11 +139,14 @@ bool ReadLzTrainingData(istream& in, game_info_t* game, int& color, float* prob,
   getline(in, dummy);
   if (dummy.length() != 0)
     abort();
-  int col = color;
   for (int i = 7; i >= 0; i--) {
-    ReadLzPlane(line[color == S_BLACK ? i : 8 + i], col, game);
-    ReadLzPlane(line[color == S_BLACK ? 8 + i : i], FLIP_COLOR(col), game);
-    // PrintBoard(game);
+    int moves0 = game->moves;
+    ReadLzPlane(line[color == S_BLACK ? i : 8 + i], S_BLACK, game);
+    ReadLzPlane(line[color == S_BLACK ? 8 + i : i], S_WHITE, game);
+    if (game->moves > 1 && game->moves == moves0) {
+      PutStone(game, PASS, FLIP_COLOR(game->record[game->moves - 1].color));
+    }
+    // if (win == 100) PrintBoard(game);
   }
 
 #if 0
@@ -220,6 +223,8 @@ ExtractKifu(LZ_record_t* rec)
     return;
   }
 
+  cerr << "load " << filename << endl;
+
   vector<char> buf;
   Inflate(filename, buf);
   boost::interprocess::basic_ivectorstream<vector<char>> in(buf);
@@ -232,22 +237,34 @@ ExtractKifu(LZ_record_t* rec)
   int num = 0;
   int num_games = 0;
   int last_moves = 0;
-  size_t last_pos = 0;
+  unsigned long long previous_hash = 0;
   while (!in.eof()) {
-    last_pos = in.tellg();
+    size_t last_pos = in.tellg();
+    win = 100;
     if (!ReadLzTrainingData(in, game, color, prob, win))
       break;
     /*
     cerr
-    << "COLOR:" << color
-    << "\tWIN:" << win << endl;
+      << "MOVES:" << game->moves
+      << "\tHASH:" << game->previous1_hash
+      << "\tHASH:" << game->current_hash
+      << "\tCOLOR:" << color
+      << "\tWIN:" << win << endl;
     */
-    if (game->moves == 1) {
+    if (game->moves == 1 || game->previous1_hash != previous_hash) {
+      /*
+      cerr
+        << "MOVES:" << game->moves
+        << "\tLAST:" << last_moves
+        << "\tCOLOR:" << color
+        << "\tWIN:" << win << endl;
+      */
       rec->pos.push_back({});
       num_games++;
     }
     rec->pos[rec->pos.size() - 1].push_back(last_pos);
     last_moves = game->moves;
+    previous_hash = game->current_hash;
     ClearBoard(game);
     num++;
   }
@@ -729,15 +746,19 @@ static int minibatch_size;
 static void
 ReadFiles( const vector<string>& filenames )
 {
-  cerr << "ReadFiles" << endl;
-  const size_t size = filenames.size();
+  cerr << "ReadFiles ";
+  size_t size = filenames.size();
   vector<string> files;
   files.reserve(size);
   for (auto& s : filenames) {
+    if (s.find("_low_") != std::string::npos
+        && mt() % 5 > 0)
+      continue;
     files.emplace_back(s);
   }
   shuffle(begin(files), end(files), mt);
 
+  size = files.size();
   records_train.resize(size);
   for (size_t i = 0; i < size; i++) {
     auto& kifu = records_train[i];
@@ -745,6 +766,7 @@ ReadFiles( const vector<string>& filenames )
     kifu.pos.clear();
   }
   records_cursor = 0;
+  cerr << records_train.size() << " from " << filenames.size() << endl;
 }
 
 void
@@ -1096,6 +1118,8 @@ Train()
       {
         lock_guard<mutex> lock(records_mutex);
         if (records_cursor >= records_train.size()) {
+          cerr << "cursor:" << (size_t)records_cursor
+            << " size:" << records_train.size() << endl;
           ReadFiles(filenames);
         }
       }
@@ -1200,7 +1224,7 @@ Train()
            << lrate << " "
            << rate << endl;
       use_easy_state = alt < stepsize;
-      use_smooth_value = alt / stepsize < max_step;
+      use_smooth_value = alt / stepsize <= max_step;
 #endif
       cerr << rate << endl;
       cerr << use_easy_state << " " << use_smooth_value << endl;
