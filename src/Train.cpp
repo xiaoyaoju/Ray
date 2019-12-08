@@ -543,7 +543,12 @@ public:
     }
 
     vector<char> buf;
-    Inflate(rec->filename, buf);
+    try {
+      Inflate(rec->filename, buf);
+    }
+    catch (...) {
+      cerr << "failed to load " << rec->filename << endl;
+    }
     boost::interprocess::basic_ivectorstream<vector<char>> in(buf);
 
     for (int n = 0; n < num; n++) {
@@ -752,7 +757,7 @@ ReadFiles( const vector<string>& filenames )
   files.reserve(size);
   for (auto& s : filenames) {
     if (s.find("_low_") != std::string::npos
-        && mt() % 5 > 0)
+        && mt() % 10 > 0)
       continue;
     files.emplace_back(s);
   }
@@ -882,7 +887,7 @@ Train()
 
     const size_t outputFrequencyInMinibatches = 50;
     const size_t trainingCheckpointFrequency = 500;
-    const int stepsize = 200;
+    const int stepsize = 100;
 #if 0
     const double lr_min = 1.0e-6;
     const double lr_max = 2.0e-3;
