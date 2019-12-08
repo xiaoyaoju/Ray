@@ -1,0 +1,196 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Debug|Win32">
+      <Configuration>Debug</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|Win32">
+      <Configuration>Release</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Debug|x64">
+      <Configuration>Debug</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|x64">
+      <Configuration>Release</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <VCProjectVersion>15.0</VCProjectVersion>
+    <ProjectGuid>{AB29C794-4902-4087-ABE1-F6BE0C54454A}</ProjectGuid>
+    <RootNamespace>lzray</RootNamespace>
+    <WindowsTargetPlatformVersion>10.0.16299.0</WindowsTargetPlatformVersion>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <UseDebugLibraries>true</UseDebugLibraries>
+    <PlatformToolset>v141</PlatformToolset>
+    <CharacterSet>MultiByte</CharacterSet>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <UseDebugLibraries>false</UseDebugLibraries>
+    <PlatformToolset>v141</PlatformToolset>
+    <WholeProgramOptimization>true</WholeProgramOptimization>
+    <CharacterSet>MultiByte</CharacterSet>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
+    <ConfigurationType>DynamicLibrary</ConfigurationType>
+    <UseDebugLibraries>true</UseDebugLibraries>
+    <PlatformToolset>v141</PlatformToolset>
+    <CharacterSet>MultiByte</CharacterSet>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
+    <ConfigurationType>DynamicLibrary</ConfigurationType>
+    <UseDebugLibraries>false</UseDebugLibraries>
+    <PlatformToolset>v141</PlatformToolset>
+    <WholeProgramOptimization>true</WholeProgramOptimization>
+    <CharacterSet>MultiByte</CharacterSet>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <ImportGroup Label="ExtensionSettings">
+  </ImportGroup>
+  <ImportGroup Label="Shared">
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <PropertyGroup Label="UserMacros" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <TargetExt>.pyd</TargetExt>
+    <IncludePath>C:\Python36\include;$(IncludePath)</IncludePath>
+    <LibraryPath>C:\Python36\libs;$(LibraryPath)</LibraryPath>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <TargetExt>.pyd</TargetExt>
+    <IncludePath>C:\Python36\include;$(IncludePath)</IncludePath>
+    <LibraryPath>C:\Python36\libs;$(LibraryPath)</LibraryPath>
+  </PropertyGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <ClCompile>
+      <WarningLevel>Level3</WarningLevel>
+      <Optimization>MaxSpeed</Optimization>
+      <FunctionLevelLinking>true</FunctionLevelLinking>
+      <IntrinsicFunctions>true</IntrinsicFunctions>
+      <SDLCheck>true</SDLCheck>
+      <ConformanceMode>true</ConformanceMode>
+      <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
+    </ClCompile>
+    <Link>
+      <EnableCOMDATFolding>true</EnableCOMDATFolding>
+      <OptimizeReferences>true</OptimizeReferences>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+    <ClCompile>
+      <WarningLevel>Level3</WarningLevel>
+      <Optimization>Disabled</Optimization>
+      <SDLCheck>true</SDLCheck>
+      <ConformanceMode>true</ConformanceMode>
+    </ClCompile>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <ClCompile>
+      <WarningLevel>Level3</WarningLevel>
+      <Optimization>Disabled</Optimization>
+      <SDLCheck>true</SDLCheck>
+      <ConformanceMode>true</ConformanceMode>
+      <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
+    </ClCompile>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
+    <ClCompile>
+      <WarningLevel>Level3</WarningLevel>
+      <Optimization>MaxSpeed</Optimization>
+      <FunctionLevelLinking>true</FunctionLevelLinking>
+      <IntrinsicFunctions>true</IntrinsicFunctions>
+      <SDLCheck>true</SDLCheck>
+      <ConformanceMode>true</ConformanceMode>
+    </ClCompile>
+    <Link>
+      <EnableCOMDATFolding>true</EnableCOMDATFolding>
+      <OptimizeReferences>true</OptimizeReferences>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemGroup>
+    <ClCompile Include="..\..\src\Command.cpp" />
+    <ClCompile Include="..\..\src\DynamicKomi.cpp" />
+    <ClCompile Include="..\..\src\GoBoard.cpp" />
+    <ClCompile Include="..\..\src\Gtp.cpp" />
+    <ClCompile Include="..\..\src\Ladder.cpp" />
+    <ClCompile Include="..\..\src\Message.cpp" />
+    <ClCompile Include="..\..\src\MoveCache.cpp" />
+    <ClCompile Include="..\..\src\Nakade.cpp" />
+    <ClCompile Include="..\..\src\OpeningBook.cpp" />
+    <ClCompile Include="..\..\src\Pattern.cpp" />
+    <ClCompile Include="..\..\src\PatternHash.cpp" />
+    <ClCompile Include="..\..\src\Point.cpp" />
+    <ClCompile Include="..\..\src\Rating.cpp" />
+    <ClCompile Include="..\..\src\Rating2.cpp" />
+    <ClCompile Include="..\..\src\RayMain.cpp" />
+    <ClCompile Include="..\..\src\SearchBoard.cpp" />
+    <ClCompile Include="..\..\src\Seki.cpp" />
+    <ClCompile Include="..\..\src\Semeai.cpp" />
+    <ClCompile Include="..\..\src\SgfExtractor.cpp" />
+    <ClCompile Include="..\..\src\Simulation.cpp" />
+    <ClCompile Include="..\..\src\Train.cpp" />
+    <ClCompile Include="..\..\src\UctRating.cpp" />
+    <ClCompile Include="..\..\src\UctSearch.cpp" />
+    <ClCompile Include="..\..\src\Utility.cpp" />
+    <ClCompile Include="..\..\src\ZobristHash.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="..\..\src\Command.h" />
+    <ClInclude Include="..\..\src\DynamicKomi.h" />
+    <ClInclude Include="..\..\src\GoBoard.h" />
+    <ClInclude Include="..\..\src\Gtp.h" />
+    <ClInclude Include="..\..\src\Ladder.h" />
+    <ClInclude Include="..\..\src\Message.h" />
+    <ClInclude Include="..\..\src\MoveCache.h" />
+    <ClInclude Include="..\..\src\Nakade.h" />
+    <ClInclude Include="..\..\src\OpeningBook.h" />
+    <ClInclude Include="..\..\src\Pattern.h" />
+    <ClInclude Include="..\..\src\PatternHash.h" />
+    <ClInclude Include="..\..\src\Point.h" />
+    <ClInclude Include="..\..\src\Rating.h" />
+    <ClInclude Include="..\..\src\Rating2.h" />
+    <ClInclude Include="..\..\src\SearchBoard.h" />
+    <ClInclude Include="..\..\src\Seki.h" />
+    <ClInclude Include="..\..\src\Semeai.h" />
+    <ClInclude Include="..\..\src\SgfExtractor.h" />
+    <ClInclude Include="..\..\src\Simulation.h" />
+    <ClInclude Include="..\..\src\Train.h" />
+    <ClInclude Include="..\..\src\UctRating.h" />
+    <ClInclude Include="..\..\src\UctSearch.h" />
+    <ClInclude Include="..\..\src\Utility.h" />
+    <ClInclude Include="..\..\src\ZobristHash.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="packages.config" />
+  </ItemGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <ImportGroup Label="ExtensionTargets">
+    <Import Project="..\packages\boost.1.66.0.0\build\native\boost.targets" Condition="Exists('..\packages\boost.1.66.0.0\build\native\boost.targets')" />
+    <Import Project="..\packages\boost_python-vc141.1.66.0.0\build\native\boost_python-vc141.targets" Condition="Exists('..\packages\boost_python-vc141.1.66.0.0\build\native\boost_python-vc141.targets')" />
+  </ImportGroup>
+  <Target Name="EnsureNuGetPackageBuildImports" BeforeTargets="PrepareForBuild">
+    <PropertyGroup>
+      <ErrorText>このプロジェクトは、このコンピューター上にない NuGet パッケージを参照しています。それらのパッケージをダウンロードするには、[NuGet パッケージの復元] を使用します。詳細については、http://go.microsoft.com/fwlink/?LinkID=322105 を参照してください。見つからないファイルは {0} です。</ErrorText>
+    </PropertyGroup>
+    <Error Condition="!Exists('..\packages\boost.1.66.0.0\build\native\boost.targets')" Text="$([System.String]::Format('$(ErrorText)', '..\packages\boost.1.66.0.0\build\native\boost.targets'))" />
+    <Error Condition="!Exists('..\packages\boost_python-vc141.1.66.0.0\build\native\boost_python-vc141.targets')" Text="$([System.String]::Format('$(ErrorText)', '..\packages\boost_python-vc141.1.66.0.0\build\native\boost_python-vc141.targets'))" />
+  </Target>
+</Project>
