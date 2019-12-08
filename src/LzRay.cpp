@@ -10,6 +10,7 @@
 
 #include "GoBoard.h"
 //#include "Gtp.h"
+#include "Message.h"
 #include "OpeningBook.h"
 #include "PatternHash.h"
 #include "Rating.h"
@@ -24,10 +25,58 @@ namespace py = boost::python;
 namespace numpy = boost::python::numpy;
 
 
-void collect_features(numpy::ndarray src, numpy::ndarray dst) {
+void ReadLzPlane(const uint8_t* planes, int chanel, int color, game_info_t* game)
+{
+  for (auto n = size_t{ 0 }; n < pure_board_max; n++) {
+    //auto c = planes[n * (18 + num_features) + chanel];
+    auto c = planes[pure_board_max * chanel + n];
+    if ((c > 0) && game->board[onboard_pos[n]] == S_EMPTY) {
+      if (!IsLegal(game, onboard_pos[n], color)) {
+        std::cerr << "Illegal move " << FormatMove(onboard_pos[n]) << std::endl;
+        PrintBoard(game);
+        throw std::runtime_error("Illegal move");
+      }
+      PutStone(game, onboard_pos[n], color);
+    }
+  }
 }
 
-BOOST_PYTHON_MODULE(callcfrompy) {
+void WritePlanes(uint8_t* planes, int color)
+{
+  auto game = std::unique_ptr<game_info_t>(AllocateGame());
+  ClearBoard(game.get());
+
+  for (int i = 7; i >= 0; i--) {
+    int moves0 = game->moves;
+    ReadLzPlane(planes, (color == S_BLACK ? i : 8 + i), S_BLACK, game.get());
+    ReadLzPlane(planes,  (color == S_BLACK ? 8 + i : i), S_WHITE, game.get());
+    if (game->moves > 1 && game->moves == moves0) {
+      PutStone(game.get(), PASS, FLIP_COLOR(game->record[game->moves - 1].color));
+    }
+    // if (win == 100)
+    //PrintBoard(game.get());
+  }
+
+  WritePlanes2(planes + pure_board_max * 16, game.get(), color, 0);
+
+}
+
+void collect_features(numpy::ndarray planes, int color) {
+  int nd = planes.get_nd();
+  if (nd != 1)
+    throw std::runtime_error("planes must be 1-dimensional");
+  size_t N = planes.shape(0);
+  if (planes.get_dtype() != numpy::dtype::get_builtin<uint8_t>())
+    throw std::runtime_error("planes must be uint8_t array");
+  if (N != 19 * 19 * (16 + num_features))
+    throw std::runtime_error("planes must be 19 * 19 * 18" + std::to_string(N));
+  if (color != 0 && color != 1)
+    throw std::runtime_error("illegal color");
+  uint8_t *p = reinterpret_cast<uint8_t *>(planes.get_data());
+  WritePlanes(p, color == 0 ? S_BLACK : S_WHITE);
+}
+
+BOOST_PYTHON_MODULE(lzray) {
   Py_Initialize();
   numpy::initialize();
 
@@ -67,8 +116,8 @@ BOOST_PYTHON_MODULE(callcfrompy) {
 
   // 各種初期化
   InitializeConst();
-  InitializeRating();
-  InitializeUctRating();
+  //InitializeRating();
+  //InitializeUctRating();
   InitializeHash();
   InitializeUctHash();
   SetNeighbor();
