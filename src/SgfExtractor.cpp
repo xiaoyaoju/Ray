@@ -3,6 +3,7 @@
 #include <cstring>
 #include <cctype>
 #include <memory>
+#include <array>
 
 #include "GoBoard.h"
 #include "Message.h"

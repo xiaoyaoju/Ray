@@ -202,7 +202,7 @@ void
 OpeningBook::save(std::ostream& out)
 {
   out << 1 << " " << move_count << " " << value_move_count << endl;
-  for (auto& it = books.begin(); it != books.end(); it++) {
+  for (auto it = books.begin(); it != books.end(); it++) {
     auto& r = it->second;
     if (r.second != 0)
       continue;
