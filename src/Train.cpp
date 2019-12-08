@@ -530,7 +530,7 @@ public:
     return true;
   }
 
-  void ReadN(DataSet& data, int num) {
+  void ReadN(DataSet& data, size_t num_rest, size_t per_file) {
     auto cursor = std::atomic_fetch_add(records_cursor, (size_t)1);
     LZ_record_t* rec = &(*records)[cursor % records->size()];
     if (false) {
@@ -551,13 +551,15 @@ public:
     }
     boost::interprocess::basic_ivectorstream<vector<char>> in(buf);
 
-    for (int n = 0; n < num; n++) {
+    size_t num_read = min(num_rest, per_file > 0 ? per_file : rec->pos.size());
+
+    for (size_t n = 0; n < num_read; n++) {
       Play(data, *rec, in);
     }
     current_rec++;
   }
 
-  unique_ptr<DataSet> Read(size_t n) {
+  unique_ptr<DataSet> Read(size_t n, size_t per_file) {
     auto data = make_unique<DataSet>();
     data->num_req = 0;
     data->basic.reserve(pure_board_max * 18 * n);
@@ -571,7 +573,7 @@ public:
     data->score_value.reserve(n);
 
     while (data->num_req < n) {
-      ReadN(*data, min(n - data->num_req, num_games_per_file));
+      ReadN(*data, n - data->num_req, per_file);
       /*
       cerr << data->num_req
         << " basic:" << data->basic.size()
@@ -780,7 +782,7 @@ ReadGames(int thread_no)
   Reader reader { &records_train, &records_cursor };
   while (running) {
     //cerr << "READ " << thread_no << endl;
-    auto data = reader.Read(minibatch_size);
+    auto data = reader.Read(minibatch_size, 0);
     mutex_queue.lock();
     data_queue.push(move(data));
 
@@ -839,7 +841,7 @@ ReadCvData( vector<string>& filenames, vector<unique_ptr<DataSet>>& cv_data )
     cerr << "cv " << (100.0 * i / (cv_size / minibatch_size)) << "%"
       << " read " << size
       << endl;
-    cv_data.push_back(move(cv_reader.Read(size)));
+    cv_data.push_back(move(cv_reader.Read(size, num_games_per_file)));
   }
 }
 
