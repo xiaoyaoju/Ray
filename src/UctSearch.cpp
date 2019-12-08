@@ -2418,9 +2418,12 @@ SelectMaxUcbChild( uct_search_context_t& ctx, const game_info_t *game, int curre
   const double cfg_fpu_reduction = 0.125f;
   double fpu_reduction = cfg_fpu_reduction * sqrt(sum_visited_nnrate);
 
+  bool use_nnrate = true;
+  /*
   bool use_nnrate = ctx.move_count % 5 > 0;
   if (!use_nnrate)
     fpu_reduction = cfg_fpu_reduction;
+  */
 
   int max_move_count = 0;
   int max_move_child = 0;
