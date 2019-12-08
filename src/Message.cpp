@@ -87,6 +87,7 @@ PrintBoard( const game_info_t *game )
   cerr << "+" << endl;
 }
 
+#if !defined(LZ_DLL)
 void
 PrintRate( const game_info_t *game )
 {
@@ -726,6 +727,7 @@ PrintPlayoutInformation( const uct_node_t *root, const po_info_t *po_info, const
     cerr << "Playout Speed      :  " << setw(7) << (int)(po_info->count / finish_time) << " PO/sec " << endl;
   }
 }
+#endif
 
 
 //////////////////

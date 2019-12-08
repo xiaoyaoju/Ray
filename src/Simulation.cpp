@@ -59,6 +59,7 @@ Simulation( game_info_t *game, int starting_color, std::mt19937_64 *mt )
   Simulation(game, starting_color, mt, false);
 }
 
+#if !defined(LZ_DLL)
 ////////////////////////////////
 // シミュレーション              //
 ////////////////////////////////
@@ -94,3 +95,4 @@ SimulationGenmove(game_info_t *game, int color)
   // 着手を生成する
   return RatingMove(game, color, &mt);
 }
+#endif

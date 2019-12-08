@@ -253,6 +253,7 @@ void SetUseNN(bool flag);
 
 void SetDeviceId( const int id );
 
+#if !defined(LZ_DLL)
 // Policy networkの手を打つ
 int PolicyNetworkGenmove(game_info_t *game, int color);
 
@@ -269,5 +270,6 @@ bool GetVariableByName(std::vector<CNTK::Variable> variableLists, std::wstring v
 bool GetInputVariableByName(CNTK::FunctionPtr evalFunc, std::wstring varName, CNTK::Variable& var);
 
 bool GetOutputVaraiableByName(CNTK::FunctionPtr evalFunc, std::wstring varName, CNTK::Variable& var);
+#endif
 
 #endif

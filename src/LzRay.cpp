@@ -4,22 +4,33 @@
 #include <windows.h>
 #endif
 
-#include "Command.h"
+#define BOOST_PYTHON_STATIC_LIB
+#define BOOST_NUMPY_STATIC_LIB
+#include <boost/python/numpy.hpp>
+
 #include "GoBoard.h"
-#include "Gtp.h"
+//#include "Gtp.h"
 #include "OpeningBook.h"
 #include "PatternHash.h"
 #include "Rating.h"
 #include "Semeai.h"
 #include "Train.h"
 #include "UctRating.h"
-#include "UctSearch.h"
+//#include "UctSearch.h"
 #include "ZobristHash.h"
 
 
-int
-main( int argc, char **argv )
-{
+namespace py = boost::python;
+namespace numpy = boost::python::numpy;
+
+
+void collect_features(numpy::ndarray src, numpy::ndarray dst) {
+}
+
+BOOST_PYTHON_MODULE(callcfrompy) {
+  Py_Initialize();
+  numpy::initialize();
+
   char program_path[1024];
   int last;
 
@@ -53,29 +64,14 @@ main( int argc, char **argv )
   snprintf(uct_params_path, 1024, "%s/uct_params", program_path);
   snprintf(po_params_path, 1024, "%s/sim_params", program_path);
 #endif
-  // コマンドライン引数の解析  
-  AnalyzeCommand(argc, argv);
 
   // 各種初期化
   InitializeConst();
   InitializeRating();
   InitializeUctRating();
-  InitializeUctSearch();
-  InitializeSearchSetting();
   InitializeHash();
   InitializeUctHash();
   SetNeighbor();
 
-  switch (GetRunMode()) {
-  case RUN_MODE::GTP:
-    // GTP
-    GTP_main();
-    break;
-  case RUN_MODE::TRAIN:
-    Train();
-    //ThinkOpeningBook();
-    break;
-  }
-
-  return 0;
+  py::def("collect_features", collect_features);
 }
