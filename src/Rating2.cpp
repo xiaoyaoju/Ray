@@ -235,13 +235,7 @@ InitializePoTacticalFeaturesSet( void )
     } else if ((i & po_tactical_features_mask[F_3POINT_ATARI]) > 0) {
       rate *= po_tactical_features[F_3POINT_ATARI + F_MAX1];
     }
-    if ((i & po_tactical_features_mask[F_ATARI4]) > 0) {
-      rate *= po_tactical_features[F_ATARI4 + F_MAX1];
-    } else if ((i & po_tactical_features_mask[F_ATARI3]) > 0) {
-      rate *= po_tactical_features[F_ATARI3 + F_MAX1];
-    } else if ((i & po_tactical_features_mask[F_ATARI2]) > 0) {
-      rate *= po_tactical_features[F_ATARI2 + F_MAX1];
-    } else if ((i & po_tactical_features_mask[F_ATARI1]) > 0) {
+    if ((i & po_tactical_features_mask[F_ATARI1]) > 0) {
       rate *= po_tactical_features[F_ATARI1 + F_MAX1];
     }
 
@@ -253,12 +247,6 @@ InitializePoTacticalFeaturesSet( void )
       rate *= po_tactical_features[F_2POINT_EXTENSION + F_MAX1];
     } else if ((i & po_tactical_features_mask[F_3POINT_EXTENSION]) > 0) {
       rate *= po_tactical_features[F_3POINT_EXTENSION + F_MAX1];
-    }
-
-    if ((i & po_tactical_features_mask[F_3POINT_DAME_LARGE]) > 0) {
-      rate *= po_tactical_features[F_3POINT_DAME_LARGE + F_MAX1];
-    } else if ((i & po_tactical_features_mask[F_3POINT_DAME_SMALL]) > 0) {
-      rate *= po_tactical_features[F_3POINT_DAME_SMALL + F_MAX1];
     }
 
     if ((i & po_tactical_features_mask[F_THROW_IN_2]) > 0) {
@@ -944,16 +932,6 @@ PoCheckFeaturesLib2( rating_context_t& ctx, const int color, const int id, posit
   }
   */
 
-  //
-  bool self_atari_flag1 = PoCheckSelfAtari(game, color, lib1);
-  bool self_atari_flag2 = PoCheckSelfAtari(game, color, lib2);
-  if (self_atari_flag1 && !self_atari_flag2) {
-    game->tactical_features2[lib1] |= po_tactical_features_mask[F_CAPTURE_CONNECTION];
-  }
-  if (self_atari_flag2 && !self_atari_flag1) {
-    game->tactical_features2[lib2] |= po_tactical_features_mask[F_CAPTURE_CONNECTION];
-  }
-
   PoCheckSelfAtari(game, color, lib2);
 
   // レートの更新対象に入れる
@@ -1124,22 +1102,6 @@ PoCheckFeaturesLib3( rating_context_t& ctx, const int color, const int id, posit
       } else if (state2 == rating_ladder_state_t::ALIVE) {
         game->tactical_features2[lib2] |= po_tactical_features_mask[F_3POINT_ATARI];
       }
-    } else if (string[neighbor].libs == 3) {
-      lib1 = string[neighbor].lib[0];
-      lib2 = string[neighbor].lib[lib1];
-      lib3 = string[neighbor].lib[lib2];
-      update[(*update_num)++] = lib1;
-      update[(*update_num)++] = lib2;
-      update[(*update_num)++] = lib3;
-      if (string[neighbor].size <= 2) {
-        game->tactical_features2[lib1] |= po_tactical_features_mask[F_3POINT_DAME_SMALL];
-        game->tactical_features2[lib2] |= po_tactical_features_mask[F_3POINT_DAME_SMALL];
-        game->tactical_features2[lib3] |= po_tactical_features_mask[F_3POINT_DAME_SMALL];
-      } else {
-        game->tactical_features2[lib1] |= po_tactical_features_mask[F_3POINT_DAME_LARGE];
-        game->tactical_features2[lib2] |= po_tactical_features_mask[F_3POINT_DAME_LARGE];
-        game->tactical_features2[lib3] |= po_tactical_features_mask[F_3POINT_DAME_LARGE];
-      }
     }
     neighbor = string[id].neighbor[neighbor];
   }
@@ -1278,58 +1240,6 @@ PoCheckCaptureAfterKo( game_info_t *game, const int color, position_t *update, i
       game->tactical_features1[lib] |= po_tactical_features_mask[F_CAPTURE_AFTER_KO];
     }
   }
-}
-
-bool
-PoCheckSnapBack( game_info_t *game, int color, position_t pos, position_t pos0 )
-{
-  const char *board = game->board;
-  const string_t *string = game->string;
-  const position_t *string_id = game->string_id;
-  int other = FLIP_COLOR(color);
-
-  if (board[pos0] != other)
-    return false;
-
-  int id = string_id[pos0];
-  if (string[id].libs == 2) {
-    int lib0 = string[id].lib[0];
-    int lib1 = string[id].lib[lib0];
-    if (IsNeighbor(lib0, lib1)) {
-      position_t lib = (lib0 == pos) ? lib1 : lib0;
-      position_t neighbor4[4];
-      GetNeighbor4(neighbor4, lib);
-      bool safe = false;
-      for (position_t p : neighbor4) {
-	if (p == pos)
-	  continue;
-	if (board[p] == S_EMPTY
-	  || (board[p] == other && string_id[p] != id)) {
-	  safe = true;
-	  break;
-	}
-	if (board[p] == color
-	  && string[string_id[p]].libs == 1) {
-	  safe = true;
-	  break;
-	}
-      }
-      if (!safe) {
-#if 0
-        PrintBoard(game);
-        cerr << "SNAPBACK? " << color << " " << FormatMove(pos) << " " << FormatMove(lib) << endl;
-        for (int f2 = 0; f2 < F_MAX2; f2++) {
-          if (game->tactical_features2[pos] & po_tactical_features_mask[f2])
-            cerr << po_features_name[F_MAX1 + f2];
-        }
-        cerr << endl;
-#endif
-        game->tactical_features1[pos] |= po_tactical_features_mask[F_SNAPBACK];
-        return true;
-      }
-    }
-  }
-  return false;
 }
 
 
@@ -1523,14 +1433,7 @@ PoCheckSelfAtari( game_info_t *game, const int color, const position_t pos )
   // または大きさが5以下でナカデの形になる場合は
   // 打っても良いものとする
   if (size == 0) {
-    // Check snap back
-    bool snapback =
-      PoCheckSnapBack(game, color, pos, NORTH(pos))
-      || PoCheckSnapBack(game, color, pos, SOUTH(pos))
-      || PoCheckSnapBack(game, color, pos, WEST(pos))
-      || PoCheckSnapBack(game, color, pos, EAST(pos));
-    if (!snapback)
-      game->tactical_features2[pos] |= po_tactical_features_mask[F_SELF_ATARI_SMALL];
+    game->tactical_features2[pos] |= po_tactical_features_mask[F_SELF_ATARI_SMALL];
     flag = true;
   } else if (size < 2) {
     game->tactical_features2[pos] |= po_tactical_features_mask[F_SELF_ATARI_SMALL];
@@ -1633,12 +1536,8 @@ PoCheckCaptureAndAtari( rating_context_t& ctx, const int color, const position_t
 
       if (!legal) {
         //SKIP
-      } else if (string[id].size == 1) {
-        game->tactical_features2[pos] |= po_tactical_features_mask[F_ATARI1];
-      } else if (string[id].size == 2) {
-        game->tactical_features2[pos] |= po_tactical_features_mask[F_ATARI2];
       } else {
-        game->tactical_features2[pos] |= po_tactical_features_mask[F_ATARI3];
+        game->tactical_features2[pos] |= po_tactical_features_mask[F_ATARI];
       }
     }
   }
@@ -1674,86 +1573,6 @@ PoCheckCaptureAndAtari( rating_context_t& ctx, const int color, const position_t
   // 1. 敵の石
   // 2. 呼吸点が1つ
   PoCheckCaptureAndAtari(ctx, color, pos, SOUTH(pos));
-
-  // 眼形
-  int eye_pos = PASS;
-  eye_condition_t eye_cond = eye_condition[Pat3(game->pat, pos)];
-  if (eye_cond < E_HALF_1_EYE) {
-    if (board[NORTH(EAST(pos))] == S_EMPTY) {
-      if (eye_condition[Pat3(game->pat, NORTH(EAST(pos)))] == E_HALF_1_EYE) {
-        eye_pos = NORTH(EAST(pos));
-        game->tactical_features2[pos] |= po_tactical_features_mask[F_HALF_1_EYE];
-      }
-      if (eye_condition[Pat3(game->pat, NORTH(EAST(pos)))] == E_HALF_2_EYE) {
-        eye_pos = NORTH(EAST(pos));
-        game->tactical_features2[pos] |= po_tactical_features_mask[F_HALF_2_EYE];
-      }
-    }
-    if (board[NORTH(WEST(pos))] == S_EMPTY) {
-      if (eye_condition[Pat3(game->pat, NORTH(WEST(pos)))] == E_HALF_1_EYE) {
-        eye_pos = NORTH(WEST(pos));
-        game->tactical_features2[pos] |= po_tactical_features_mask[F_HALF_1_EYE];
-      }
-      if (eye_condition[Pat3(game->pat, NORTH(WEST(pos)))] == E_HALF_2_EYE) {
-        eye_pos = NORTH(WEST(pos));
-        game->tactical_features2[pos] |= po_tactical_features_mask[F_HALF_2_EYE];
-      }
-    }
-    if (board[SOUTH(EAST(pos))] == S_EMPTY) {
-      if (eye_condition[Pat3(game->pat, SOUTH(EAST(pos)))] == E_HALF_1_EYE) {
-        eye_pos = SOUTH(EAST(pos));
-        game->tactical_features2[pos] |= po_tactical_features_mask[F_HALF_1_EYE];
-      }
-      if (eye_condition[Pat3(game->pat, SOUTH(EAST(pos)))] == E_HALF_2_EYE) {
-        eye_pos = SOUTH(EAST(pos));
-        game->tactical_features2[pos] |= po_tactical_features_mask[F_HALF_2_EYE];
-      }
-    }
-    if (board[SOUTH(WEST(pos))] == S_EMPTY) {
-      if (eye_condition[Pat3(game->pat, SOUTH(WEST(pos)))] == E_HALF_1_EYE) {
-        eye_pos = SOUTH(WEST(pos));
-        game->tactical_features2[pos] |= po_tactical_features_mask[F_HALF_1_EYE];
-      }
-      if (eye_condition[Pat3(game->pat, SOUTH(WEST(pos)))] == E_HALF_2_EYE) {
-        eye_pos = SOUTH(WEST(pos));
-        game->tactical_features2[pos] |= po_tactical_features_mask[F_HALF_2_EYE];
-      }
-    }
-    if (board[NORTH(pos)] == S_EMPTY) {
-      if (replace_eye_condition[Pat3(game->pat, NORTH(pos))] == E_HALF_1_EYE) {
-        eye_pos = NORTH(pos);
-        game->tactical_features2[pos] |= po_tactical_features_mask[F_HALF_1_EYE];
-      }
-    }
-    if (board[WEST(pos)] == S_EMPTY) {
-      if (replace_eye_condition[Pat3(game->pat, WEST(pos))] == E_HALF_1_EYE) {
-        eye_pos = WEST(pos);
-        game->tactical_features2[pos] |= po_tactical_features_mask[F_HALF_1_EYE];
-      }
-    }
-    if (board[EAST(pos)] == S_EMPTY) {
-      if (replace_eye_condition[Pat3(game->pat, EAST(pos))] == E_HALF_1_EYE) {
-        eye_pos = EAST(pos);
-        game->tactical_features2[pos] |= po_tactical_features_mask[F_HALF_1_EYE];
-      }
-    }
-    if (board[SOUTH(pos)] == S_EMPTY) {
-      if (replace_eye_condition[Pat3(game->pat, SOUTH(pos))] == E_HALF_1_EYE) {
-        eye_pos = SOUTH(pos);
-        game->tactical_features2[pos] |= po_tactical_features_mask[F_HALF_1_EYE];
-      }
-    }
-  }
-#if 0
-  if ((game->tactical_features2[pos] & po_tactical_features_mask[F_HALF_1_EYE]) != 0) {
-    cerr << "HALF_1_EYE " << FormatMove(pos) << " EYE:" << FormatMove(eye_pos) << endl;
-    PrintBoard(game);
-  }
-  if ((game->tactical_features2[pos] & po_tactical_features_mask[F_HALF_2_EYE]) != 0) {
-    cerr << "HALF_2_EYE " << FormatMove(pos) << " EYE:" << FormatMove(eye_pos) << endl;
-    PrintBoard(game);
-  }
-#endif
 }
 
 

@@ -274,7 +274,7 @@ void GetNeighbor4( position_t neighbor4[4], const position_t pos );
 
 struct uct_node_t;
 
-const int num_features = 90;
+const int num_features = 90 - 18;
 
 void WritePlanes(
   std::vector<float>& data_basic,
