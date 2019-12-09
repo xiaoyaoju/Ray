@@ -221,6 +221,8 @@ double k_score = 0.5;
 
 double book_margin = 0.02;
 
+int ladder_limit = 4;
+
 ray_clock::time_point begin_time;
 
 static bool early_pass = true;
@@ -1247,7 +1249,7 @@ ExpandRoot( game_info_t *game, int color )
   unsigned long long hash = game->move_hash;
   unsigned int index = FindSameHashIndex(hash, color, moves);
   int pos, child_num = 0, pm1 = PASS, pm2 = PASS;
-  bool ladder[BOARD_MAX] = { false };
+  uint8_t ladder[BOARD_MAX] = { 0 };
   child_node_t *uct_child;
 
   // 直前の着手の座標を取り出す
@@ -1284,13 +1286,13 @@ ExpandRoot( game_info_t *game, int color )
       uct_child[i].rate = 0.0;
       uct_child[i].flag = false;
       uct_child[i].open = false;
-      if (ladder[pos]) {
+      if (ladder[pos] >= ladder_limit) {
 	uct_node[index].move_count -= uct_child[i].move_count;
 	uct_node[index].win -= uct_child[i].win;
 	uct_child[i].move_count = 0;
 	uct_child[i].win = 0;
       }
-      uct_child[i].ladder = ladder[pos];
+      uct_child[i].ladder = ladder[pos] >= ladder_limit;
     }
 
     path.push_back(index);
@@ -1332,7 +1334,7 @@ ExpandRoot( game_info_t *game, int color )
     uct_child = uct_node[index].child;
 
     // パスノードの展開
-    InitializeCandidate(&uct_child[PASS_INDEX], PASS, ladder[PASS]);
+    InitializeCandidate(&uct_child[PASS_INDEX], PASS, ladder[PASS] >= ladder_limit);
     child_num++;
 
     // 候補手の展開
@@ -1341,7 +1343,7 @@ ExpandRoot( game_info_t *game, int color )
         pos = first_move_candidate[i];
         // 探索候補かつ合法手であれば探索対象にする
         if (candidates[pos] && IsLegal(game, pos, color)) {
-          InitializeCandidate(&uct_child[child_num], pos, ladder[pos]);
+          InitializeCandidate(&uct_child[child_num], pos, ladder[pos] >= ladder_limit);
           uct_child[child_num].trivial = IsTrivialMove(game, pos, color);
           child_num++;
         }
@@ -1351,7 +1353,7 @@ ExpandRoot( game_info_t *game, int color )
         pos = onboard_pos[i];
         // 探索候補かつ合法手であれば探索対象にする
         if (candidates[pos] && IsLegal(game, pos, color)) {
-          InitializeCandidate(&uct_child[child_num], pos, ladder[pos]);
+          InitializeCandidate(&uct_child[child_num], pos, ladder[pos] >= ladder_limit);
           uct_child[child_num].trivial = IsTrivialMove(game, pos, color);
           child_num++;
         }
@@ -1429,7 +1431,7 @@ ExpandNode( game_info_t *game, int color )
   // 2手前の着手の座標を取り出す
   if (moves > 1) pm2 = game->record[moves - 2].pos;
 
-  bool ladder[BOARD_MAX] = { false };
+  uint8_t ladder[BOARD_MAX] = { 0 };
 
   // 9路盤でなければシチョウを調べる
   if (pure_board_size != 9) {
@@ -1454,7 +1456,7 @@ ExpandNode( game_info_t *game, int color )
 
   int child_num = 0;
   // パスノードの展開
-  InitializeCandidate(&uct_child[PASS_INDEX], PASS, ladder[PASS]);
+  InitializeCandidate(&uct_child[PASS_INDEX], PASS, ladder[PASS] >= ladder_limit);
   child_num++;
 
   // 候補手の展開
@@ -1462,7 +1464,7 @@ ExpandNode( game_info_t *game, int color )
     int pos = onboard_pos[i];
     // 探索候補でなければ除外
     if (candidates[pos] && IsLegal(game, pos, color)) {
-      InitializeCandidate(&uct_child[child_num], pos, ladder[pos]);
+      InitializeCandidate(&uct_child[child_num], pos, ladder[pos] >= ladder_limit);
       uct_child[child_num].trivial = IsTrivialMove(game, pos, color);
       trivial |= uct_child[child_num].trivial;
       child_num++;

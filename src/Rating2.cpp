@@ -13,6 +13,7 @@
 #include <numeric>
 #include <set>
 
+#include "Ladder.h"
 #include "Message.h"
 #include "Nakade.h"
 #include "Point.h"
@@ -25,9 +26,6 @@ using namespace std;
 
 // パラメータのファイルを格納しているディレクトリのパス
 extern char po_params_path[1024];
-
-// シチョウ探索
-bool IsLadderCaptured( const int depth, search_game_info_t *game, const int ren_xy, const int turn_color, int &max_size );
 
 namespace rating_v2 {
 

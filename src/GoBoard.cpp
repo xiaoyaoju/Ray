@@ -2077,7 +2077,7 @@ WritePlanes(
   const int opp = FLIP_COLOR(color);
   const position_t *string_id = game->string_id;
 
-  bool ladder[2][BOARD_MAX] = { false };
+  uint8_t ladder[2][BOARD_MAX] = { 0 };
 
   // シチョウを調べる
   LadderExtension(game, S_BLACK, ladder[0]);
@@ -2131,8 +2131,8 @@ WritePlanes(
     for (int i = 0; i < 4; i++)
       OUTPUT({ int l = GetLibs(game, p); OUTPUT_FEATURE(data_features, c == S_WHITE && l >= i + 1); });
 
-    OUTPUT({ OUTPUT_FEATURE(data_features, ladder[0][p]); });
-    OUTPUT({ OUTPUT_FEATURE(data_features, ladder[1][p]); });
+    OUTPUT({ OUTPUT_FEATURE(data_features, ladder[0][p] >= 4); });
+    OUTPUT({ OUTPUT_FEATURE(data_features, ladder[1][p] >= 4); });
 
     double rate[PURE_BOARD_MAX];
 
@@ -2196,14 +2196,13 @@ WritePlanes2(
   const int opp = FLIP_COLOR(color);
   const position_t *string_id = game->string_id;
 
-  bool ladder[2][BOARD_MAX] = { false };
+  uint8_t ladder[2][BOARD_MAX] = { 0 };
 
   // シチョウを調べる
   LadderExtension(game, color, ladder[0]);
   LadderExtension(game, opp, ladder[1]);
 
-  {
-    const int ko = game->ko_pos;
+  const int ko = game->ko_pos;
 
 #define OUTPUT(block) \
 		for (int y = board_start; y <= board_end; y++) { \
@@ -2214,56 +2213,57 @@ WritePlanes2(
 			}\
 		}
 
-    //const size_t new_features_size = data_features.size() + pure_board_max * 90;
-    //data_features.reserve(new_features_size);
-    size_t ptr = 0;
+  size_t ptr = 0;
 
-    for (int i = 0; i < 4; i++)
-      OUTPUT({ int l = GetLibs(game, p); OUTPUT_FEATURE(data_features, c == color && l >= i + 1); });
-    for (int i = 0; i < 4; i++)
-      OUTPUT({ int l = GetLibs(game, p); OUTPUT_FEATURE(data_features, c == opp && l >= i + 1); });
+  for (int i = 0; i < 4; i++)
+    OUTPUT({ int l = GetLibs(game, p); OUTPUT_FEATURE(data_features, c == color && l >= i + 1); });
+  for (int i = 0; i < 4; i++)
+    OUTPUT({ int l = GetLibs(game, p); OUTPUT_FEATURE(data_features, c == opp && l >= i + 1); });
 
-    OUTPUT({ OUTPUT_FEATURE(data_features, ladder[0][p]); });
-    OUTPUT({ OUTPUT_FEATURE(data_features, ladder[1][p]); });
+  for (int i = 0; i < 4; i++)
+    OUTPUT({ OUTPUT_FEATURE(data_features, ladder[0][p] >= 4 + i); });
+  for (int i = 0; i < 4; i++)
+    OUTPUT({ OUTPUT_FEATURE(data_features, ladder[1][p] >= 4 + i); });
 
-    double rate[PURE_BOARD_MAX];
+  double rate[PURE_BOARD_MAX];
+  bool alive[MAX_STRING];
+  bool dead[MAX_STRING];
 
-    bool alive[MAX_STRING];
-    bool dead[MAX_STRING];
+  for (int side = 0; side < 2; side++) {
+    rating_context_t ctx(game);
+    AnalyzePoRating(ctx, side == 0 ? color : opp, rate);
 
-    for (int side = 0; side < 2; side++) {
-      rating_context_t ctx(game);
-      AnalyzePoRating(ctx, side == 0 ? color : opp, rate);
-
-      for (int i = 0; i < MAX_STRING; i++) {
-        alive[i] = ctx.string_captured[i * 2 + 0] == rating_ladder_state_t::ALIVE
-          && (ctx.string_captured[i * 2 + 1] == rating_ladder_state_t::UNCHECKED || ctx.string_captured[i * 2 + 1] == rating_ladder_state_t::ALIVE);
-        dead[i] = ctx.string_captured[i * 2 + 0] == rating_ladder_state_t::DEAD
-          || ctx.string_captured[i * 2 + 1] == rating_ladder_state_t::DEAD;
-      }
-      OUTPUT({
-        int id = string_id[p];
-        OUTPUT_FEATURE(data_features, alive[id]);
-      });
-      OUTPUT({
-        int id = string_id[p];
-        OUTPUT_FEATURE(data_features, dead[id]);
-      });
-
-      for (int i = 0; i < F_MAX1; i++) {
-        OUTPUT({
-          bool flg = (game->tactical_features1[p] & po_tactical_features_mask[i]) != 0;
-          //if (flg) count1[i]++;
-          OUTPUT_FEATURE(data_features, flg);
-        });
-      }
-      for (int i = 0; i < F_MAX2; i++) {
-        OUTPUT({
-          bool flg = (game->tactical_features2[p] & po_tactical_features_mask[i]) != 0;
-          //if (flg) count2[i]++;
-          OUTPUT_FEATURE(data_features, flg);
-        });
-      }
+    for (int i = 0; i < MAX_STRING; i++) {
+      alive[i] = ctx.string_captured[i * 2 + 0] == rating_ladder_state_t::ALIVE
+        && (ctx.string_captured[i * 2 + 1] == rating_ladder_state_t::UNCHECKED || ctx.string_captured[i * 2 + 1] == rating_ladder_state_t::ALIVE);
+      dead[i] = ctx.string_captured[i * 2 + 0] == rating_ladder_state_t::DEAD
+        || ctx.string_captured[i * 2 + 1] == rating_ladder_state_t::DEAD;
     }
+    OUTPUT({
+      int id = string_id[p];
+      OUTPUT_FEATURE(data_features, alive[id]);
+    });
+    OUTPUT({
+      int id = string_id[p];
+      OUTPUT_FEATURE(data_features, dead[id]);
+    });
+
+    for (int i = 0; i < F_MAX1; i++) {
+      OUTPUT({
+        bool flg = (game->tactical_features1[p] & po_tactical_features_mask[i]) != 0;
+        //if (flg) count1[i]++;
+        OUTPUT_FEATURE(data_features, flg);
+      });
+    }
+    for (int i = 0; i < F_MAX2; i++) {
+      OUTPUT({
+        bool flg = (game->tactical_features2[p] & po_tactical_features_mask[i]) != 0;
+        //if (flg) count2[i]++;
+        OUTPUT_FEATURE(data_features, flg);
+      });
+    }
+  }
+  if (ptr != pure_board_max * num_features) {
+    cerr << "Illegal state actual:" << ptr << " expect:" << pure_board_max * num_features << endl;
   }
 }
