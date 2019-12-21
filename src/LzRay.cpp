@@ -57,7 +57,7 @@ void WritePlanes(uint8_t* planes, int color)
     //PrintBoard(game.get());
   }
 
-  WritePlanes2(planes + pure_board_max * 16, game.get(), color, 0);
+  WritePlanes2(planes + pure_board_max * 18, game.get(), color, 0);
 
 }
 
@@ -68,7 +68,7 @@ void collect_features(numpy::ndarray planes, int color) {
   size_t N = planes.shape(0);
   if (planes.get_dtype() != numpy::dtype::get_builtin<uint8_t>())
     throw std::runtime_error("planes must be uint8_t array");
-  if (N != 19 * 19 * (16 + num_features))
+  if (N != 19 * 19 * (18 + num_features))
     throw std::runtime_error("planes must be 19 * 19 * 18" + std::to_string(N));
   if (color != 0 && color != 1)
     throw std::runtime_error("illegal color");

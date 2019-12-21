@@ -2240,12 +2240,20 @@ WritePlanes2(
         || ctx.string_captured[i * 2 + 1] == rating_ladder_state_t::DEAD;
     }
     OUTPUT({
-      int id = string_id[p];
-      OUTPUT_FEATURE(data_features, alive[id]);
+      if (game->board[p] != S_EMPTY) {
+        int id = string_id[p];
+        OUTPUT_FEATURE(data_features, alive[id]);
+      } else {
+        OUTPUT_FEATURE(data_features, false);
+      }
     });
     OUTPUT({
-      int id = string_id[p];
-      OUTPUT_FEATURE(data_features, dead[id]);
+      if (game->board[p] != S_EMPTY) {
+        int id = string_id[p];
+        OUTPUT_FEATURE(data_features, dead[id]);
+      } else {
+        OUTPUT_FEATURE(data_features, false);
+      }
     });
 
     for (int i = 0; i < F_MAX1; i++) {
