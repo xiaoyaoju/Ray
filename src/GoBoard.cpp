@@ -2062,6 +2062,45 @@ GetLibs(
 }
 
 
+static int
+GetSize(
+  const game_info_t *game,
+  int p)
+{
+  int c = game->board[p];
+  if (c != S_EMPTY) {
+    const string_t *string = game->string;
+    const position_t *string_id = game->string_id;
+    return string[string_id[p]].size;
+  }
+  return 0;
+}
+
+
+static int
+GetEyes(
+  const game_info_t *game,
+  int p)
+{
+  int c = game->board[p];
+  if (c == S_EMPTY)
+    return 0;
+
+  const string_t *string = game->string;
+  const position_t *string_id = game->string_id;
+  const int id = string_id[p];
+
+  int count = 0;
+  int lib = string[id].lib[0];
+  while (lib != LIBERTY_END) {
+    if (eye[Pat3(game->pat, lib)] == c)
+      count++;
+    lib = string[id].lib[lib];
+  }
+  return count;
+}
+
+
 void
 WritePlanes(
   std::vector<float>& data_basic,
@@ -2126,10 +2165,8 @@ WritePlanes(
     const size_t new_features_size = data_features.size() + pure_board_max * 90;
     data_features.reserve(new_features_size);
 
-    for (int i = 0; i < 4; i++)
-      OUTPUT({ int l = GetLibs(game, p); OUTPUT_FEATURE(data_features, c == S_BLACK && l >= i + 1); });
-    for (int i = 0; i < 4; i++)
-      OUTPUT({ int l = GetLibs(game, p); OUTPUT_FEATURE(data_features, c == S_WHITE && l >= i + 1); });
+    for (int i = 0; i < 8; i++)
+      OUTPUT({ int l = GetLibs(game, p); OUTPUT_FEATURE(data_features, l >= i + 1); });
 
     OUTPUT({ OUTPUT_FEATURE(data_features, ladder[0][p] >= 4); });
     OUTPUT({ OUTPUT_FEATURE(data_features, ladder[1][p] >= 4); });
@@ -2215,10 +2252,12 @@ WritePlanes2(
 
   size_t ptr = 0;
 
-  for (int i = 0; i < 4; i++)
-    OUTPUT({ int l = GetLibs(game, p); OUTPUT_FEATURE(data_features, c == color && l >= i + 1); });
-  for (int i = 0; i < 4; i++)
-    OUTPUT({ int l = GetLibs(game, p); OUTPUT_FEATURE(data_features, c == opp && l >= i + 1); });
+  for (int i = 0; i < 8; i++)
+    OUTPUT({ int l = GetLibs(game, p); OUTPUT_FEATURE(data_features, l >= i + 1); });
+  for (int i = 0; i < 8; i++)
+    OUTPUT({ int l = GetSize(game, p); OUTPUT_FEATURE(data_features, l >= (i + 1) * 2); });
+  for (int i = 0; i < 2; i++)
+    OUTPUT({ int l = GetEyes(game, p); OUTPUT_FEATURE(data_features, l >= i + 1); });
 
   for (int i = 0; i < 4; i++)
     OUTPUT({ OUTPUT_FEATURE(data_features, ladder[0][p] >= 4 + i); });

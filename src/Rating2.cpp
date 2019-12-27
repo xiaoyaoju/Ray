@@ -102,9 +102,6 @@ bool PoCheckSelfAtari( game_info_t *game, const int color, const position_t pos 
 //  トリとアタリの判定
 static void PoCheckCaptureAndAtari( rating_context_t& ctx, const int color, const position_t pos );
 
-//  2目の抜き後に対するホウリコミ
-static void PoCheckRemove2Stones( game_info_t *game, const int color, position_t *update, int *update_num );
-
 //  γ読み込み
 static void InputPOGamma( void );
 static void InputMD2( const char *filename, float *ap );
@@ -629,7 +626,6 @@ PartialRating( rating_context_t& ctx, int color, long long *sum_rate, long long 
   if (pm1 != PASS) {
     Neighbor12(pm1, distance_2, distance_3, distance_4);
     PoCheckFeatures(ctx, color, pm1, update_pos, update_num);
-    PoCheckRemove2Stones(game, color, update_pos, update_num);
 
     SearchNakade(game, &nakade_num, nakade_pos);
     NakadeUpdate(ctx, color, sum_rate, sum_rate_row, rate, nakade_pos, nakade_num, flag, pm1);
@@ -837,15 +833,7 @@ PoCheckFeaturesLib1( rating_context_t& ctx, const int color, const int id, posit
   }
 #endif
 
-  if (string[id].size == 1) {
-    game->tactical_features1[lib] |= po_tactical_features_mask[F_SAVE1];
-  } else if (string[id].size == 2) {
-    game->tactical_features1[lib] |= po_tactical_features_mask[F_SAVE2];
-  } else if (string[id].size == 3) {
-    game->tactical_features1[lib] |= po_tactical_features_mask[F_SAVE3];
-  } else {
-    game->tactical_features1[lib] |= po_tactical_features_mask[F_SAVE4];
-  }
+  game->tactical_features1[lib] |= po_tactical_features_mask[F_SAVE];
 
   // レートの更新対象に入れる
   update[(*update_num)++] = lib;
@@ -856,11 +844,6 @@ PoCheckFeaturesLib1( rating_context_t& ctx, const int color, const int id, posit
   while (neighbor != NEIGHBOR_END) {
     if (string[neighbor].libs == 1) {
       lib = string[neighbor].lib[0];
-      if (string[neighbor].size == 1) {
-        if (string[neighbor].libs > 1 && IsSelfAtariCaptureForSimulation(game, lib, color, liberty)) {
-          game->tactical_features1[lib] |= po_tactical_features_mask[F_SAVE_CAPTURE_SELF_ATARI];
-        }
-      }
       game->tactical_features1[lib] |= po_tactical_features_mask[F_SAVE_CAPTURE];
       update[(*update_num)++] = lib;
     }
@@ -1576,53 +1559,6 @@ PoCheckCaptureAndAtari( rating_context_t& ctx, const int color, const position_t
 }
 
 
-///////////////////////////////////
-//  2目抜かれたときのホウリコミ  //
-///////////////////////////////////
-static void
-PoCheckRemove2Stones( game_info_t *game, const int color, position_t *update, int *update_num )
-{
-  int other = FLIP_COLOR(color);
-
-  if (game->capture_num[other] != 2) {
-    return;
-  }
-
-  position_t rm1 = game->capture_pos[other][0];
-  position_t rm2 = game->capture_pos[other][1];
-
-  if (rm1 - rm2 != 1 &&
-      rm2 - rm1 != 1 &&
-      rm1 - rm2 != board_size &&
-      rm2 - rm1 != board_size) {
-    return;
-  }
-
-  int check = 0;
-  for (int i = 0; i < 4; i++) {
-    if ((game->board[rm1 + cross[i]] & color) == color) {
-      check++;
-    }
-  }
-
-  if (check >= 2) {
-    game->tactical_features2[rm1] |= po_tactical_features_mask[F_THROW_IN_2];
-    update[(*update_num)++] = rm1;
-  }
-
-  for (int i = 0, check = 0; i < 4; i++) {
-    if ((game->board[rm2 + cross[i]] & color) == color) {
-      check++;
-    }
-  }
-
-  if (check >= 2) {
-    game->tactical_features2[rm2] |= po_tactical_features_mask[F_THROW_IN_2];
-    update[(*update_num)++] = rm2;
-  }
-}
-
-
 //////////////////
 //  γ読み込み  //
 //////////////////
@@ -1743,7 +1679,6 @@ AnalyzePoRating( rating_context_t& ctx, int color, double rate[] )
   pm1 = game->record[moves - 1].pos;
 
   PoCheckFeatures(ctx, color, pm1, update_pos, &update_num);
-  PoCheckRemove2Stones(game, color, update_pos, &update_num);
   if (game->ko_move == moves - 2) {
     PoCheckCaptureAfterKo(game, color, update_pos, &update_num);
   }

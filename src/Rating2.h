@@ -13,12 +13,8 @@ enum FEATURE1{
   F_CAPTURE2,
   F_CAPTURE3,
   F_CAPTURE4,
-  F_SAVE1,
-  F_SAVE2,
-  F_SAVE3,
-  F_SAVE4,
+  F_SAVE,
   F_SAVE_CAPTURE,
-  F_SAVE_CAPTURE_SELF_ATARI,
   F_2POINT_CAPTURE,
   F_3POINT_CAPTURE,
   F_CAPTURE_AFTER_KO,
@@ -41,7 +37,6 @@ enum FEATURE2 {
   F_2POINT_EXTENSION,
   F_3POINT_EXTENSION_SAFELY,
   F_3POINT_EXTENSION,
-  F_THROW_IN_2,
   F_MAX2,
 };
 
@@ -50,12 +45,8 @@ const std::string po_features_name[F_MAX1 + F_MAX2] = {
   "CAPTURE2                ",
   "CAPTURE3                ",
   "CAPTURE4                ",
-  "SAVE1                   ",
-  "SAVE2                   ",
-  "SAVE3                   ",
-  "SAVE4                   ",
+  "SAVE                    ",
   "SAVE_CAPTURE            ",
-  "SAVE_CAPTURE_SELF_ATARI ",
   "2POINT_CAPTURE          ",
   "3POINT_CAPTURE          ",
   "CAPTURE_AFTER_KO        ",
@@ -74,7 +65,6 @@ const std::string po_features_name[F_MAX1 + F_MAX2] = {
   "2POINT_EXTENSION        ",
   "3POINT_EXTENSION_SAFELY ",
   "3POINT_EXTENSION        ",
-  "THROW_IN_2              ",
 };
 
 const int TACTICAL_FEATURE_MAX = F_MAX1 + F_MAX2;
