@@ -2232,6 +2232,7 @@ WritePlanes2(
 #define OUTPUT_FEATURE(data, x)	data[ptr++] = ((x) ? 1.0f : 0.0f)
   const int opp = FLIP_COLOR(color);
   const position_t *string_id = game->string_id;
+  const string_t *string = game->string;
 
   uint8_t ladder[2][BOARD_MAX] = { 0 };
 
@@ -2264,13 +2265,39 @@ WritePlanes2(
   for (int i = 0; i < 4; i++)
     OUTPUT({ OUTPUT_FEATURE(data_features, ladder[1][p] >= 4 + i); });
 
-  double rate[PURE_BOARD_MAX];
+  rating_context_t ctx(game);
   bool alive[MAX_STRING];
   bool dead[MAX_STRING];
 
   for (int side = 0; side < 2; side++) {
-    rating_context_t ctx(game);
-    AnalyzePoRating(ctx, side == 0 ? color : opp, rate);
+    const auto col = side == 0 ? color : opp;
+
+    ctx.clear();
+
+    for (int id = 0; id < MAX_STRING; id++) {
+      if (!string[id].flag)
+        continue;
+      if (string[id].libs > 2)
+        continue;
+      for (int lib = string[id].lib[0]; lib != LIBERTY_END; lib = string[id].lib[lib]) {
+        const auto p = PureBoardPos(RevTransformMove(lib, tran));
+        const auto state = GetLadderState(ctx, id, lib, col);
+        if (state == rating_ladder_state_t::DEAD) {
+          if (string[id].color == col) {
+            data_features[ptr + pure_board_max * 0 + p] = 1.0f;
+          } else {
+            data_features[ptr + pure_board_max * 1 + p] = 1.0f;
+          }
+        } else if (state == rating_ladder_state_t::ALIVE) {
+          if (string[id].color == col) {
+            data_features[ptr + pure_board_max * 2 + p] = 1.0f;
+          } else {
+            data_features[ptr + pure_board_max * 3 + p] = 1.0f;
+          }
+        }
+      }
+    }
+    ptr += pure_board_max * 4;
 
     for (int i = 0; i < MAX_STRING; i++) {
       alive[i] = ctx.string_captured[i * 2 + 0] == rating_ladder_state_t::ALIVE
@@ -2294,22 +2321,8 @@ WritePlanes2(
         OUTPUT_FEATURE(data_features, false);
       }
     });
-
-    for (int i = 0; i < F_MAX1; i++) {
-      OUTPUT({
-        bool flg = (game->tactical_features1[p] & po_tactical_features_mask[i]) != 0;
-        //if (flg) count1[i]++;
-        OUTPUT_FEATURE(data_features, flg);
-      });
-    }
-    for (int i = 0; i < F_MAX2; i++) {
-      OUTPUT({
-        bool flg = (game->tactical_features2[p] & po_tactical_features_mask[i]) != 0;
-        //if (flg) count2[i]++;
-        OUTPUT_FEATURE(data_features, flg);
-      });
-    }
   }
+
   if (ptr != pure_board_max * num_features) {
     cerr << "Illegal state actual:" << ptr << " expect:" << pure_board_max * num_features << endl;
   }

@@ -773,9 +773,10 @@ GetLadderState( rating_context_t& ctx, int id, position_t lib, int color )
   */
 
   if (IsLegalForSearch(ctx.search_game, lib, color)) {
-    PutStoneForSearch(ctx.search_game, lib, color);
+    int origin = string[id].origin;
     int max_size = string[id].size;
-    if (!IsLadderCaptured(0, ctx.search_game, string[id].origin, FLIP_COLOR(color), max_size)) {
+    PutStoneForSearch(ctx.search_game, lib, color);
+    if (game->board[origin] == S_EMPTY || !IsLadderCaptured(0, ctx.search_game, string[id].origin, FLIP_COLOR(color), max_size)) {
       ctx.string_captured[id * 2 + ladder_no] = rating_ladder_state_t::DEAD;
       ctx.string_captured_pos[id * 2 + ladder_no] = lib;
     } else {
@@ -1673,8 +1674,7 @@ AnalyzePoRating( rating_context_t& ctx, int color, double rate[] )
     game->tactical_features2[pos] = 0;
   }
 
-  fill_n(ctx.string_captured, extent<decltype(ctx.string_captured)>::value, rating_ladder_state_t::UNCHECKED);
-  fill_n(ctx.string_captured_pos, extent<decltype(ctx.string_captured_pos)>::value, PASS);
+  ctx.clear();
 
   pm1 = game->record[moves - 1].pos;
 
@@ -1731,6 +1731,13 @@ rating_context_t::rating_context_t(game_info_t *src)
 rating_context_t::~rating_context_t()
 {
   delete search_game;
+}
+
+void
+rating_context_t::clear()
+{
+  fill_n(string_captured, extent<decltype(string_captured)>::value, rating_ladder_state_t::UNCHECKED);
+  fill_n(string_captured_pos, extent<decltype(string_captured_pos)>::value, PASS);
 }
 
 }

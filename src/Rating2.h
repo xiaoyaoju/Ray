@@ -98,6 +98,8 @@ struct rating_context_t {
 
   explicit rating_context_t(game_info_t *src);
   ~rating_context_t();
+
+  void clear();
 };
 
 ////////////
