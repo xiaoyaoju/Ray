@@ -775,7 +775,7 @@ GetLadderState( rating_context_t& ctx, int id, position_t lib, int color )
   if (IsLegalForSearch(ctx.search_game, lib, color)) {
     PutStoneForSearch(ctx.search_game, lib, color);
     int max_size = string[id].size;
-    if (!IsLadderCaptured(90, ctx.search_game, string[id].origin, FLIP_COLOR(color), max_size)) {
+    if (!IsLadderCaptured(0, ctx.search_game, string[id].origin, FLIP_COLOR(color), max_size)) {
       ctx.string_captured[id * 2 + ladder_no] = rating_ladder_state_t::DEAD;
       ctx.string_captured_pos[id * 2 + ladder_no] = lib;
     } else {
@@ -1481,7 +1481,7 @@ PoCheckCaptureAndAtari( rating_context_t& ctx, const int color, const position_t
         }
         */
         int max_size = string[id].size;
-        if (!IsLadderCaptured(90, ctx.search_game, string[id].origin, FLIP_COLOR(color), max_size)) {
+        if (!IsLadderCaptured(0, ctx.search_game, string[id].origin, FLIP_COLOR(color), max_size)) {
 #if 0
           cerr << "NO ESCAPABLE " << FormatMove(pos) << " " << FormatMove(other_pos) << endl;
           PrintBoard(game);
