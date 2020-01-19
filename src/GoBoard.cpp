@@ -2296,6 +2296,33 @@ WritePlanes2(
           }
         }
       }
+
+      for (int nlibs = 1; nlibs < 3; nlibs++) {
+        for (int neighbor = string[id].neighbor[0]; neighbor != NEIGHBOR_END; neighbor = string[id].neighbor[neighbor]) {
+          if (string[neighbor].libs != nlibs)
+            continue;
+          for (int lib = string[neighbor].lib[0]; lib != LIBERTY_END; lib = string[neighbor].lib[lib]) {
+            const auto p = PureBoardPos(RevTransformMove(lib, tran));
+            const auto state = GetLadderState(ctx, id, lib, col);
+            if (state == rating_ladder_state_t::DEAD) {
+              if (string[id].color == col) {
+                data_features[ptr + pure_board_max * 0 + p] = 1.0f;
+              }
+              else {
+                data_features[ptr + pure_board_max * 1 + p] = 1.0f;
+              }
+            }
+            else if (state == rating_ladder_state_t::ALIVE) {
+              if (string[id].color == col) {
+                data_features[ptr + pure_board_max * 2 + p] = 1.0f;
+              }
+              else {
+                data_features[ptr + pure_board_max * 3 + p] = 1.0f;
+              }
+            }
+          }
+        }
+      }
     }
     ptr += pure_board_max * 4;
 
