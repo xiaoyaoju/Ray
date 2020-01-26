@@ -762,6 +762,7 @@ GetLadderState(rating_context_t& ctx, int id, position_t lib, int color)
     }
   }
   if (ladder_no < 0) {
+#if 0
     cerr << "BROKEN LADDER CACHE LIB:" << FormatMove(lib) << " STRING:" << FormatMove(string[id].origin);
 
     for (int i = 0; i < rating_context_t::num_move_cache; i++) {
@@ -770,6 +771,7 @@ GetLadderState(rating_context_t& ctx, int id, position_t lib, int color)
     }
     cerr << endl;
     PrintBoard(game);
+#endif
     return rating_ladder_state_t::ILLEGAL;
   }
 
