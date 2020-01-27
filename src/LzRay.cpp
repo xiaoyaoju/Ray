@@ -25,7 +25,7 @@ namespace py = boost::python;
 namespace numpy = boost::python::numpy;
 
 
-void ReadLzPlane(const uint8_t* planes, int chanel, int color, game_info_t* game)
+void ReadLzPlane(const float* planes, int chanel, int color, game_info_t* game)
 {
   for (auto n = size_t{ 0 }; n < pure_board_max; n++) {
     //auto c = planes[n * (18 + num_features) + chanel];
@@ -41,7 +41,7 @@ void ReadLzPlane(const uint8_t* planes, int chanel, int color, game_info_t* game
   }
 }
 
-void WritePlanes(uint8_t* planes, int color)
+void WritePlanes(float* planes, int color)
 {
   auto game = std::unique_ptr<game_info_t>(AllocateGame());
   ClearBoard(game.get());
@@ -61,22 +61,36 @@ void WritePlanes(uint8_t* planes, int color)
 
 }
 
-void collect_features(numpy::ndarray planes, int color) {
+void collect_features(numpy::ndarray planes, float stm) {
   int nd = planes.get_nd();
   if (nd != 1)
     throw std::runtime_error("planes must be 1-dimensional");
   size_t N = planes.shape(0);
-  if (planes.get_dtype() != numpy::dtype::get_builtin<uint8_t>())
-    throw std::runtime_error("planes must be uint8_t array");
-  if (N != 19 * 19 * (18 + num_features))
+  if (planes.get_dtype() != numpy::dtype::get_builtin<float>())
+    throw std::runtime_error("planes must be float array");
+  float *p = reinterpret_cast<float *>(planes.get_data());
+  int size = 19;
+  if (N == 19 * 19 * (18 + num_features)) {
+    size = 19;
+  } else if (N == 9 * 9 * (18 + num_features)) {
+    size = 9;
+  } else {
     throw std::runtime_error("planes must be 19 * 19 * 18" + std::to_string(N));
-  if (color != 0 && color != 1)
+  }
+  if (pure_board_size != size) {
+    SetBoardSize(size);
+  }
+  int color = PASS;
+  if (abs(p[pure_board_max * 16] - stm) < 0.001)
+    color = S_BLACK;
+  else if (abs(p[pure_board_max * 17] - stm) < 0.001)
+    color = S_WHITE;
+  if (color == PASS)
     throw std::runtime_error("illegal color");
-  uint8_t *p = reinterpret_cast<uint8_t *>(planes.get_data());
-  WritePlanes(p, color == 0 ? S_BLACK : S_WHITE);
+  WritePlanes(p, color);
 }
 
-BOOST_PYTHON_MODULE(lzray) {
+BOOST_PYTHON_MODULE(lzrayk) {
   Py_Initialize();
   numpy::initialize();
 

@@ -284,7 +284,7 @@ void WritePlanes(
   int color, int tran);
 
 void WritePlanes2(
-  std::uint8_t* data_features,
+  float* data_features,
   game_info_t *game,
   int color, int tran);
 
