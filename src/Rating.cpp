@@ -9,6 +9,10 @@
 #include <functional>
 #include <string>
 
+#if !defined(_WIN32)
+#include <sys/mman.h>
+#endif
+
 #include "Message.h"
 #include "Nakade.h"
 #include "Point.h"
@@ -29,15 +33,15 @@ static float po_pat3[PAT3_MAX];
 // MD2のパターンのγ値
 static float po_md2[MD2_MAX];
 // 3x3とMD2のパターンのγ値の積
-static float po_pattern[MD2_MAX];
+static float *po_pattern;//[MD2_MAX];
 // 学習した着手距離の特徴 
 static float po_neighbor_orig[PREVIOUS_DISTANCE_MAX];
 // 補正した着手距離の特徴
 static float po_previous_distance[PREVIOUS_DISTANCE_MAX];
 // 戦術的特徴1
-static float po_tactical_set1[PO_TACTICALS_MAX1];
+static float *po_tactical_set1;//[PO_TACTICALS_MAX1];
 // 戦術的特徴2
-static float po_tactical_set2[PO_TACTICALS_MAX2];
+static float *po_tactical_set2;//[PO_TACTICALS_MAX2];
 // パラメータのファイルを格納しているディレクトリのパス
 char po_params_path[1024];
 
@@ -144,11 +148,32 @@ InitializeRating( void )
 void
 InitializePoTacticalFeaturesSet( void )
 {
-  int i;
-  double rate;
+#ifdef _WIN32
+  po_tactical_set1 = new float[PO_TACTICALS_MAX1];
+  po_tactical_set2 = new float[PO_TACTICALS_MAX2];
+#else
+  po_tactical_set1 = (float*) mmap(NULL, sizeof(float) * PO_TACTICALS_MAX1,
+                                   PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS | MAP_HUGETLB,
+                                   -1, 0);
+  if (po_tactical_set1 == MAP_FAILED) {
+    cerr << "map failed 1 " << errno << endl;
+    po_tactical_set1 = (float*) mmap(NULL, sizeof(float) * PO_TACTICALS_MAX1,
+                                     PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS,
+                                     -1, 0);
+  }
+  po_tactical_set2 = (float*) mmap(NULL, sizeof(float) * PO_TACTICALS_MAX2,
+                                   PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS | MAP_HUGETLB,
+                                   -1, 0);
+  if (po_tactical_set2 == MAP_FAILED) {
+    cerr << "map failed 2 " << errno << endl;
+    po_tactical_set2 = (float*) mmap(NULL, sizeof(float) * PO_TACTICALS_MAX2,
+                                     PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS,
+                                     -1, 0);
+  }
+#endif
 
-  for (i = 0; i < PO_TACTICALS_MAX1; i++){
-    rate = 1.0;
+  for (int i = 0; i < PO_TACTICALS_MAX1; i++){
+    double rate = 1.0;
 
     if ((i & po_tactical_features_mask[F_SAVE_CAPTURE3_3]) > 0) {
       rate *= po_tactical_features[F_SAVE_CAPTURE3_3];
@@ -202,8 +227,8 @@ InitializePoTacticalFeaturesSet( void )
   }
 
 
-  for (i = 0; i < PO_TACTICALS_MAX2; i++) {
-    rate = 1.0;
+  for (int i = 0; i < PO_TACTICALS_MAX2; i++) {
+    double rate = 1.0;
 
     if ((i & po_tactical_features_mask[F_SELF_ATARI_SMALL]) > 0) {
       rate *= po_tactical_features[F_SELF_ATARI_SMALL + F_MAX1];
@@ -1461,6 +1486,19 @@ InputPOGamma( void )
   InputMD2(path.c_str(), po_md2);
 
   // 3x3とMD2のパターンをまとめる
+#ifdef _WIN32
+  po_pattern = new float[MD2_MAX];
+#else
+  po_pattern = (float*) mmap(NULL, sizeof(float) * MD2_MAX,
+                             PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS | MAP_HUGETLB,
+                             -1, 0);
+  if (po_pattern == MAP_FAILED) {
+    cerr << "map failed md2 " << errno << endl;
+    po_pattern = (float*) mmap(NULL, sizeof(float) * MD2_MAX,
+                               PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS,
+                               -1, 0);
+  }
+#endif
   for (i = 0; i < MD2_MAX; i++){
     po_pattern[i] = (float)(po_md2[i] * po_pat3[i & 0xFFFF] * 100.0);
   }

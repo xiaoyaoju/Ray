@@ -4,6 +4,10 @@
 #include <random>
 #include <vector>
 
+#if !defined(_WIN32)
+#include <sys/mman.h>
+#endif
+
 #include "Nakade.h"
 #include "ZobristHash.h"
 
@@ -98,7 +102,13 @@ InitializeHash( void )
     shape_bit[i] = mt();
   }
 
+#ifdef _WIN32
   node_hash = new node_hash_t[uct_hash_size];
+#else
+  node_hash = (node_hash_t*) mmap(NULL, sizeof(node_hash_t) * uct_hash_size,
+								  PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS | MAP_HUGETLB,
+								  -1, 0);
+#endif
 
   if (node_hash == NULL) {
     cerr << "Cannot allocate memory" << endl;
